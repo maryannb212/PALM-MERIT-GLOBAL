@@ -1,0 +1,53 @@
+.admin-cashflow {
+  padding: 1.5rem;
+}
+
+.cashflow-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.cf-card {
+  background: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.cf-icon {
+  font-size: 2.5rem;
+  margin-right: 1.5rem;
+  opacity: 0.8;
+}
+
+.cf-details h3 {
+  margin: 0 0 0.5rem 0;
+  color: #4a5568;
+  font-size: 1.1rem;
+}
+
+.cf-details p {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+
+.cf-details small {
+  color: #718096;
+}
+
+.inflow .cf-icon { color: #38a169; }
+.inflow .cf-details p { color: #38a169; }
+
+.outflow .cf-icon { color: #e53e3e; }
+.outflow .cf-details p { color: #e53e3e; }
+
+.netflow.positive .cf-icon { color: #3182ce; }
+.netflow.positive .cf-details p { color: #3182ce; }
+
+.netflow.negative .cf-icon { color: #dd6b20; }
+.netflow.negative .cf-details p { color: #dd6b20; }

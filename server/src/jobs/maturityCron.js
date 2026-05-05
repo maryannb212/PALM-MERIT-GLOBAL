@@ -1,0 +1,83 @@
+import cron from 'node-cron';
+import pool from '../config/db.js';
+
+// Run every midnight
+cron.schedule('0 0 * * *', async () => {
+  console.log('Running daily maturity check job...');
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Fetch active plans to evaluate
+    const { rows: activePlans } = await client.query(`
+      SELECT id, user_id, plan_name, start_date 
+      FROM savings_plans 
+      WHERE status = 'active'
+    `);
+
+    for (const plan of activePlans) {
+      let durationDays = 0;
+      
+      switch (plan.plan_name) {
+        case 'CREST':
+          durationDays = 90;
+          break;
+        case 'SILVER':
+          durationDays = 360;
+          break;
+        case 'GOLDEN_BASKET':
+          durationDays = 360;
+          break;
+        case 'ISUSU':
+          durationDays = 30;
+          break;
+      }
+
+      const startDate = new Date(plan.start_date);
+      const maturityDate = new Date(startDate.getTime() + (durationDays * 24 * 60 * 60 * 1000));
+      const now = new Date();
+
+      if (now >= maturityDate) {
+        console.log(`Plan ${plan.id} (${plan.plan_name}) has matured.`);
+
+        let newStatus = 'matured'; // Fallback
+        let payoutDate = null;
+
+        if (['CREST', 'SILVER'].includes(plan.plan_name)) {
+          newStatus = 'pending_clearance';
+        } else if (plan.plan_name === 'GOLDEN_BASKET') {
+          newStatus = 'pending_settlement';
+          payoutDate = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)); // +7 days
+        } else {
+          // ISUSU or others
+          newStatus = 'pending_settlement';
+          payoutDate = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+        }
+
+        const updateQuery = `
+          UPDATE savings_plans 
+          SET status = $1, maturity_date = $2, payout_date = $3, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $4
+        `;
+        await client.query(updateQuery, [newStatus, now, payoutDate, plan.id]);
+
+        if (newStatus === 'pending_settlement') {
+          const payoutType = plan.plan_name === 'GOLDEN_BASKET' ? 'goods' : 'cash';
+          await client.query(`
+            INSERT INTO payouts (user_id, plan_id, amount, payout_type, status)
+            VALUES ($1, $2, $3, $4, 'pending')
+          `, [plan.user_id, plan.id, null, payoutType]);
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    console.log('Maturity check job completed successfully.');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error running maturity check job:', error);
+  } finally {
+    client.release();
+  }
+});
