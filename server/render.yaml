@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: palm-merit-global-server
+    env: node
+    buildCommand: npm install && npx knex migrate:latest
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - fromDatabase:
+          name: palmmerit-db
+          property: connectionString
+        key: DATABASE_URL
+
+databases:
+  - name: palmmerit-db
+    plan: free
+    databaseName: palmmerit
+    user: palmmerit_admin

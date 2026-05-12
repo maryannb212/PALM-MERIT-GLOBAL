@@ -11,9 +11,18 @@ export const submitKYC = async (req, res) => {
     const userId = req.user.id;
 
     // Get file paths
-    const idFrontUrl = req.files['id_image'] ? `/uploads/${req.files['id_image'][0].filename}` : null;
-    const idBackUrl = req.files['idBack'] ? `/uploads/${req.files['idBack'][0].filename}` : null;
-    const selfieUrl = req.files['selfie'] ? `/uploads/${req.files['selfie'][0].filename}` : null;
+    const getFilePath = (field) => {
+      if (!req.files || !req.files[field] || !req.files[field][0]) return null;
+      // In production (Cloudinary), 'path' is the full URL.
+      // In development (local), 'filename' needs the '/uploads/' prefix.
+      return process.env.NODE_ENV === 'production' 
+        ? req.files[field][0].path 
+        : `/uploads/${req.files[field][0].filename}`;
+    };
+
+    const idFrontUrl = getFilePath('id_image');
+    const idBackUrl = getFilePath('idBack');
+    const selfieUrl = getFilePath('selfie');
 
     // Basic validation
     if (!bvn || !id_type || !id_number) {

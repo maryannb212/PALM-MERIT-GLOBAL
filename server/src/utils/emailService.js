@@ -1,7 +1,12 @@
 import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+}
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -14,26 +19,23 @@ const transporter = nodemailer.createTransport({
 
 /**
  * Send a generic email
- * @param {string} to - Recipient email
- * @param {string} subject - Email subject
- * @param {string} text - Plain text content
- * @param {string} html - HTML content
  */
 export const sendEmail = async ({ to, subject, text, html }) => {
+  const from = `"${process.env.EMAIL_FROM_NAME || 'Palm Merit Global'}" <${process.env.EMAIL_FROM || 'info@palmmeritglobal.com'}>`;
+  
   try {
-    const info = await transporter.sendMail({
-      from: `"${process.env.EMAIL_FROM_NAME || 'Palm Merit Global'}" <${process.env.EMAIL_FROM || 'info@palmmeritglobal.com'}>`,
-      to,
-      subject,
-      text,
-      html,
-    });
-
-    console.log(`Email sent: ${info.messageId}`);
-    return info;
+    if (process.env.NODE_ENV === 'production' && process.env.SENDGRID_API_KEY) {
+      const msg = { to, from, subject, text, html };
+      await sgMail.send(msg);
+      console.log(`Email sent via SendGrid to ${to}`);
+      return { success: true };
+    } else {
+      const info = await transporter.sendMail({ from, to, subject, text, html });
+      console.log(`Email sent via Nodemailer: ${info.messageId}`);
+      return info;
+    }
   } catch (error) {
-    console.error('Error sending email:', error);
-    // Don't throw error in dev to avoid breaking the flow if SMTP is not configured
+    console.error('Error sending email:', error.response?.body || error.message);
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Email sending failed');
     }

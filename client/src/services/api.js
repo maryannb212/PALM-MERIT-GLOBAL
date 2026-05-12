@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
 });
 
 // Attach JWT token to every request if it exists in localStorage
@@ -15,6 +15,33 @@ API.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Response interceptor for handling token expiration
+API.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      const userInfo = JSON.parse(localStorage.getItem('palmmerit_user'));
+      if (userInfo?.refreshToken) {
+        try {
+          const { data } = await axios.post(`${API.defaults.baseURL}/auth/refresh`, {
+            refreshToken: userInfo.refreshToken,
+          });
+          userInfo.token = data.token;
+          localStorage.setItem('palmmerit_user', JSON.stringify(userInfo));
+          originalRequest.headers.Authorization = `Bearer ${data.token}`;
+          return API(originalRequest);
+        } catch (refreshError) {
+          localStorage.removeItem('palmmerit_user');
+          window.location.href = '/login';
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Auth endpoints
 export const registerUser = (formData) => API.post('/auth/register', formData);

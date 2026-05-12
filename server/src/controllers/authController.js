@@ -9,10 +9,23 @@ import { sendWelcomeEmail, sendPasswordResetEmail } from '../utils/emailService.
 
 dotenv.config();
 
-const generateToken = (id) => {
+const generateAccessToken = (id) => {
   return jsonwebtoken.sign({ id }, process.env.JWT_SECRET || 'secret', {
-    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
   });
+};
+
+const generateRefreshToken = async (userId) => {
+  const token = crypto.randomBytes(40).toString('hex');
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+  await query(
+    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+    [userId, token, expiresAt]
+  );
+
+  return token;
 };
 
 export const registerUser = async (req, res) => {
@@ -48,6 +61,9 @@ export const registerUser = async (req, res) => {
       // Send Welcome Email (Non-blocking)
       sendWelcomeEmail(user).catch(err => console.error('Welcome email failed:', err));
 
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = await generateRefreshToken(user.id);
+
       res.status(201).json({
         id: user.id,
         firstName: user.first_name,
@@ -57,7 +73,8 @@ export const registerUser = async (req, res) => {
         hasPaidMembership: user.has_paid_membership,
         kycStatus: user.kyc_status,
         profileImage: user.profile_image,
-        token: generateToken(user.id),
+        token: accessToken,
+        refreshToken: refreshToken
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });
@@ -78,7 +95,7 @@ export const loginUser = async (req, res) => {
       // Generate and save OTP
       const otp = await createAndSaveOTP(user.id, 'login');
       
-      // Simulate sending OTP
+      // Send OTP via SMS/Email
       await sendOTP(user.phone || user.email, otp.code);
 
       res.json({
@@ -118,7 +135,9 @@ export const verifyLoginOTP = async (req, res) => {
     // OTP is valid, update last_login
     await query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
 
-    // Return JWT
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = await generateRefreshToken(user.id);
+
     res.json({
       id: user.id,
       firstName: user.first_name,
@@ -128,11 +147,52 @@ export const verifyLoginOTP = async (req, res) => {
       hasPaidMembership: user.has_paid_membership,
       kycStatus: user.kyc_status,
       profileImage: user.profile_image,
-      token: generateToken(user.id),
+      token: accessToken,
+      refreshToken: refreshToken
     });
   } catch (error) {
     console.error('Error in verifyLoginOTP:', error);
     res.status(500).json({ message: 'Server error during OTP verification' });
+  }
+};
+
+export const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token is required' });
+    }
+
+    const { rows } = await query(
+      'SELECT * FROM refresh_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
+      [refreshToken]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ message: 'Invalid or expired refresh token' });
+    }
+
+    const userId = rows[0].user_id;
+    const accessToken = generateAccessToken(userId);
+
+    res.json({ token: accessToken });
+  } catch (error) {
+    console.error('Error in refreshToken:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const logoutUser = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
+    }
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Error in logoutUser:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -154,13 +214,11 @@ export const forgotPassword = async (req, res) => {
       [resetTokenHash, expires, user.id]
     );
 
-    // Send Reset Email (Non-blocking)
+    // Send Reset Email
     sendPasswordResetEmail(email, resetToken).catch(err => console.error('Reset email failed:', err));
 
-    console.log(`Password reset token for ${email}: ${resetToken}`);
-
     res.json({ 
-      message: 'Password reset link sent to your email (Mock: check server logs)',
+      message: 'Password reset link sent to your email',
       token: process.env.NODE_ENV === 'development' ? resetToken : undefined 
     });
   } catch (error) {
@@ -199,6 +257,7 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
 export const getUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;

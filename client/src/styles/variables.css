@@ -1,28 +1,36 @@
 :root {
-  /* Color Palette - Palm Merit Global */
-  --color-primary: #900C3F; /* Burgundy Pink */
-  --color-primary-light: #B91D52;
-  --color-primary-dark: #5E0627;
+  /* Color Palette - Premium Emerald & Gold */
+  --color-primary: #0A6847; /* Rich Emerald */
+  --color-primary-light: #128C61;
+  --color-primary-dark: #054D34;
   
   --color-accent: #D4AF37; /* Metallic Gold */
-  --color-accent-light: #E2C462;
+  --color-accent-light: #F1D26B;
   --color-accent-dark: #AA8926;
   
-  --color-bg-dark: #1A1A2E; /* Dark Navy for background */
-  --color-bg-light: #f5f7fa; /* Light grey for sections */
+  --color-secondary: #003022; /* Deep Forest */
+  
+  --color-bg-dark: #00120E; /* Ultra Dark Emerald */
+  --color-bg-card: #ffffff;
+  --color-bg-light: #F8FAFB;
   --color-white: #ffffff;
   
-  --color-text-main: #333333;
-  --color-text-muted: #666666;
+  --color-text-main: #1A1A1A;
+  --color-text-muted: #5F6368;
   --color-text-inverse: #ffffff;
 
-  --color-success: #28a745;
-  --color-danger: #dc3545;
-  --color-warning: #ffc107;
-  --color-info: #17a2b8;
+  --color-success: #1E8E3E;
+  --color-danger: #D93025;
+  --color-warning: #F9AB00;
+  --color-info: #1A73E8;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.3);
+  --glass-blur: blur(12px);
 
   /* Typography */
-  --font-family-base: 'Inter', sans-serif;
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-family-heading: 'Outfit', sans-serif;
 
   /* Spacing */
@@ -31,19 +39,25 @@
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
-  --spacing-xxl: 3rem;
+  --spacing-xxl: 4rem;
 
   /* Layout */
-  --container-max-width: 1200px;
+  --container-max-width: 1280px;
   
   /* Borders & Shadows */
-  --border-radius-sm: 4px;
-  --border-radius-md: 8px;
-  --border-radius-lg: 16px;
+  --border-radius-sm: 6px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 24px;
+  --border-radius-full: 9999px;
   
-  --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
-  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+  --shadow-md: 0 10px 20px rgba(0,0,0,0.05);
+  --shadow-lg: 0 20px 40px rgba(10, 104, 71, 0.1);
+  --shadow-gold: 0 4px 15px rgba(212, 175, 55, 0.3);
+  
+  /* Transitions */
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   
   /* Breakpoints */
   --breakpoint-xs: 480px;
