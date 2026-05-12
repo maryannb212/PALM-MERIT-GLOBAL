@@ -125,7 +125,7 @@ export const initializeTransaction = async (req, res) => {
           tx_ref: reference,
           amount: Number(amount),
           currency: 'NGN',
-          redirect_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/wallet?ref=${reference}`,
+          redirect_url: `${process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com'}/dashboard/wallet?ref=${reference}`,
           customer: { email, name: `${req.user.first_name} ${req.user.last_name}` },
           customizations: { title: 'Palm Merit Global', description: `Payment for ${type || 'deposit'}` }
         }, {

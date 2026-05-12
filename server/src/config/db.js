@@ -10,10 +10,13 @@ const connectionString = process.env.DATABASE_URL;
 
 const poolConfig = {
   connectionString,
-  // Neon requires SSL in production
-  ssl: connectionString && connectionString.includes('neon.tech') 
-    ? { rejectUnauthorized: false } 
-    : false,
+  // Enable SSL for production or any cloud database (Neon, Railway, etc.)
+  ssl: (connectionString && (
+    process.env.NODE_ENV === 'production' ||
+    connectionString.includes('neon.tech') ||
+    connectionString.includes('railway') ||
+    connectionString.includes('sslmode=require')
+  )) ? { rejectUnauthorized: false } : false,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

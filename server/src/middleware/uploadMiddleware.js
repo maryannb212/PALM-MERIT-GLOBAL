@@ -7,9 +7,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Ensure uploads directory exists for development
+// Ensure uploads directory exists for development only
+// Production uses Cloudinary (Railway filesystem is ephemeral)
 const uploadDir = 'uploads/';
-if (!fs.existsSync(uploadDir)) {
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 

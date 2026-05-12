@@ -77,7 +77,7 @@ export const sendWelcomeEmail = async (user) => {
  * Send Email Verification Link
  */
 export const sendVerificationEmail = async (email, token) => {
-  const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
+  const verificationUrl = `${process.env.CLIENT_URL || 'https://palmmeritglobal.com'}/verify-email?token=${token}`;
   const subject = 'Verify Your Email - Palm Merit Global';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 10px;">
@@ -105,7 +105,7 @@ export const sendVerificationEmail = async (email, token) => {
  * Send Password Reset Email
  */
 export const sendPasswordResetEmail = async (email, resetToken) => {
-  const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+  const resetUrl = `${process.env.CLIENT_URL || 'https://palmmeritglobal.com'}/reset-password?token=${resetToken}`;
   const subject = 'Password Reset Request - Palm Merit Global';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 10px;">

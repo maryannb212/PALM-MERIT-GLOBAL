@@ -23,20 +23,37 @@ import payoutRoutes from './routes/payoutRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import bankRoutes from './routes/bankRoutes.js';
 
-dotenv.config();
+// dotenv is loaded in server.js before app import
 
 import healthRoutes from './routes/healthRoutes.js';
 
 const app = express();
 
-// Trust proxy for Render/Vercel
+// Trust proxy for Railway / reverse proxies
 app.set('trust proxy', 1);
 
 // Security Middleware
 app.use(helmet());
+
+// Production-ready CORS — supports comma-separated CLIENT_URL for multi-domain
+const allowedOrigins = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://palmmeritglobal.com',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. server-to-server, health checks)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Logging
@@ -71,8 +88,10 @@ app.use('/api/transactions/webhook/virtual-account', express.raw({ type: 'applic
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static files (only for development, production should use Cloudinary)
-app.use('/uploads', express.static('uploads'));
+// Static files (development only — production uses Cloudinary)
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/uploads', express.static('uploads'));
+}
 
 // Basic health check route
 app.get('/health', (req, res) => {

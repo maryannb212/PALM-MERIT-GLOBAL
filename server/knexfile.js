@@ -29,14 +29,22 @@ export default {
     client: 'postgresql',
     connection: {
       connectionString: process.env.DATABASE_URL,
+      // SSL required for Neon PostgreSQL on Railway
       ssl: { rejectUnauthorized: false },
     },
     pool: {
       min: 2,
       max: 10,
+      // Destroy idle connections after 30s (prevents Neon idle timeouts)
+      idleTimeoutMillis: 30000,
+      // Give up connecting after 10s
+      acquireTimeoutMillis: 10000,
     },
     migrations: {
       directory: './migrations',
+    },
+    seeds: {
+      directory: './seeds',
     },
   },
 };
