@@ -1,9 +1,9 @@
 import cron from 'node-cron';
 import pool from '../config/db.js';
+import logger from '../utils/logger.js';
 
-// Run every midnight
-cron.schedule('0 0 * * *', async () => {
-  console.log('Running daily maturity check job...');
+export const runMaturityCheck = async () => {
+  logger.info('Running maturity check job...');
   const client = await pool.connect();
 
   try {
@@ -39,7 +39,7 @@ cron.schedule('0 0 * * *', async () => {
       const now = new Date();
 
       if (now >= maturityDate) {
-        console.log(`Plan ${plan.id} (${plan.plan_name}) has matured.`);
+        logger.info(`Plan ${plan.id} (${plan.plan_name}) has matured.`);
 
         let newStatus = 'matured'; // Fallback
         let payoutDate = null;
@@ -73,11 +73,23 @@ cron.schedule('0 0 * * *', async () => {
     }
 
     await client.query('COMMIT');
-    console.log('Maturity check job completed successfully.');
+    logger.info('Maturity check job completed successfully.');
+    return { success: true, message: 'Maturity check completed' };
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error running maturity check job:', error);
+    logger.error('Error running maturity check job:', error);
+    throw error;
   } finally {
     client.release();
   }
-});
+};
+
+export const startMaturityJob = () => {
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      await runMaturityCheck();
+    } catch (error) {
+      logger.error('Error in maturity cron execution:', error);
+    }
+  });
+};

@@ -8,6 +8,7 @@ build/
 
 server/db_data/
 server/uploads/
+server/logs/
 
 .DS_Store
 npm-debug.log*

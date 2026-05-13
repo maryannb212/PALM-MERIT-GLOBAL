@@ -5,9 +5,9 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import 'express-async-errors';
 import rateLimit from 'express-rate-limit';
+import logger from './utils/logger.js';
 
 import { startCronJobs } from './jobs/penaltyJob.js';
-import './jobs/maturityCron.js';
 import { startStaffDeactivationJob } from './jobs/staffDeactivationJob.js';
 
 // Routes
@@ -22,6 +22,7 @@ import ambassadorRoutes from './routes/ambassadorRoutes.js';
 import payoutRoutes from './routes/payoutRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import bankRoutes from './routes/bankRoutes.js';
+import adminCronRoutes from './routes/adminCronRoutes.js';
 
 // dotenv is loaded in server.js before app import
 
@@ -36,15 +37,14 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // Production-ready CORS — supports comma-separated CLIENT_URL for multi-domain
-const allowedOrigins = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com')
-  .split(',')
-  .map(o => o.trim())
-  .filter(Boolean);
+const userOrigins = (process.env.CLIENT_URL || process.env.FRONTEND_URL || '').split(',').map(o => o.trim()).filter(Boolean);
+const defaultOrigins = ['https://palmmeritglobal.com', 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+const allowedOrigins = [...new Set([...userOrigins, ...defaultOrigins])];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (e.g. server-to-server, health checks)
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow all origins in development or if specified in allowedOrigins
+    if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       console.warn(`[CORS] Blocked request from origin: ${origin}`);
@@ -95,10 +95,10 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Basic health check route
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'UP', 
+  res.json({
+    status: 'UP',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV
   });
 });
 
@@ -119,6 +119,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payouts', payoutRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/bank-details', bankRoutes);
+app.use('/api/admin/trigger', adminCronRoutes);
 
 // 404 Handler
 app.use((req, res) => {
@@ -127,18 +128,25 @@ app.use((req, res) => {
 
 // Centralized Error Handler
 app.use((err, req, res, next) => {
-  console.error('[Error Handler]:', err);
-  
+  logger.error('[Error Handler]:', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  });
+
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
-  
+
   res.status(statusCode).json({
     message,
     stack: process.env.NODE_ENV === 'production' ? null : err.stack
   });
 });
 
-// Initialize scheduled tasks
+// Initialize scheduled tasks (Persistent mode)
+import { startMaturityJob } from './jobs/maturityCron.js';
+startMaturityJob();
 startCronJobs();
 startStaffDeactivationJob();
 

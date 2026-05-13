@@ -3,6 +3,7 @@ dotenv.config();
 
 import app from './app.js';
 import pool from './config/db.js';
+import logger from './utils/logger.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -10,12 +11,11 @@ const PORT = process.env.PORT || 5000;
 // Crash-safe: catch unhandled promise rejections and uncaught exceptions
 // ─────────────────────────────────────────────────────────────────────────────
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit — Railway will restart the container if it crashes
+  logger.error('[FATAL] Unhandled Rejection at:', { promise, reason });
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('[FATAL] Uncaught Exception:', error);
+  logger.error('[FATAL] Uncaught Exception:', error);
   process.exit(1);
 });
 
@@ -27,29 +27,29 @@ const startServer = async (retries = 5) => {
     try {
       // Test database connection
       const res = await pool.query('SELECT NOW()');
-      console.log(`[startup] Database connected at ${res.rows[0].now}`);
+      logger.info(`[startup] Database connected at ${res.rows[0].now}`);
 
       const server = app.listen(PORT, '0.0.0.0', () => {
-        console.log(`[startup] Palm Merit Global API`);
-        console.log(`[startup] Mode: ${process.env.NODE_ENV || 'development'}`);
-        console.log(`[startup] Port: ${PORT}`);
-        console.log(`[startup] Ready to accept connections`);
+        logger.info(`[startup] Palm Merit Global API`);
+        logger.info(`[startup] Mode: ${process.env.NODE_ENV || 'development'}`);
+        logger.info(`[startup] Port: ${PORT}`);
+        logger.info(`[startup] Ready to accept connections`);
       });
 
-      // Graceful shutdown for Railway SIGTERM
+      // Graceful shutdown
       const gracefulShutdown = (signal) => {
-        console.log(`[shutdown] Received ${signal}, shutting down gracefully...`);
+        logger.info(`[shutdown] Received ${signal}, shutting down gracefully...`);
         server.close(() => {
-          console.log('[shutdown] HTTP server closed');
+          logger.info('[shutdown] HTTP server closed');
           pool.end().then(() => {
-            console.log('[shutdown] Database pool closed');
+            logger.info('[shutdown] Database pool closed');
             process.exit(0);
           });
         });
 
         // Force shutdown after 10 seconds
         setTimeout(() => {
-          console.error('[shutdown] Forced shutdown — connections did not close in time');
+          logger.error('[shutdown] Forced shutdown — connections did not close in time');
           process.exit(1);
         }, 10000);
       };

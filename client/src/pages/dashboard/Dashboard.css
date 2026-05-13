@@ -105,7 +105,7 @@
 .sidebar-menu li.active {
   background: var(--color-primary);
   color: white;
-  box-shadow: 0 4px 12px rgba(144, 12, 63, 0.2);
+  box-shadow: 0 4px 12px rgba(128, 0, 32, 0.2);
 }
 
 .sidebar-logout {
@@ -153,7 +153,7 @@
   padding: 16px 22px;
   margin-bottom: 20px;
   color: white;
-  box-shadow: 0 4px 18px rgba(144, 12, 63, 0.22);
+  box-shadow: 0 4px 18px rgba(128, 0, 32, 0.22);
 }
 
 .welcome-avatar {

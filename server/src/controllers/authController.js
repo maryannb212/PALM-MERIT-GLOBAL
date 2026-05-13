@@ -46,8 +46,9 @@ export const registerUser = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Check if this is the first user
-    const { rows: userCount } = await query('SELECT count(*) FROM users');
-    const role = parseInt(userCount[0].count) === 0 ? 'admin' : 'user';
+    // const { rows: userCount } = await query('SELECT count(*) FROM users');
+    // const role = parseInt(userCount[0].count) === 0 ? 'admin' : 'user';
+    const role = 'user'; // Default all registrations to 'user'
 
     const sql = `
       INSERT INTO users (first_name, last_name, email, password_hash, phone, role)

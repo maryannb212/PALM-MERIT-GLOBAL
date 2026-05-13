@@ -1,16 +1,16 @@
 :root {
-  /* Color Palette - Premium Emerald & Gold */
-  --color-primary: #0A6847; /* Rich Emerald */
-  --color-primary-light: #128C61;
-  --color-primary-dark: #054D34;
+  /* Color Palette - Palm Merit Global (Burgundy & Gold) */
+  --color-primary: #800020; /* Deep Burgundy */
+  --color-primary-light: #a52a2a;
+  --color-primary-dark: #4d0013;
   
   --color-accent: #D4AF37; /* Metallic Gold */
   --color-accent-light: #F1D26B;
   --color-accent-dark: #AA8926;
   
-  --color-secondary: #003022; /* Deep Forest */
+  --color-secondary: #2c000b; /* Very Dark Burgundy */
   
-  --color-bg-dark: #00120E; /* Ultra Dark Emerald */
+  --color-bg-dark: #1a0006; /* Dark Burgundy Background */
   --color-bg-card: #ffffff;
   --color-bg-light: #F8FAFB;
   --color-white: #ffffff;
@@ -52,8 +52,8 @@
   
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
   --shadow-md: 0 10px 20px rgba(0,0,0,0.05);
-  --shadow-lg: 0 20px 40px rgba(10, 104, 71, 0.1);
-  --shadow-gold: 0 4px 15px rgba(212, 175, 55, 0.3);
+  --shadow-lg: 0 20px 40px rgba(128, 0, 32, 0.15);
+  --shadow-accent: 0 4px 15px rgba(212, 175, 55, 0.3);
   
   /* Transitions */
   --transition-fast: 0.2s ease;

@@ -41,8 +41,8 @@ const VerifyDeposit = () => {
   }, [reference, navigate]);
 
   return (
-    <div className="verify-container" style={{ 
-      textAlign: 'center', 
+    <div className="verify-container" style={{
+      textAlign: 'center',
       padding: '100px 20px',
       minHeight: '80vh',
       display: 'flex',
@@ -51,21 +51,21 @@ const VerifyDeposit = () => {
       justifyContent: 'center',
       background: '#f4f7f6'
     }}>
-      <div style={{ 
-        background: '#fff', 
-        padding: '40px', 
-        borderRadius: '12px', 
+      <div style={{
+        background: '#fff',
+        padding: '40px',
+        borderRadius: '12px',
         boxShadow: '0 10px 25px rgba(0,0,0,0.05)',
         maxWidth: '500px',
         width: '100%'
       }}>
         {status === 'verifying' && (
           <>
-            <div className="spinner" style={{ 
-              width: '50px', 
-              height: '50px', 
-              border: '5px solid #e1e1e1', 
-              borderTop: '5px solid #0A6847', 
+            <div className="spinner" style={{
+              width: '50px',
+              height: '50px',
+              border: '5px solid #e1e1e1',
+              borderTop: '5px solid #800020',
               borderRadius: '50%',
               animation: 'spin 1s linear infinite',
               margin: '0 auto 20px'
@@ -74,11 +74,11 @@ const VerifyDeposit = () => {
             <p style={{ color: '#666' }}>Please wait while we confirm your transaction with the bank.</p>
           </>
         )}
-        
+
         {status === 'success' && (
           <div className="success-message">
             <div style={{ fontSize: '4rem', marginBottom: '10px' }}>✅</div>
-            <h2 style={{ color: '#0A6847' }}>Deposit Successful!</h2>
+            <h2 style={{ color: '#800020' }}>Deposit Successful!</h2>
             <p style={{ color: '#666' }}>Your wallet balance has been updated. Redirecting you back to your wallet...</p>
           </div>
         )}
@@ -88,12 +88,12 @@ const VerifyDeposit = () => {
             <div style={{ fontSize: '4rem', marginBottom: '10px' }}>❌</div>
             <h2 style={{ color: '#d32f2f' }}>Verification Failed</h2>
             <p style={{ color: '#666' }}>{error}</p>
-            <button 
-              className="btn btn-primary" 
+            <button
+              className="btn btn-primary"
               onClick={() => navigate('/dashboard/wallet')}
-              style={{ 
+              style={{
                 marginTop: '20px',
-                background: '#0A6847',
+                background: '#800020',
                 color: '#fff',
                 border: 'none',
                 padding: '12px 30px',
@@ -107,7 +107,7 @@ const VerifyDeposit = () => {
           </div>
         )}
       </div>
-      
+
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }

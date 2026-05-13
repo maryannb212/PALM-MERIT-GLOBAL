@@ -12,7 +12,7 @@ const TermsPage = () => {
 
       <section className="section container">
         <div className="content-box" style={{ background: '#fff', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ color: '#0A6847', marginBottom: '20px' }}>TERMS & CONDITIONS OF PALM MERIT GLOBAL LIMITED</h2>
+          <h2 style={{ color: '#800020', marginBottom: '20px' }}>TERMS & CONDITIONS OF PALM MERIT GLOBAL LIMITED</h2>
           
           <ul style={{ marginBottom: '25px', paddingLeft: '20px', lineHeight: '1.8', listStyleType: 'disc' }}>
             <li>Palm Merit Global Limited is a registered business entity and not a bank or investment company.</li>
@@ -32,7 +32,7 @@ const TermsPage = () => {
             <li>Participation in our programmes and activities confirms acceptance of our company terms and conditions.</li>
           </ul>
 
-          <div style={{ background: '#f9f9f9', padding: '20px', borderRadius: '5px', borderLeft: '4px solid #0A6847' }}>
+          <div style={{ background: '#f9f9f9', padding: '20px', borderRadius: '5px', borderLeft: '4px solid #800020' }}>
             <p style={{ marginBottom: '15px' }}><strong>Food items/ incentives are the exclusive right of the company and to be determined by the Company management in accordance with the economic situation.</strong></p>
             <p style={{ marginBottom: '15px' }}><strong>Cancellation, Termination and / withdrawal of membership contributory programme must follow process policy and can only be refunded at the completion of the programme cycle.</strong></p>
             <p><strong>All members and or you intending members are advised to carefully understand the policy, processes of the company before selecting membership option, as no reversals shall be allowed after signing in.</strong></p>

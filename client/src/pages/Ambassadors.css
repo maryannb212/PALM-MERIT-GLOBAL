@@ -12,7 +12,7 @@
 
 .ambassadors-header h1 {
   font-size: 2.5rem;
-  color: #0A6847;
+  color: #800020;
   margin-bottom: 1rem;
 }
 
@@ -69,7 +69,7 @@
 }
 
 .ambassador-role {
-  color: #0A6847;
+  color: #800020;
   font-weight: 600;
   font-size: 0.9rem;
   margin-bottom: 1rem;
@@ -89,7 +89,7 @@
   align-items: center;
   min-height: 50vh;
   font-size: 1.2rem;
-  color: #0A6847;
+  color: #800020;
 }
 
 @media (max-width: 768px) {
