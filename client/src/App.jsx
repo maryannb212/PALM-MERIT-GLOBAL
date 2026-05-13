@@ -46,6 +46,7 @@ const ReconciliationPage = lazy(() => import('./pages/admin/ReconciliationPage')
 const BroadcastPage = lazy(() => import('./pages/admin/BroadcastPage'));
 const AdminAmbassadors = lazy(() => import('./pages/admin/AdminAmbassadors'));
 const AdminCashflow = lazy(() => import('./pages/admin/AdminCashflow'));
+const AdminPlans = lazy(() => import('./pages/admin/AdminPlans'));
 
 const LoadingSpinner = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
@@ -114,6 +115,7 @@ const AppLayout = () => {
               <Route path="broadcast" element={<BroadcastPage />} />
               <Route path="ambassadors" element={<AdminAmbassadors />} />
               <Route path="cashflow" element={<AdminCashflow />} />
+              <Route path="plans" element={<AdminPlans />} />
             </Route>
           </Routes>
         </Suspense>

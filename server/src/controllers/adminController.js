@@ -74,12 +74,17 @@ export const getDashboardStats = async (req, res) => {
     const ticketsResult = await query("SELECT COUNT(*) FROM tickets WHERE status = 'open'");
     const openTickets = parseInt(ticketsResult.rows[0].count);
 
+    // Pending KYC
+    const kycResult = await query("SELECT COUNT(*) FROM users WHERE kyc_status = 'pending'");
+    const pendingKYC = parseInt(kycResult.rows[0].count);
+
     res.json({
       totalUsers,
       activePlans,
       totalSavings,
       totalLiabilities,
-      openTickets
+      openTickets,
+      pendingKYC
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);

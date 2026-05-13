@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { FaArrowUp, FaArrowDown, FaBalanceScale } from 'react-icons/fa';
+import { getCashflow } from '../../services/api';
+import { FaArrowUp, FaArrowDown, FaBalanceScale, FaMoneyBillWave, FaChartLine, FaHistory } from 'react-icons/fa';
 import './AdminCashflow.css';
+import './Admin.css';
 
 const AdminCashflow = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCashflow = async () => {
+    const fetchCashflowData = async () => {
       try {
-        const token = localStorage.getItem('adminToken');
-        const response = await axios.get('/api/admin/cashflow', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        setLoading(true);
+        const response = await getCashflow();
         setData(response.data);
       } catch (error) {
         console.error('Error fetching cashflow:', error);
@@ -21,75 +20,110 @@ const AdminCashflow = () => {
         setLoading(false);
       }
     };
-    fetchCashflow();
+    fetchCashflowData();
   }, []);
 
-  if (loading) return <div>Loading Cash Flow Statement...</div>;
-  if (!data) return <div>Failed to load cash flow data.</div>;
+  if (loading) {
+    return (
+      <div className="admin-page-content">
+        <div className="table-loader">
+          <div className="spinner-small"></div>
+          <span>Generating financial report...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="admin-page-content">
+        <div className="alert alert-error">Failed to load platform cash flow data.</div>
+      </div>
+    );
+  }
 
   const { summary } = data;
   const isPositiveFlow = summary.netFlow >= 0;
 
   return (
-    <div className="admin-cashflow">
-      <h2>Cash Flow Statement</h2>
+    <div className="admin-page-content">
+      <header className="dashboard-header">
+        <div className="header-title">
+          <div className="header-icon"><FaChartLine /></div>
+          <div>
+            <h2>Cash Flow Statement</h2>
+            <p className="text-muted">Real-time analysis of platform liquidity and capital movement.</p>
+          </div>
+        </div>
+      </header>
       
-      <div className="cashflow-summary-cards">
-        <div className="cf-card inflow">
-          <div className="cf-icon"><FaArrowDown /></div>
-          <div className="cf-details">
+      <div className="stats-grid">
+        <div className="stat-card success">
+          <div className="stat-icon-wrapper"><FaArrowDown /></div>
+          <div className="stat-info">
             <h3>Total Inflow</h3>
-            <p>₦{summary.totalInflow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            <small>Deposits, Memberships, Top-ups</small>
+            <div className="stat-value">₦{summary.totalInflow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            <p className="stat-label text-success">Deposits & Membership Fees</p>
           </div>
         </div>
 
-        <div className="cf-card outflow">
-          <div className="cf-icon"><FaArrowUp /></div>
-          <div className="cf-details">
+        <div className="stat-card danger">
+          <div className="stat-icon-wrapper"><FaArrowUp /></div>
+          <div className="stat-info">
             <h3>Total Outflow</h3>
-            <p>₦{summary.totalOutflow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            <small>Withdrawals: ₦{summary.breakdown.withdrawals.toLocaleString()}</small><br/>
-            <small>Payouts: ₦{summary.breakdown.payouts.toLocaleString()}</small>
+            <div className="stat-value">₦{summary.totalOutflow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            <p className="stat-label text-danger">Withdrawals & Maturity Payouts</p>
           </div>
         </div>
 
-        <div className={`cf-card netflow ${isPositiveFlow ? 'positive' : 'negative'}`}>
-          <div className="cf-icon"><FaBalanceScale /></div>
-          <div className="cf-details">
-            <h3>Net Flow</h3>
-            <p>₦{summary.netFlow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            <small>{isPositiveFlow ? 'Positive Cash Flow' : 'Negative Cash Flow'}</small>
+        <div className={`stat-card ${isPositiveFlow ? 'primary' : 'warning'}`}>
+          <div className="stat-icon-wrapper"><FaBalanceScale /></div>
+          <div className="stat-info">
+            <h3>Net Liquidity</h3>
+            <div className="stat-value">₦{summary.netFlow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+            <p className={`stat-label ${isPositiveFlow ? 'text-primary' : 'text-warning'}`}>
+              {isPositiveFlow ? 'Positive Operational Flow' : 'Negative Operational Flow'}
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="cashflow-details mt-4">
-        <h3>Recent Trends (Last 30 Days)</h3>
-        <p>Inflow vs Outflow analysis can be integrated with charting libraries (e.g., Recharts) here.</p>
+      <div className="dashboard-section mt-5">
+        <div className="section-header">
+          <h3><FaHistory /> Periodic Performance (Last 30 Days)</h3>
+        </div>
         
-        {/* Placeholder for future charting or data table */}
-        <div className="table-responsive">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Daily Inflow</th>
-                <th>Daily Outflow</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* This is a simplified merge of trends for display. 
-                  In a real scenario, you'd merge the arrays by date properly. */}
-              {data.trends.inflow.slice(0, 5).map((inf, idx) => (
-                <tr key={idx}>
-                  <td>{new Date(inf.date).toLocaleDateString()}</td>
-                  <td className="text-success">+₦{parseFloat(inf.daily_inflow).toLocaleString()}</td>
-                  <td className="text-danger">-₦{parseFloat(data.trends.outflow.find(o => o.date === inf.date)?.daily_outflow || 0).toLocaleString()}</td>
+        <div className="admin-card table-card mt-3">
+          <div className="table-responsive">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Settlement Date</th>
+                  <th>Daily Inflow</th>
+                  <th>Daily Outflow</th>
+                  <th className="text-right">Net Daily Position</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.trends.inflow.slice(0, 10).map((inf, idx) => {
+                  const outf = data.trends.outflow.find(o => o.date === inf.date)?.daily_outflow || 0;
+                  const net = parseFloat(inf.daily_inflow) - parseFloat(outf);
+                  return (
+                    <tr key={idx} className="table-row-hover">
+                      <td className="date-cell">{new Date(inf.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                      <td className="text-success font-weight-bold">+₦{parseFloat(inf.daily_inflow).toLocaleString()}</td>
+                      <td className="text-danger font-weight-bold">-₦{parseFloat(outf).toLocaleString()}</td>
+                      <td className="text-right font-weight-bold">
+                        <span className={net >= 0 ? 'text-success' : 'text-danger'}>
+                          {net >= 0 ? '+' : ''}₦{net.toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

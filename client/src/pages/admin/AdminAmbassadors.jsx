@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { FaPlus, FaEdit, FaTrash, FaTimes } from 'react-icons/fa';
+import {
+  getAmbassadors,
+  addAmbassador,
+  updateAmbassador,
+  deleteAmbassador,
+  uploadMembershipReceipt
+} from '../../services/api';
+import { FaPlus, FaEdit, FaTrash, FaTimes, FaUsers, FaUserTie, FaLayerGroup, FaImage } from 'react-icons/fa';
 import './AdminAmbassadors.css';
+import './Admin.css';
 
 const AdminAmbassadors = () => {
   const [ambassadors, setAmbassadors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  
+  const [processing, setProcessing] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     role: '',
@@ -19,7 +27,8 @@ const AdminAmbassadors = () => {
 
   const fetchAmbassadors = async () => {
     try {
-      const { data } = await axios.get('/api/ambassadors');
+      setLoading(true);
+      const { data } = await getAmbassadors();
       setAmbassadors(data);
     } catch (error) {
       console.error('Error fetching ambassadors:', error);
@@ -42,23 +51,17 @@ const AdminAmbassadors = () => {
     if (!file) return;
 
     const uploadData = new FormData();
-    uploadData.append('receipt', file); // Reuse the receipt upload middleware or create a specific one
+    uploadData.append('receipt', file);
 
     try {
-      // Assuming a generic upload endpoint exists, or we use the membership receipt one for now
-      // In a real scenario, you'd want a dedicated endpoint like POST /api/upload
-      const { data } = await axios.post('/api/membership/upload-receipt', uploadData, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('adminToken')}`
-        }
-      });
-      // The receipt endpoint returns the transaction with the URL. 
-      // Ideally, create a dedicated /api/upload endpoint that just returns the URL.
+      setProcessing(true);
+      const { data } = await uploadMembershipReceipt(uploadData);
       setFormData({ ...formData, image_url: data.transaction.receipt_url });
-      alert('Image uploaded successfully');
     } catch (error) {
       console.error('Image upload failed', error);
-      alert('Image upload failed. You can also manually paste an image URL.');
+      alert('Upload failed. Using manual URL instead.');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -86,162 +89,196 @@ const AdminAmbassadors = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setProcessing(true);
     try {
-      const token = localStorage.getItem('adminToken');
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      
       if (editingId) {
-        await axios.put(`/api/ambassadors/${editingId}`, formData, config);
-        alert('Ambassador updated successfully');
+        await updateAmbassador(editingId, formData);
       } else {
-        await axios.post('/api/ambassadors', formData, config);
-        alert('Ambassador added successfully');
+        await addAmbassador(formData);
       }
       closeModal();
       fetchAmbassadors();
     } catch (error) {
       console.error('Save failed:', error);
-      alert(error.response?.data?.message || 'Save failed');
+      alert(error.response?.data?.message || 'Operation failed');
+    } finally {
+      setProcessing(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this ambassador?')) {
-      try {
-        const token = localStorage.getItem('adminToken');
-        await axios.delete(`/api/ambassadors/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        alert('Ambassador deleted');
-        fetchAmbassadors();
-      } catch (error) {
-        console.error('Delete failed:', error);
-        alert('Delete failed');
-      }
+    if (!window.confirm('Remove this ambassador from the public team page?')) return;
+    try {
+      await deleteAmbassador(id);
+      fetchAmbassadors();
+    } catch (error) {
+      console.error('Delete failed:', error);
     }
   };
 
-  if (loading) return <div>Loading Ambassadors...</div>;
-
   return (
-    <div className="admin-ambassadors">
-      <div className="header-actions">
-        <h2>Manage Ambassadors (Team Leads)</h2>
-        <button className="btn btn-primary" onClick={() => openModal()}>
-          <FaPlus /> Add New
-        </button>
-      </div>
+    <div className="admin-page-content">
+      <header className="dashboard-header">
+        <div className="header-title">
+          <div className="header-icon"><FaUserTie /></div>
+          <div>
+            <h2>Ambassador & Team Management</h2>
+            <p className="text-muted">Configure the public community leads and official representatives.</p>
+          </div>
+        </div>
+        <div className="header-actions">
+           <button className="btn-primary" onClick={() => openModal()}>
+            <FaPlus /> Add New Lead
+          </button>
+        </div>
+      </header>
 
-      <div className="table-responsive mt-4">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Image</th>
-              <th>Name</th>
-              <th>Role</th>
-              <th>Order</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ambassadors.map((amb) => (
-              <tr key={amb.id}>
-                <td>
-                  <img 
-                    src={amb.image_url || '/placeholder-avatar.png'} 
-                    alt={amb.name} 
-                    className="amb-thumb"
-                    onError={(e) => { e.target.src = '/placeholder-avatar.png'; }}
-                  />
-                </td>
-                <td>{amb.name}</td>
-                <td>{amb.role}</td>
-                <td>{amb.order_index}</td>
-                <td className="actions-cell">
-                  <button className="btn-icon btn-edit" onClick={() => openModal(amb)}><FaEdit /></button>
-                  <button className="btn-icon btn-delete" onClick={() => handleDelete(amb.id)}><FaTrash /></button>
-                </td>
-              </tr>
-            ))}
-            {ambassadors.length === 0 && (
-              <tr>
-                <td colSpan="5" className="text-center">No ambassadors found. Add one above.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="admin-card table-card">
+        {loading ? (
+          <div className="table-loader">
+            <div className="spinner-small"></div>
+            <span>Fetching team members...</span>
+          </div>
+        ) : ambassadors.length === 0 ? (
+          <div className="table-empty">
+            <div className="empty-icon">🤝</div>
+            <h3>No Ambassadors Yet</h3>
+            <p>Start building your public team by adding ambassadors.</p>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Identity</th>
+                  <th>Designated Role</th>
+                  <th>Display Order</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ambassadors.map((amb) => (
+                  <tr key={amb.id} className="table-row-hover">
+                    <td>
+                      <div className="member-cell">
+                        <img
+                          src={amb.image_url || '/placeholder-avatar.png'}
+                          alt={amb.name}
+                          className="member-avatar"
+                          onError={(e) => { e.target.src = '/placeholder-avatar.png'; }}
+                          style={{ objectFit: 'cover' }}
+                        />
+                        <div className="member-info">
+                          <span className="member-name">{amb.name}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="badge-pill pill-burgundy">{amb.role}</span></td>
+                    <td><span className="count-badge">{amb.order_index}</span></td>
+                    <td className="text-right">
+                      <div className="action-buttons">
+                        <button className="btn-icon btn-view" onClick={() => openModal(amb)}><FaEdit /></button>
+                        <button className="btn-icon btn-reject" onClick={() => handleDelete(amb.id)}><FaTrash /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content admin-modal">
-            <button className="modal-close" onClick={closeModal}><FaTimes /></button>
-            <h3>{editingId ? 'Edit Ambassador' : 'Add Ambassador'}</h3>
-            
-            <form onSubmit={handleSubmit} className="ambassador-form">
-              <div className="form-group">
-                <label>Name</label>
-                <input 
-                  type="text" 
-                  name="name" 
-                  value={formData.name} 
-                  onChange={handleInputChange} 
-                  required 
-                  className="form-control"
-                />
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content admin-modal-wide" onClick={e => e.stopPropagation()}>
+            <header className="modal-header">
+              <div className="modal-header-title">
+                <FaUserTie />
+                <h3>{editingId ? 'Modify Ambassador' : 'Enlist New Ambassador'}</h3>
               </div>
-              
-              <div className="form-group">
-                <label>Role / Title</label>
-                <input 
-                  type="text" 
-                  name="role" 
-                  value={formData.role} 
-                  onChange={handleInputChange} 
-                  required 
-                  className="form-control"
-                />
+              <button className="close-btn" onClick={closeModal}>&times;</button>
+            </header>
+
+            <form onSubmit={handleSubmit} className="admin-refined-form">
+              <div className="form-row-split">
+                <div className="form-group">
+                  <label className="field-label">Full Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="e.g. John Doe"
+                    className="refined-input full-width"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="field-label">Professional Role</label>
+                  <input
+                    type="text"
+                    name="role"
+                    value={formData.role}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="e.g. Regional Coordinator"
+                    className="refined-input full-width"
+                  />
+                </div>
               </div>
 
               <div className="form-group">
-                <label>Image URL</label>
-                <input 
-                  type="text" 
-                  name="image_url" 
-                  value={formData.image_url} 
-                  onChange={handleInputChange} 
-                  placeholder="/uploads/filename.jpg or https://..."
-                  className="form-control"
-                />
-                <small>Or upload a new image (Using receipt upload endpoint for now):</small>
-                <input type="file" onChange={handleImageUpload} accept="image/*" className="form-control mt-2" />
+                <label className="field-label">Avatar / Portrait URL</label>
+                <div className="input-wrapper">
+                  <FaImage className="input-icon" />
+                  <input
+                    type="text"
+                    name="image_url"
+                    value={formData.image_url}
+                    onChange={handleInputChange}
+                    placeholder="https://..."
+                    className="refined-input"
+                  />
+                </div>
+                <div className="mt-2">
+                  <label className="btn-outline-primary btn-sm" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                    <FaPlus /> {processing ? 'Uploading...' : 'Upload Image'}
+                    <input type="file" onChange={handleImageUpload} accept="image/*" style={{ display: 'none' }} />
+                  </label>
+                </div>
               </div>
 
               <div className="form-group">
-                <label>Bio (Optional)</label>
-                <textarea 
-                  name="bio" 
-                  value={formData.bio} 
-                  onChange={handleInputChange} 
+                <label className="field-label">Short Biography</label>
+                <textarea
+                  name="bio"
+                  value={formData.bio}
+                  onChange={handleInputChange}
                   rows="3"
-                  className="form-control"
+                  placeholder="Tell the community about this ambassador..."
+                  className="refined-textarea"
                 ></textarea>
               </div>
 
               <div className="form-group">
-                <label>Display Order (Lower numbers appear first)</label>
-                <input 
-                  type="number" 
-                  name="order_index" 
-                  value={formData.order_index} 
-                  onChange={handleInputChange} 
-                  className="form-control"
+                <label className="field-label"><FaLayerGroup /> Display Sequence</label>
+                <input
+                  type="number"
+                  name="order_index"
+                  value={formData.order_index}
+                  onChange={handleInputChange}
+                  className="refined-input full-width"
                 />
+                <small className="field-help">Lower values appear first on the public page.</small>
               </div>
 
-              <div className="form-actions">
-                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Ambassador</button>
+              <div className="modal-footer">
+                <button type="button" className="btn-outline-secondary" onClick={closeModal}>Cancel</button>
+                <button type="submit" className="btn-primary" disabled={processing}>
+                   {processing ? 'Processing...' : 'Save Changes'}
+                </button>
               </div>
             </form>
           </div>

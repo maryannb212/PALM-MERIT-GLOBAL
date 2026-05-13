@@ -204,7 +204,8 @@ const RegisterPage = () => {
                   <label>Email Address</label>
                   <input 
                     type="email" name="email" value={formData.email} onChange={handleInputChange} required 
-                    placeholder="name@example.com" 
+                    placeholder="name@example.com"
+                    autoComplete="off"
                   />
                 </div>
                 <div className="form-group full-width">
@@ -214,6 +215,7 @@ const RegisterPage = () => {
                       type={showPassword ? 'text' : 'password'} 
                       name="password" value={formData.password} onChange={handleInputChange} required 
                       placeholder="At least 6 characters"
+                      autoComplete="new-password"
                     />
                     <button 
                       type="button" className="password-toggle" 
@@ -229,6 +231,7 @@ const RegisterPage = () => {
                     type={showPassword ? 'text' : 'password'} 
                     name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} required 
                     placeholder="Repeat your password"
+                    autoComplete="new-password"
                   />
                 </div>
                 

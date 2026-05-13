@@ -107,5 +107,12 @@ export const approveWithdrawal = (id) => API.put(`/admin/withdrawals/${id}/appro
 export const rejectWithdrawal = (id, data) => API.put(`/admin/withdrawals/${id}/reject`, data);
 export const broadcastNotification = (data) => API.post('/admin/notifications/broadcast', data);
 export const approveManualPayment = (transactionId) => API.post(`/admin/approve-payment/${transactionId}`);
+export const getCashflow = () => API.get('/admin/cashflow');
+
+// Ambassador endpoints
+export const getAmbassadors = () => API.get('/ambassadors');
+export const addAmbassador = (data) => API.post('/ambassadors', data);
+export const updateAmbassador = (id, data) => API.put(`/ambassadors/${id}`, data);
+export const deleteAmbassador = (id) => API.delete(`/ambassadors/${id}`);
 
 export default API;
