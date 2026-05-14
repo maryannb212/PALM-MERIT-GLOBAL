@@ -79,9 +79,9 @@ const Wallet = () => {
               <Link to="/dashboard/bank-details" className="btn btn-sm btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
                 Manage Bank Details
               </Link>
-              <Link to="/dashboard/withdraw" className="btn btn-sm btn-warning" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+              <button disabled className="btn btn-sm btn-warning" style={{ padding: '8px 16px', fontSize: '0.85rem', opacity: 0.6, cursor: 'not-allowed' }} title="Withdrawals are currently disabled">
                 Withdraw Funds
-              </Link>
+              </button>
             </div>
           </div>
           <div className="virtual-account-balance">
@@ -90,10 +90,10 @@ const Wallet = () => {
           </div>
         </div>
 
-        {/* ─── Dedicated Funding Account Section ─── */}
+        {/* ─── Virtual Account Section ─── */}
         <div className="funding-account-section card mt-4">
           <div className="card-header">
-            <h3>Dedicated Funding Account</h3>
+            <h3>Virtual Account</h3>
             <span className="badge badge-success">Automated Funding</span>
           </div>
           <div className="funding-account-body">
@@ -132,8 +132,8 @@ const Wallet = () => {
               <div className="funding-pending-state">
                 <p>
                   {user?.kycStatus === 'verified' 
-                    ? "We're setting up your dedicated funding account. Please check back in a few minutes." 
-                    : "Your dedicated funding account will be generated once your KYC verification is approved."}
+                    ? "We're setting up your virtual account. Please check back in a few minutes." 
+                    : "Your virtual account will be generated once your KYC verification is approved."}
                 </p>
                 {user?.kycStatus !== 'verified' && user?.kycStatus !== 'pending' && (
                   <Link to="/dashboard/kyc" className="btn btn-primary mt-2">Complete KYC</Link>
@@ -155,7 +155,7 @@ const Wallet = () => {
               <div className="tshirt-icon">👕</div>
               <div className="tshirt-text">
                 <h4>Incentive T-Shirt Payment Required</h4>
-                <p>To participate in organizational events and collect payouts, please pay your ₦5,000 T-shirt fee.</p>
+                <p>To participate in PROGRAMMES and collect payouts, please pay your ₦5,000 T-shirt fee.</p>
               </div>
             </div>
             <button 

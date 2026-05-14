@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://palm-merit-global-server.onrender.com/api/$1"
+      "destination": "https://palm-merit-global.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",

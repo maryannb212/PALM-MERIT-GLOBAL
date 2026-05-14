@@ -21,10 +21,10 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
     return <Navigate to="/admin/login" replace />;
   }
 
-  // If user is an admin but accessing user dashboard, redirect to admin dashboard
-  if (!adminOnly && user.role === 'admin') {
-    return <Navigate to="/admin/dashboard" replace />;
-  }
+  // Allow admins to access the user dashboard to view things from a user's perspective
+  // if (!adminOnly && user.role === 'admin') {
+  //   return <Navigate to="/admin/dashboard" replace />;
+  // }
 
   return children;
 };

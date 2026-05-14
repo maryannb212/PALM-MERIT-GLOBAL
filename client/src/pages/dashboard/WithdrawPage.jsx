@@ -124,8 +124,8 @@ const WithdrawPage = () => {
                 </div>
               )}
 
-              <button type="submit" className="btn btn-primary btn-block mt-4" disabled={loading || !bankDetails.accountNumber}>
-                {loading ? 'Processing...' : 'Submit Withdrawal Request'}
+              <button type="button" className="btn btn-primary btn-block mt-4" disabled style={{ opacity: 0.6, cursor: 'not-allowed' }} title="Withdrawals are currently disabled">
+                Submit Withdrawal Request
               </button>
             </form>
           </div>
