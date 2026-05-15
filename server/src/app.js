@@ -38,22 +38,37 @@ app.use(helmet());
 
 // Production-ready CORS — supports comma-separated CLIENT_URL for multi-domain
 const userOrigins = (process.env.CLIENT_URL || process.env.FRONTEND_URL || '').split(',').map(o => o.trim()).filter(Boolean);
-const defaultOrigins = ['https://palmmeritglobal.com', 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+const defaultOrigins = [
+  'https://palmmeritglobal.com', 
+  'https://www.palmmeritglobal.com',
+  'http://localhost:5173', 
+  'http://localhost:3000', 
+  'http://127.0.0.1:5173'
+];
 const allowedOrigins = [...new Set([...userOrigins, ...defaultOrigins])];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow all origins in development or if specified in allowedOrigins
-    if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
+    // Allow all origins in development
+    if (!origin || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+
+    // Check if origin is in allowedOrigins or matches vercel.app wildcard
+    const isAllowed = allowedOrigins.includes(origin) || 
+                     (origin.endsWith('.vercel.app') && !origin.includes('..'));
+
+    if (isAllowed) {
       callback(null, true);
     } else {
-      console.warn(`[CORS] Blocked request from origin: ${origin}`);
+      logger.warn(`[CORS] Blocked request from origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Set-Cookie']
 }));
 
 // Logging

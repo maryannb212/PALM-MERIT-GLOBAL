@@ -16,17 +16,29 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor for handling token expiration
+// Response interceptor for handling token expiration and error logging
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Production Error Logging
+    if (import.meta.env.PROD) {
+      console.error('[API Error]:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       const userInfo = JSON.parse(localStorage.getItem('palmmerit_user'));
       if (userInfo?.refreshToken) {
         try {
-          const { data } = await axios.post(`${API.defaults.baseURL}/auth/refresh`, {
+          const { data } = await axios.post(`${import.meta.env.VITE_API_URL || ''}/auth/refresh`, {
             refreshToken: userInfo.refreshToken,
           });
           userInfo.token = data.token;

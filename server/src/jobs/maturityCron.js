@@ -32,6 +32,7 @@ export const runMaturityCheck = async () => {
         case 'ISUSU':
           durationDays = 30;
           break;
+
       }
 
       const startDate = new Date(plan.start_date);
@@ -47,10 +48,11 @@ export const runMaturityCheck = async () => {
         if (['CREST', 'SILVER'].includes(plan.plan_name)) {
           newStatus = 'pending_clearance';
         } else if (plan.plan_name === 'GOLDEN_BASKET') {
+          // ISUSU or others
           newStatus = 'pending_settlement';
           payoutDate = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)); // +7 days
         } else {
-          // ISUSU or others
+          // Others
           newStatus = 'pending_settlement';
           payoutDate = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
         }

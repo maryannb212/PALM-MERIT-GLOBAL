@@ -201,9 +201,9 @@ const RegisterPage = () => {
               <div className="form-section fade-in">
                 <h3>Account Credentials</h3>
                 <div className="form-group full-width">
-                  <label>Email Address</label>
+                  <label>Email Address (Optional)</label>
                   <input 
-                    type="email" name="email" value={formData.email} onChange={handleInputChange} required 
+                    type="email" name="email" value={formData.email} onChange={handleInputChange} 
                     placeholder="name@example.com"
                     autoComplete="off"
                   />

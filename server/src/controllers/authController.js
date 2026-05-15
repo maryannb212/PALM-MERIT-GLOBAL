@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jsonwebtoken from 'jsonwebtoken';
 import crypto from 'crypto';
-import { createUser, findUserByEmail, findUserById } from '../models/userModel.js';
+import { createUser, findUserByEmail, findUserByPhone, findUserById } from '../models/userModel.js';
 import { query } from '../config/db.js';
 import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
@@ -32,14 +32,21 @@ export const registerUser = async (req, res) => {
   try {
     const { firstName, lastName, email, password, phone } = req.body;
 
-    if (!firstName || !lastName || !email || !password) {
-      return res.status(400).json({ message: 'Please provide all required fields' });
+    if (!firstName || !lastName || !phone || !password) {
+      return res.status(400).json({ message: 'Please provide all required fields including phone number' });
     }
 
-    const userExists = await findUserByEmail(email);
+    const userExists = await findUserByPhone(phone);
 
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'User with this phone number already exists' });
+    }
+    
+    if (email) {
+      const emailExists = await findUserByEmail(email);
+      if (emailExists) {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      }
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -53,14 +60,17 @@ export const registerUser = async (req, res) => {
     const sql = `
       INSERT INTO users (first_name, last_name, email, password_hash, phone, role)
       VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, first_name, last_name, email, role, has_paid_membership, kyc_status, profile_image, created_at;
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, created_at;
     `;
-    const { rows: newUser } = await query(sql, [firstName, lastName, email, passwordHash, phone, role]);
+    const emailToSave = email ? email : null;
+    const { rows: newUser } = await query(sql, [firstName, lastName, emailToSave, passwordHash, phone, role]);
     const user = newUser[0];
 
     if (user) {
-      // Send Welcome Email (Non-blocking)
-      sendWelcomeEmail(user).catch(err => console.error('Welcome email failed:', err));
+      // Send Welcome Email (Non-blocking) if email exists
+      if (user.email) {
+        sendWelcomeEmail(user).catch(err => console.error('Welcome email failed:', err));
+      }
 
       const accessToken = generateAccessToken(user.id);
       const refreshToken = await generateRefreshToken(user.id);
@@ -90,7 +100,11 @@ export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await findUserByEmail(email);
+    // Email field can be either email or phone
+    let user = await findUserByPhone(email);
+    if (!user) {
+      user = await findUserByEmail(email);
+    }
 
     if (user && (await bcrypt.compare(password, user.password_hash))) {
       // Generate and save OTP
@@ -119,10 +133,14 @@ export const verifyLoginOTP = async (req, res) => {
     const { email, code } = req.body;
 
     if (!email || !code) {
-      return res.status(400).json({ message: 'Email and OTP code are required' });
+      return res.status(400).json({ message: 'Phone/Email and OTP code are required' });
     }
 
-    const user = await findUserByEmail(email);
+    let user = await findUserByPhone(email);
+    if (!user) {
+      user = await findUserByEmail(email);
+    }
+    
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -199,28 +217,22 @@ export const logoutUser = async (req, res) => {
 
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    const user = await findUserByEmail(email);
+    const { phone } = req.body;
+    const user = await findUserByPhone(phone);
 
     if (!user) {
-      return res.status(404).json({ message: 'User with this email does not exist' });
+      return res.status(404).json({ message: 'User with this phone number does not exist' });
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
-    const expires = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
-
-    await query(
-      'UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE id = $3',
-      [resetTokenHash, expires, user.id]
-    );
-
-    // Send Reset Email
-    sendPasswordResetEmail(email, resetToken).catch(err => console.error('Reset email failed:', err));
+    // Generate and save OTP for password reset
+    const otp = await createAndSaveOTP(user.id, 'reset');
+    
+    // Send OTP via SMS
+    await sendOTP(user.phone, otp.code);
 
     res.json({ 
-      message: 'Password reset link sent to your email',
-      token: process.env.NODE_ENV === 'development' ? resetToken : undefined 
+      message: 'Password reset OTP sent to your phone',
+      mockOtp: process.env.NODE_ENV !== 'production' ? otp.code : undefined 
     });
   } catch (error) {
     console.error('Error in forgotPassword:', error);
@@ -230,25 +242,29 @@ export const forgotPassword = async (req, res) => {
 
 export const resetPassword = async (req, res) => {
   try {
-    const { token, password } = req.body;
-    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
-    const sql = `
-      SELECT * FROM users 
-      WHERE reset_password_token = $1 AND reset_password_expires > CURRENT_TIMESTAMP
-    `;
-    const { rows } = await query(sql, [resetTokenHash]);
-
-    if (rows.length === 0) {
-      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    const { phone, code, password } = req.body;
+    
+    if (!phone || !code || !password) {
+      return res.status(400).json({ message: 'Phone, OTP code, and new password are required' });
     }
 
-    const user = rows[0];
+    const user = await findUserByPhone(phone);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isValid = await checkOTP(user.id, code, 'reset');
+    
+    if (!isValid) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
     await query(
-      'UPDATE users SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL WHERE id = $2',
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
       [passwordHash, user.id]
     );
 

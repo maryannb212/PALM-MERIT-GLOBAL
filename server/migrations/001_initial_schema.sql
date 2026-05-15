@@ -167,3 +167,4 @@ VALUES
 ('SILVER', 360, 2500, 1500, 75000, '150000', 3000, 'WEEKLY'),
 ('GOLDEN_BASKET', 360, 3000, 2000, 100000, 'Foodstuff equivalent ≥ 100000', 0, 'WEEKLY'),
 ('ISUSU', 30, 0, 500, 15000, 'Flexible', 0, 'DAILY');
+

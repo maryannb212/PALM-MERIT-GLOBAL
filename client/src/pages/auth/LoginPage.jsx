@@ -85,15 +85,15 @@ const LoginPage = () => {
           {!otpStep ? (
             <form onSubmit={handleLoginSubmit} className="auth-form">
               <div className="form-group">
-                <label htmlFor="email">Email Address</label>
+                <label htmlFor="email">Phone Number or Email</label>
                 <input
-                  type="email"
+                  type="text"
                   id="email"
                   name="email"
                   value={credentials.email}
                   onChange={handleInputChange}
                   required
-                  placeholder="Enter your email"
+                  placeholder="Enter your phone or email"
                 />
               </div>
               
