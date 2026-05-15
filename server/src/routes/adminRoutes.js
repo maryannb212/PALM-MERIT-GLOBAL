@@ -14,6 +14,7 @@ import {
   approveWithdrawal,
   rejectWithdrawal
 } from '../controllers/adminController.js';
+import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
 import { ceoLogin } from '../controllers/adminAuthController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
@@ -40,5 +41,7 @@ router.post('/approve-payment/:transactionId', approveManualPayment);
 router.get('/withdrawals/pending', getPendingWithdrawals);
 router.put('/withdrawals/:id/approve', approveWithdrawal);
 router.put('/withdrawals/:id/reject', rejectWithdrawal);
+router.get('/payouts', getPendingPayouts);
+router.post('/approve-payout', approvePayout);
 
 export default router;
