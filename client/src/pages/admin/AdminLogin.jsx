@@ -8,14 +8,14 @@ const AdminLogin = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { user, ceoLogin } = useAuth();
+  const { admin, ceoLogin } = useAuth();
   const navigate = useNavigate();
 
   React.useEffect(() => {
-    if (user && user.role === 'admin') {
+    if (admin) {
       navigate('/admin/dashboard');
     }
-  }, [user, navigate]);
+  }, [admin, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

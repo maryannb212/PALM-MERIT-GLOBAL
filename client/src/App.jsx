@@ -105,6 +105,7 @@ const AppLayout = () => {
                 <DashboardLayout />
               </ProtectedRoute>
             }>
+              <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="kyc-queue" element={<KYCQueue />} />
               <Route path="members" element={<MembersPage />} />
