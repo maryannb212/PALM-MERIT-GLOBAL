@@ -5,19 +5,29 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const cleanEnv = (key) => process.env[key]?.trim().replace(/^["']|["']$/g, '') || '';
+
 // Cloudinary Configuration
+const cloud_name = cleanEnv('CLOUDINARY_CLOUD_NAME');
+const api_key = cleanEnv('CLOUDINARY_API_KEY');
+const api_secret = cleanEnv('CLOUDINARY_API_SECRET');
+
+if (process.env.NODE_ENV === 'production') {
+  console.log(`[Cloudinary] Configured with cloud_name: ${cloud_name}, api_key: ${api_key.substring(0, 5)}..., api_secret: ${api_secret.substring(0, 3)}...`);
+}
+
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true, // Use HTTPS
+  cloud_name,
+  api_key,
+  api_secret,
+  secure: true,
 });
 
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'palm_merit_global',
-    allowed_formats: ['jpg', 'png', 'jpeg', 'pdf'],
+    // Removed allowed_formats from here as it's handled by fileFilter and can cause signature issues
     transformation: [{ width: 1000, height: 1000, crop: 'limit' }],
   },
 });

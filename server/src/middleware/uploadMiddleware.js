@@ -25,7 +25,7 @@ const cloudinaryStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'palm_merit_global',
-    allowed_formats: ['jpg', 'png', 'jpeg', 'pdf'],
+    // removed allowed_formats to prevent signature mismatches
     public_id: (req, file) => {
       // Use a consistent ID by attaching it to the file object if not present
       if (!file.cloudinary_public_id) {

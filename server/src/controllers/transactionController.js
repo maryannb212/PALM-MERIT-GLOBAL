@@ -30,6 +30,17 @@ import { logWebhookEvent } from '../utils/webhookLogger.js';
 
 dotenv.config();
 
+const cleanKey = (key) => process.env[key]?.trim().replace(/^["']|["']$/g, '') || '';
+
+const getPaystackSecret = () => cleanKey('PAYSTACK_SECRET_KEY');
+const getFlutterwaveSecret = () => cleanKey('FLUTTERWAVE_SECRET_KEY');
+
+if (process.env.NODE_ENV === 'production') {
+  const flw = getFlutterwaveSecret();
+  const ps = getPaystackSecret();
+  console.log(`[Payment] Provider Keys - Flutterwave: ${flw.substring(0, 8)}..., Paystack: ${ps.substring(0, 8)}...`);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,7 +130,7 @@ export const initializeTransaction = async (req, res) => {
             metadata: { userId, planId, type }
           }, {
             headers: { 
-              Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+              Authorization: `Bearer ${getPaystackSecret()}`,
               'Content-Type': 'application/json'
             }
           });
@@ -151,7 +162,7 @@ export const initializeTransaction = async (req, res) => {
             payment_options: 'card,account,ussd,banktransfer'
           }, {
             headers: { 
-              Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+              Authorization: `Bearer ${getFlutterwaveSecret()}`,
               'Content-Type': 'application/json'
             }
           });
@@ -195,7 +206,7 @@ export const initializeDeposit = initializeTransaction;
  *  6. Always return 200 so Paystack stops retrying (even for duplicates).
  */
 export const paystackWebhook = async (req, res) => {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
+  const secret = getPaystackSecret();
 
   // express.raw() gives us a Buffer; express.json() gives a parsed object.
   // Support both so this works even if middleware changes.
@@ -378,7 +389,7 @@ export const paystackWebhook = async (req, res) => {
  * Flutterwave Webhook handler.
  */
 export const flutterwaveWebhook = async (req, res) => {
-  const secret = process.env.FLUTTERWAVE_SECRET_KEY;
+  const secret = getFlutterwaveSecret();
   const signature = req.headers['verif-hash'];
 
   // 1. Signature Verification
@@ -449,15 +460,12 @@ export const verifyTransaction = async (req, res) => {
     let verifiedAmount, gatewayRef;
 
     if (provider === 'paystack') {
-      const verified = await verifyWithPaystack(reference, process.env.PAYSTACK_SECRET_KEY);
+      const verified = await verifyWithPaystack(reference, getPaystackSecret());
       verifiedAmount = verified.amount;
       gatewayRef = verified.gatewayRef;
     } else if (provider === 'flutterwave') {
-      // For Flutterwave manual verify, we might need the transaction_id from the query params if available,
-      // but usually we verify by tx_ref. Flutterwave's verify-by-tx-ref is different.
-      // Let's assume we can get it from the URL or we use the reference to search.
       const response = await axios.get(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${reference}`, {
-        headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}` }
+        headers: { Authorization: `Bearer ${getFlutterwaveSecret()}` }
       });
       const data = response.data.data;
       if (data.status !== 'successful') throw new Error('Payment not successful');
