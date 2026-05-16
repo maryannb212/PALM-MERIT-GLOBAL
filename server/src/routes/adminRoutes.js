@@ -2,6 +2,8 @@ import express from 'express';
 import { 
   getAllUsers, 
   getUserById, 
+  updateUser,
+  deleteUser,
   getDashboardStats, 
   getAllTickets, 
   updateTicket,
@@ -29,6 +31,8 @@ router.use(protect, admin);
 
 router.get('/users', getAllUsers);
 router.get('/users/:id', getUserById);
+router.put('/users/:id', updateUser);
+router.delete('/users/:id', deleteUser);
 router.get('/stats', getDashboardStats);
 router.get('/tickets', getAllTickets);
 router.put('/tickets/:id', updateTicket);

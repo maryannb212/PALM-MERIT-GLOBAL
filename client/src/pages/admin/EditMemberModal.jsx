@@ -1,0 +1,104 @@
+import React, { useState, useEffect } from 'react';
+import { FaTimes } from 'react-icons/fa';
+import './Admin.css';
+
+const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    role: 'user',
+    has_paid_membership: false
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (member) {
+      setFormData({
+        first_name: member.first_name || '',
+        last_name: member.last_name || '',
+        email: member.email || '',
+        phone: member.phone || '',
+        role: member.role || 'user',
+        has_paid_membership: member.has_paid_membership || false
+      });
+    }
+  }, [member]);
+
+  if (!isOpen || !member) return null;
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    await onSave(member.id, formData);
+    setLoading(false);
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" style={{ maxWidth: '500px' }}>
+        <div className="modal-header">
+          <h3>Edit Member Profile</h3>
+          <button className="close-btn" onClick={onClose}><FaTimes /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="modal-form">
+          <div className="form-row" style={{ display: 'flex', gap: '15px' }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>First Name</label>
+              <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Last Name</label>
+              <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Email Address</label>
+            <input type="email" name="email" value={formData.email} onChange={handleChange} required />
+          </div>
+          <div className="form-group">
+            <label>Phone Number</label>
+            <input type="tel" name="phone" value={formData.phone} onChange={handleChange} />
+          </div>
+          <div className="form-row" style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>System Role</label>
+              <select name="role" value={formData.role} onChange={handleChange} className="refined-input">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '25px' }}>
+              <input 
+                type="checkbox" 
+                name="has_paid_membership" 
+                id="membership_toggle"
+                checked={formData.has_paid_membership} 
+                onChange={handleChange} 
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <label htmlFor="membership_toggle" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold' }}>Premium Member</label>
+            </div>
+          </div>
+          <div className="modal-actions" style={{ marginTop: '20px' }}>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default EditMemberModal;

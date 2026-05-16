@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getAllUsers } from '../../services/api';
-import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle } from 'react-icons/fa';
+import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser } from '../../services/api';
+import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt } from 'react-icons/fa';
+import EditMemberModal from './EditMemberModal';
 import '../dashboard/Dashboard.css';
 import './Admin.css';
 
@@ -10,6 +11,8 @@ const MembersPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingMember, setEditingMember] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const avatarColors = ['#800020', '#D4AF37', '#1e293b', '#475569', '#64748b'];
 
@@ -44,6 +47,39 @@ const MembersPage = () => {
   const getAvatarColor = (id) => {
     const index = (id?.charCodeAt(0) || 0) % avatarColors.length;
     return avatarColors[index];
+  };
+
+  const handleVerify = async (userId) => {
+    if (!window.confirm('Force verify this user? This will instantly approve their KYC.')) return;
+    try {
+      await updateKYCStatus(userId, { status: 'verified' });
+      fetchMembers();
+      alert('User successfully verified.');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Verification failed');
+    }
+  };
+
+  const handleDelete = async (userId) => {
+    if (!window.confirm('CRITICAL: Are you sure you want to permanently delete this user and all their data? This cannot be undone.')) return;
+    try {
+      await deleteAdminUser(userId);
+      fetchMembers();
+      alert('User successfully deleted.');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Deletion failed');
+    }
+  };
+
+  const handleEditSave = async (userId, data) => {
+    try {
+      await updateAdminUser(userId, data);
+      setIsEditModalOpen(false);
+      setEditingMember(null);
+      fetchMembers();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update user');
+    }
   };
 
   return (
@@ -102,6 +138,7 @@ const MembersPage = () => {
                   <th>Membership</th>
                   <th>Identity Verification</th>
                   <th className="text-right"><FaCalendarAlt /> Access Date</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -156,6 +193,36 @@ const MembersPage = () => {
                         day: 'numeric'
                       })}
                     </td>
+                    <td className="text-right">
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {member.kyc_status !== 'verified' && (
+                          <button 
+                            onClick={() => handleVerify(member.id)} 
+                            className="btn btn-sm btn-primary"
+                            title="Force Verify KYC"
+                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                          >
+                            <FaCheckCircle />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => { setEditingMember(member); setIsEditModalOpen(true); }}
+                          className="btn btn-sm btn-secondary"
+                          title="Edit User"
+                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                        >
+                          <FaEdit />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(member.id)}
+                          className="btn btn-sm"
+                          title="Delete User"
+                          style={{ padding: '4px 8px', fontSize: '12px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171' }}
+                        >
+                          <FaTrashAlt />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -163,6 +230,13 @@ const MembersPage = () => {
           </div>
         )}
       </div>
+      
+      <EditMemberModal 
+        isOpen={isEditModalOpen} 
+        onClose={() => { setIsEditModalOpen(false); setEditingMember(null); }}
+        member={editingMember}
+        onSave={handleEditSave}
+      />
     </div>
   );
 };

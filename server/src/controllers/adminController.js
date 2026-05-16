@@ -49,6 +49,64 @@ export const getUserById = async (req, res) => {
 };
 
 /**
+ * Update user details
+ * PUT /api/admin/users/:id
+ */
+export const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { first_name, last_name, email, phone, role, has_paid_membership } = req.body;
+
+    const sql = `
+      UPDATE users 
+      SET first_name = COALESCE($1, first_name),
+          last_name = COALESCE($2, last_name),
+          email = COALESCE($3, email),
+          phone = COALESCE($4, phone),
+          role = COALESCE($5, role),
+          has_paid_membership = COALESCE($6, has_paid_membership)
+      WHERE id = $7
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status;
+    `;
+    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ message: 'User updated successfully', user: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ message: 'Server error updating user' });
+  }
+};
+
+/**
+ * Delete a user
+ * DELETE /api/admin/users/:id
+ */
+export const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Perform a hard delete (this will cascade if foreign keys are set up, 
+    // otherwise manual deletion of child records might be needed). 
+    // The database schema has ON DELETE CASCADE for most relationships.
+    const sql = `DELETE FROM users WHERE id = $1 RETURNING id`;
+    const result = await query(sql, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ message: 'Server error deleting user' });
+  }
+};
+
+/**
  * Get dashboard statistics
  * GET /api/admin/stats
  */
