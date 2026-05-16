@@ -8,7 +8,7 @@ import MembershipPaywall from '../../components/MembershipPaywall';
 import './Dashboard.css';
 
 const DashboardHome = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
