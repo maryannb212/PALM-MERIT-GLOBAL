@@ -5,16 +5,27 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount, check localStorage for an existing session
+  // On mount, check localStorage for existing sessions
   useEffect(() => {
-    const stored = localStorage.getItem('palmmerit_user');
-    if (stored) {
+    const storedUser = localStorage.getItem('palmmerit_user');
+    const storedAdmin = localStorage.getItem('palmmerit_admin');
+    
+    if (storedUser) {
       try {
-        setUser(JSON.parse(stored));
+        setUser(JSON.parse(storedUser));
       } catch {
         localStorage.removeItem('palmmerit_user');
+      }
+    }
+    
+    if (storedAdmin) {
+      try {
+        setAdmin(JSON.parse(storedAdmin));
+      } catch {
+        localStorage.removeItem('palmmerit_admin');
       }
     }
     setLoading(false);
@@ -23,7 +34,6 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const { data } = await loginAPI({ email, password });
     if (!data.requiresOTP) {
-      // Fallback for older flow or bypass
       localStorage.setItem('palmmerit_user', JSON.stringify(data));
       setUser(data);
     }
@@ -32,8 +42,8 @@ export const AuthProvider = ({ children }) => {
 
   const ceoLogin = async (username, password) => {
     const { data } = await adminLoginAPI({ username, password });
-    localStorage.setItem('palmmerit_user', JSON.stringify(data));
-    setUser(data);
+    localStorage.setItem('palmmerit_admin', JSON.stringify(data));
+    setAdmin(data);
     return data;
   };
 
@@ -56,6 +66,11 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const adminLogout = () => {
+    localStorage.removeItem('palmmerit_admin');
+    setAdmin(null);
+  };
+
   const updateUser = (data) => {
     const updatedUser = { ...user, ...data };
     localStorage.setItem('palmmerit_user', JSON.stringify(updatedUser));
@@ -73,7 +88,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, ceoLogin, register, logout, updateUser, verifyOTP, refreshProfile }}>
+    <AuthContext.Provider value={{ user, admin, loading, login, ceoLogin, register, logout, adminLogout, updateUser, verifyOTP, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

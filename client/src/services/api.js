@@ -9,7 +9,12 @@ const API = axios.create({
 
 // Attach JWT token to every request if it exists in localStorage
 API.interceptors.request.use((config) => {
-  const userInfo = localStorage.getItem('palmmerit_user');
+  // Determine if this is an admin request
+  const isAdminRequest = config.url.includes('/admin') || config.url.includes('/ambassadors');
+  
+  const storageKey = isAdminRequest ? 'palmmerit_admin' : 'palmmerit_user';
+  const userInfo = localStorage.getItem(storageKey);
+  
   if (userInfo) {
     const { token } = JSON.parse(userInfo);
     if (token) {

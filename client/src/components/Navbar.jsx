@@ -7,7 +7,7 @@ import './Navbar.css';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, admin, logout, adminLogout } = useAuth();
   const navigate = useNavigate();
 
   const toggleMenu = () => {
@@ -16,6 +16,12 @@ const Navbar = () => {
 
   const handleLogout = () => {
     logout();
+    setIsOpen(false);
+    navigate('/');
+  };
+
+  const handleAdminLogout = () => {
+    adminLogout();
     setIsOpen(false);
     navigate('/');
   };
@@ -43,12 +49,19 @@ const Navbar = () => {
             <Link to="/terms" className="nav-links" onClick={toggleMenu}>Terms</Link>
           </li>
           <li className="nav-item nav-buttons-mobile">
-            {user ? (
+            {admin && (
               <>
-                <Button variant="primary" to="/dashboard" onClick={toggleMenu}>Dashboard</Button>
+                <Button variant="primary" to="/admin/dashboard" onClick={toggleMenu} style={{ background: '#800020' }}>Admin Portal</Button>
+                <Button variant="outline" onClick={handleAdminLogout}>Admin Logout</Button>
+              </>
+            )}
+            {user && (
+              <>
+                <Button variant="primary" to="/dashboard" onClick={toggleMenu}>User Dashboard</Button>
                 <Button variant="outline" onClick={handleLogout}>Logout</Button>
               </>
-            ) : (
+            )}
+            {!user && !admin && (
               <>
                 <Button variant="outline" to="/login" onClick={toggleMenu}>Login</Button>
                 <Button variant="primary" to="/register" onClick={toggleMenu}>Register</Button>
@@ -58,12 +71,19 @@ const Navbar = () => {
         </ul>
         
         <div className="nav-buttons">
-          {user ? (
-            <>
+          {admin && (
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Button variant="primary" to="/admin/dashboard" className="nav-btn" style={{ background: '#800020' }}>Admin Portal</Button>
+              <Button variant="outline" onClick={handleAdminLogout} className="nav-btn">Admin Logout</Button>
+            </div>
+          )}
+          {user && (
+            <div style={{ display: 'flex', gap: '10px' }}>
               <Button variant="primary" to="/dashboard" className="nav-btn">Dashboard</Button>
               <Button variant="outline" onClick={handleLogout} className="nav-btn">Logout</Button>
-            </>
-          ) : (
+            </div>
+          )}
+          {!user && !admin && (
             <>
               <Button variant="outline" to="/login" className="nav-btn">Login</Button>
               <Button variant="primary" to="/register" className="nav-btn">Register</Button>
