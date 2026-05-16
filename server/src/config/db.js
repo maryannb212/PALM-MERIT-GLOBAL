@@ -17,7 +17,7 @@ const poolConfig = {
     connectionString.includes('railway') ||
     connectionString.includes('sslmode=require')
   )) ? { rejectUnauthorized: false } : false,
-  max: process.env.DEPLOY_MODE === 'serverless' ? 3 : 20,
+  max: process.env.DEPLOY_MODE === 'serverless' ? 10 : 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 };

@@ -32,23 +32,19 @@ export const createAndSaveOTP = async (userId, type = 'login') => {
  */
 export const verifyOTP = async (userId, code, type = 'login') => {
   const sql = `
-    SELECT * FROM otp_codes
-    WHERE user_id = $1 AND code = $2 AND type = $3 AND used = FALSE AND expires_at > CURRENT_TIMESTAMP
-    ORDER BY created_at DESC
-    LIMIT 1;
+    UPDATE otp_codes 
+    SET used = TRUE 
+    WHERE id = (
+      SELECT id FROM otp_codes 
+      WHERE user_id = $1 AND code = $2 AND type = $3 AND used = FALSE AND expires_at > CURRENT_TIMESTAMP 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    )
+    RETURNING id;
   `;
   
   const result = await query(sql, [userId, code, type]);
-  
-  if (result.rows.length === 0) {
-    return false;
-  }
-
-  // Mark as used
-  const updateSql = `UPDATE otp_codes SET used = TRUE WHERE id = $1`;
-  await query(updateSql, [result.rows[0].id]);
-
-  return true;
+  return result.rows.length > 0;
 };
 
 /**
