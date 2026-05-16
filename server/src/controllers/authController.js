@@ -44,7 +44,11 @@ export const registerUser = async (req, res) => {
     if (phoneMatch.length > 0) {
       return res.status(400).json({ 
         message: `User with phone number ${normalizedPhone} already exists`,
-        debug: { matchedPhone: phoneMatch[0].phone }
+        debug: { 
+          receivedPhone: phone,
+          normalizedPhone: normalizedPhone,
+          matchedPhone: phoneMatch[0].phone 
+        }
       });
     }
 

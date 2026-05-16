@@ -140,6 +140,7 @@ const RegisterPage = () => {
                     <input 
                       type="tel" name="phone" value={formData.phone} onChange={handleInputChange} 
                       placeholder="08012345678" required 
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -186,6 +187,7 @@ const RegisterPage = () => {
                     <input 
                       type="tel" name="nokPhone" value={formData.nokPhone} onChange={handleInputChange} required 
                       placeholder="NOK Phone Number"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
