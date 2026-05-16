@@ -6,6 +6,7 @@ import { query } from '../config/db.js';
 import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../utils/emailService.js';
+import { createPaystackVirtualAccount } from '../services/virtualAccountService.js';
 
 dotenv.config();
 
@@ -95,6 +96,9 @@ export const registerUser = async (req, res) => {
         hasPaidMembership: user.has_paid_membership,
         kycStatus: user.kyc_status,
         profileImage: user.profile_image,
+        virtual_account_number: user.virtual_account_number,
+        virtual_bank_name: user.virtual_bank_name,
+        virtual_account_name: user.virtual_account_name,
         token: accessToken,
         refreshToken: refreshToken
       });
@@ -127,6 +131,9 @@ export const loginUser = async (req, res) => {
         hasPaidMembership: user.has_paid_membership,
         kycStatus: user.kyc_status,
         profileImage: user.profile_image,
+        virtual_account_number: user.virtual_account_number,
+        virtual_bank_name: user.virtual_bank_name,
+        virtual_account_name: user.virtual_account_name,
         token: accessToken,
         refreshToken: refreshToken,
         requiresOTP: false
@@ -177,6 +184,9 @@ export const verifyLoginOTP = async (req, res) => {
       hasPaidMembership: user.has_paid_membership,
       kycStatus: user.kyc_status,
       profileImage: user.profile_image,
+      virtual_account_number: user.virtual_account_number,
+      virtual_bank_name: user.virtual_bank_name,
+      virtual_account_name: user.virtual_account_name,
       token: accessToken,
       refreshToken: refreshToken
     });
@@ -295,6 +305,7 @@ export const getUserProfile = async (req, res) => {
       SELECT 
         u.id, u.first_name, u.last_name, u.email, u.role, u.phone,
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.profile_image, u.created_at,
+        u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name,
         b.account_name, b.account_number, b.bank_name, b.bank_code
       FROM users u
       LEFT JOIN bank_accounts b ON u.id = b.user_id
@@ -303,7 +314,23 @@ export const getUserProfile = async (req, res) => {
     const { rows } = await query(sql, [userId]);
     if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
     
-    const user = rows[0];
+    let user = rows[0];
+
+    // Retroactive Virtual Account Generation:
+    // If the user is verified but doesn't have a virtual account (because it failed previously)
+    if (user.kyc_status === 'verified' && !user.virtual_account_number) {
+      try {
+        const updatedAccount = await createPaystackVirtualAccount(userId);
+        if (updatedAccount) {
+          user.virtual_account_number = updatedAccount.virtual_account_number;
+          user.virtual_account_name = updatedAccount.virtual_account_name;
+          user.virtual_bank_name = updatedAccount.virtual_bank_name;
+        }
+      } catch (err) {
+        console.error('Failed retroactive virtual account generation:', err);
+      }
+    }
+
     res.json({
       id: user.id,
       firstName: user.first_name,
@@ -315,6 +342,9 @@ export const getUserProfile = async (req, res) => {
       kycStatus: user.kyc_status,
       walletBalance: user.wallet_balance,
       profileImage: user.profile_image,
+      virtual_account_number: user.virtual_account_number,
+      virtual_bank_name: user.virtual_bank_name,
+      virtual_account_name: user.virtual_account_name,
       bankDetails: user.account_number ? {
         accountName: user.account_name,
         accountNumber: user.account_number,
