@@ -38,8 +38,9 @@ const DashboardHome = () => {
   };
 
   useEffect(() => {
+    refreshProfile(); // Always fetch latest profile (KYC status, membership, etc.)
     fetchPlans();
-  }, [user]);
+  }, []);
 
   // Check if announcement was dismissed this session
   useEffect(() => {
