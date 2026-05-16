@@ -36,17 +36,21 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Please provide all required fields including phone number' });
     }
 
-    const userExists = await findUserByPhone(phone);
+    const normalizedPhone = phone.trim();
+    const normalizedEmail = email ? email.trim().toLowerCase() : null;
 
-    if (userExists) {
-      return res.status(400).json({ message: 'User with this phone number already exists' });
-    }
-    
-    if (email) {
-      const emailExists = await findUserByEmail(email);
-      if (emailExists) {
-        return res.status(400).json({ message: 'User with this email already exists' });
+    // Consolidate lookup into one atomic query
+    const { rows: existingUsers } = await query(
+      'SELECT email, phone FROM users WHERE phone = $1 OR (email IS NOT NULL AND email = $2)',
+      [normalizedPhone, normalizedEmail]
+    );
+
+    if (existingUsers.length > 0) {
+      const match = existingUsers[0];
+      if (match.phone === normalizedPhone) {
+        return res.status(400).json({ message: 'User with this phone number already exists' });
       }
+      return res.status(400).json({ message: 'User with this email already exists' });
     }
 
     const salt = await bcrypt.genSalt(10);

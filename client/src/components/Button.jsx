@@ -7,7 +7,7 @@ const Button = ({ children, variant = 'primary', to, onClick, type = 'button', c
 
   if (to) {
     return (
-      <Link to={to} className={baseClass}>
+      <Link to={to} className={baseClass} onClick={onClick}>
         {children}
       </Link>
     );
