@@ -111,34 +111,68 @@ export const initializeTransaction = async (req, res) => {
 
     if (!isMockMode()) {
       if (provider === 'paystack') {
-        const paystackRes = await axios.post('https://api.paystack.co/transaction/initialize', {
-          email,
-          amount: Math.round(Number(amount) * 100),
-          reference,
-          metadata: { userId, planId, type }
-        }, {
-          headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
-        });
-        authorization_url = paystackRes.data.data.authorization_url;
+        try {
+          const paystackRes = await axios.post('https://api.paystack.co/transaction/initialize', {
+            email,
+            amount: Math.round(Number(amount) * 100),
+            reference,
+            metadata: { userId, planId, type }
+          }, {
+            headers: { 
+              Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          authorization_url = paystackRes.data.data.authorization_url;
+        } catch (error) {
+          console.error('[initializeTransaction] Paystack Error:', error.response?.data || error.message);
+          throw error;
+        }
       } else if (provider === 'flutterwave') {
-        const flutterwaveRes = await axios.post('https://api.flutterwave.com/v3/payments', {
-          tx_ref: reference,
-          amount: Number(amount),
-          currency: 'NGN',
-          redirect_url: `${process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com'}/dashboard/wallet?ref=${reference}`,
-          customer: { email, name: `${req.user.first_name} ${req.user.last_name}` },
-          customizations: { title: 'Palm Merit Global', description: `Payment for ${type || 'deposit'}` }
-        }, {
-          headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}` }
-        });
-        authorization_url = flutterwaveRes.data.data.link;
+        try {
+          const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+          const redirect_url = `${baseUrl}/dashboard/wallet?ref=${reference}`;
+
+          const flutterwaveRes = await axios.post('https://api.flutterwave.com/v3/payments', {
+            tx_ref: reference,
+            amount: Number(amount),
+            currency: 'NGN',
+            redirect_url,
+            customer: { 
+              email, 
+              name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
+              phone_number: req.user.phone || ''
+            },
+            customizations: { 
+              title: 'Palm Merit Global', 
+              description: `Payment for ${type || 'deposit'}`,
+              logo: 'https://palmmeritglobal.com/logo.png' 
+            },
+            payment_options: 'card,account,ussd,banktransfer'
+          }, {
+            headers: { 
+              Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          authorization_url = flutterwaveRes.data.data.link;
+        } catch (error) {
+          console.error('[initializeTransaction] Flutterwave Error:', error.response?.data || error.message);
+          throw error;
+        }
       }
     }
 
     return res.status(201).json({ message: 'Transaction initialized', transaction, authorization_url });
   } catch (error) {
-    console.error('[initializeTransaction] Error:', error.response?.data || error.message);
-    return res.status(500).json({ message: 'Could not initialize payment. Please try again.' });
+    const errorData = error.response?.data || {};
+    const errorMessage = errorData.message || error.message;
+    console.error('[initializeTransaction] Global Catch:', errorMessage);
+    
+    return res.status(500).json({ 
+      message: 'Could not initialize payment. Please try again.',
+      error: process.env.NODE_ENV === 'production' ? null : errorMessage
+    });
   }
 };
 
