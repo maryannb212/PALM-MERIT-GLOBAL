@@ -2,24 +2,13 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
-import { v2 as cloudinary } from 'cloudinary';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { cloudinary } from '../config/cloudinary.js';
 
 // Ensure uploads directory exists for development only
-// Production uses Cloudinary (Railway filesystem is ephemeral)
 const uploadDir = 'uploads/';
 if (process.env.NODE_ENV !== 'production' && !fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-
-// Cloudinary Configuration
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 // Storage configurations
 const diskStorage = multer.diskStorage({
@@ -38,8 +27,12 @@ const cloudinaryStorage = new CloudinaryStorage({
     folder: 'palm_merit_global',
     allowed_formats: ['jpg', 'png', 'jpeg', 'pdf'],
     public_id: (req, file) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      return file.fieldname + '-' + uniqueSuffix;
+      // Use a consistent ID by attaching it to the file object if not present
+      if (!file.cloudinary_public_id) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        file.cloudinary_public_id = `${file.fieldname}-${uniqueSuffix}`;
+      }
+      return file.cloudinary_public_id;
     }
   },
 });
