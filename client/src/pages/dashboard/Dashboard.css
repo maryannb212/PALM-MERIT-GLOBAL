@@ -1245,21 +1245,25 @@
 
 /* ─── Join Savings Plans (Packages) ─── */
 .packages-header-section {
-  margin-bottom: 30px;
+  margin-bottom: 40px;
+  text-align: center;
 }
 
 .packages-header-section h2 {
   font-family: var(--font-family-heading);
-  font-size: 1.8rem;
+  font-size: 2.2rem;
   color: var(--color-primary-dark);
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
 }
 
 .packages-header-section p {
   color: var(--color-text-muted);
-  font-size: 0.95rem;
-  max-width: 600px;
-  line-height: 1.5;
+  font-size: 1rem;
+  max-width: 700px;
+  margin: 0 auto;
+  line-height: 1.6;
 }
 
 .plans-grid {
@@ -1295,41 +1299,62 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.plan-icon-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.plan-icon {
+  font-size: 1.5rem;
+  background: #fff;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 .plan-card-header h3 {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   color: var(--color-primary-dark);
   margin: 0;
-  font-weight: 700;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .plan-subscribers {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  background: #f1f5f9;
-  padding: 4px 10px;
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  background: #fff0f3;
+  padding: 4px 12px;
   border-radius: 20px;
-  font-weight: 600;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .plan-desc {
-  font-size: 0.9rem;
-  color: #475569;
-  line-height: 1.5;
+  font-size: 0.88rem;
+  color: #64748b;
+  line-height: 1.6;
   margin-bottom: 24px;
-  max-width: 800px;
+  min-height: 44px;
 }
 
 .plan-stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 15px;
-  background: #f8fafc;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  gap: 12px;
+  background: #fafafa;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #f1f1f1;
 }
 
 .plan-stat {

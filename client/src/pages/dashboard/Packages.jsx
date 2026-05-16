@@ -8,8 +8,10 @@ const PACKAGES = [
   {
     id: 'CREST',
     name: 'CREST Programme',
+    icon: '🏆',
     subscribers: '279 Subscribed',
-    description: '3 Months (90 Days) / 12 Weeks Saving Program. Registration fee is ₦3,000.',
+    description: 'A focused 3-month (90 days) savings cycle designed for short-term goals.',
+    regFee: '₦3,000',
     amount: '₦4,000.00',
     frequency: 'weekly',
     duration: '12',
@@ -21,8 +23,10 @@ const PACKAGES = [
   {
     id: 'SILVER',
     name: 'SILVER Programme',
+    icon: '💎',
     subscribers: '3,256 Subscribed',
-    description: '12 Months (360 Days) / 50 Weeks Savings Program. Registration fee is ₦2,500.',
+    description: 'Our popular 12-month (360 days) program for steady, long-term capital growth.',
+    regFee: '₦2,500',
     amount: '₦1,500.00',
     frequency: 'weekly',
     duration: '50',
@@ -33,9 +37,11 @@ const PACKAGES = [
   },
   {
     id: 'GOLDEN_BASKET',
-    name: 'GOLDEN BASKET Programme',
+    name: 'GOLDEN BASKET',
+    icon: '🧺',
     subscribers: '786,235 Subscribed',
-    description: '12 Months (360 Days) / 50 Weeks Savings Program. Registration fee is ₦3,000.',
+    description: 'A premium 12-month program combining savings with food security benefits.',
+    regFee: '₦3,000',
     amount: '₦2,000.00',
     frequency: 'weekly',
     duration: '50',
@@ -46,9 +52,11 @@ const PACKAGES = [
   },
   {
     id: 'ISUSU',
-    name: 'ISUSU Daily Savings',
+    name: 'ISUSU Daily',
+    icon: '📈',
     subscribers: '45,102 Subscribed',
-    description: 'Daily Savings for 1 Month (30 Days). System deducts amount saved daily after every 30 days maturity.',
+    description: 'Flexible daily savings with monthly maturity and automatic rollover options.',
+    regFee: '₦0',
     amount: '₦500.00',
     frequency: 'daily (min)',
     duration: '30',
@@ -87,8 +95,8 @@ const Packages = () => {
   return (
     <>
         <header className="packages-header-section">
-          <h2>ORGANISATIONAL PROGRAMMES</h2>
-          <p>PLEASE SELECT A PACKAGE THAT BEST FITS YOUR BUDGET/PLAN</p>
+          <h2>OUR PROGRAMMES</h2>
+          <p>Explore our curated savings programs designed to help you achieve financial stability and community impact. Choose the plan that aligns with your goals.</p>
         </header>
 
         <div className="plans-grid">
@@ -99,7 +107,10 @@ const Packages = () => {
               onClick={() => handleSelectPlan(pkg)}
             >
               <div className="plan-card-header">
-                <h3>{pkg.name}</h3>
+                <div className="plan-icon-name">
+                  <span className="plan-icon">{pkg.icon}</span>
+                  <h3>{pkg.name}</h3>
+                </div>
                 <span className="plan-subscribers">{pkg.subscribers}</span>
               </div>
               
