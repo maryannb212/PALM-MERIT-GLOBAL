@@ -7,7 +7,7 @@ import '../dashboard/Dashboard.css';
 import './Admin.css';
 
 const AdminDashboard = () => {
-  const { user } = useAuth();
+  const { admin } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -22,12 +22,12 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user?.role !== 'admin') {
-      navigate('/dashboard');
+    if (!admin) {
+      navigate('/admin/login');
     } else {
       fetchStats();
     }
-  }, [user]);
+  }, [admin]);
 
   const fetchStats = async () => {
     try {

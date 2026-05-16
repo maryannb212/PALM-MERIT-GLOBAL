@@ -7,7 +7,7 @@ import '../dashboard/Dashboard.css';
 import './Admin.css';
 
 const AdminPayouts = () => {
-  const { user } = useAuth();
+  const { admin } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,12 +15,12 @@ const AdminPayouts = () => {
   const [processingId, setProcessingId] = useState(null);
 
   useEffect(() => {
-    if (user?.role !== 'admin') {
-      navigate('/dashboard');
+    if (!admin) {
+      navigate('/admin/login');
     } else {
       fetchPayouts();
     }
-  }, [user]);
+  }, [admin]);
 
   const fetchPayouts = async () => {
     try {

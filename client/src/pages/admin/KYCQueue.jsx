@@ -7,7 +7,7 @@ import '../dashboard/Dashboard.css';
 import './Admin.css';
 
 const KYCQueue = () => {
-  const { user } = useAuth();
+  const { admin } = useAuth();
   const navigate = useNavigate();
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,9 +15,9 @@ const KYCQueue = () => {
   const [processingId, setProcessingId] = useState(null);
 
   useEffect(() => {
-    if (user?.role !== 'admin') navigate('/dashboard');
+    if (!admin) navigate('/admin/login');
     fetchQueue();
-  }, [user]);
+  }, [admin]);
 
   const fetchQueue = async () => {
     try {

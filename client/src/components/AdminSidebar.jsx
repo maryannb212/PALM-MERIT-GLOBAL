@@ -4,12 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank } from 'react-icons/fa';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
-  const { user, logout } = useAuth();
+  const { admin, adminLogout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleLogout = () => {
-    logout();
+    adminLogout();
     navigate('/');
   };
 
@@ -44,14 +44,14 @@ const AdminSidebar = ({ isOpen, onClose }) => {
       
       <div className="sidebar-user admin-user-profile">
         <div className="sidebar-avatar">
-          {user?.profileImage ? (
-            <img src={user.profileImage} alt="Admin" />
+          {admin?.profileImage ? (
+            <img src={admin.profileImage} alt="Admin" />
           ) : (
-            <div className="avatar-placeholder admin-avatar">{user?.firstName?.charAt(0)}</div>
+            <div className="avatar-placeholder admin-avatar">{admin?.firstName?.charAt(0) || 'A'}</div>
           )}
         </div>
         <div className="sidebar-user-info">
-          <p className="user-name">{user?.firstName} {user?.lastName}</p>
+          <p className="user-name">{admin?.firstName || 'Admin'} {admin?.lastName || ''}</p>
           <p className="user-role">Super Administrator</p>
         </div>
       </div>

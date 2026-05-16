@@ -15,7 +15,17 @@ export const AuthProvider = ({ children }) => {
     
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        // Migration: if old palmmerit_user has admin role, move it to palmmerit_admin
+        if (parsed.role === 'admin') {
+          localStorage.removeItem('palmmerit_user');
+          if (!storedAdmin) {
+            localStorage.setItem('palmmerit_admin', JSON.stringify(parsed));
+            setAdmin(parsed);
+          }
+        } else {
+          setUser(parsed);
+        }
       } catch {
         localStorage.removeItem('palmmerit_user');
       }
