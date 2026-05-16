@@ -13,6 +13,20 @@ export const protect = async (req, res, next) => {
 
       const decoded = jsonwebtoken.verify(token, process.env.JWT_SECRET || 'secret');
 
+      // Handle CEO admin token (uses string ID, not in database)
+      if (decoded.id === 'ceo-admin-id' && decoded.role === 'admin') {
+        req.user = {
+          id: 'ceo-admin-id',
+          first_name: 'System',
+          last_name: 'Admin',
+          email: 'admin@palmmerit.com',
+          role: 'admin',
+          has_paid_membership: true,
+          kyc_status: 'verified'
+        };
+        return next();
+      }
+
       req.user = await findUserById(decoded.id);
 
       if (!req.user) {
@@ -22,12 +36,10 @@ export const protect = async (req, res, next) => {
       next();
     } catch (error) {
       console.error('Auth middleware error:', error);
-      res.status(401).json({ message: 'Not authorized, token failed' });
+      return res.status(401).json({ message: 'Not authorized, token failed' });
     }
-  }
-
-  if (!token) {
-    res.status(401).json({ message: 'Not authorized, no token' });
+  } else if (!token) {
+    return res.status(401).json({ message: 'Not authorized, no token' });
   }
 };
 
