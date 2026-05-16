@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaHome, FaWallet, FaBoxOpen, FaHistory, FaHeadset, FaUserShield, FaCog, FaSignOutAlt, FaShieldAlt } from 'react-icons/fa';
+import { FaHome, FaWallet, FaBoxOpen, FaHistory, FaHeadset, FaUserShield, FaCog, FaSignOutAlt, FaShieldAlt, FaCloudUploadAlt } from 'react-icons/fa';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();

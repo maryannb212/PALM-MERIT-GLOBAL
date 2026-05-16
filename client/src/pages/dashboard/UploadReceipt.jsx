@@ -1,4 +1,6 @@
+import React, { useState, useRef } from 'react';
 import { uploadMembershipReceipt, getMyTransactions } from '../../services/api';
+import './Dashboard.css';
 import { FaCloudUploadAlt, FaFileAlt, FaCheckCircle, FaTrashAlt, FaClock, FaTimesCircle } from 'react-icons/fa';
 
 const UploadReceipt = () => {
