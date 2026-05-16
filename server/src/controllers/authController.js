@@ -67,7 +67,7 @@ export const registerUser = async (req, res) => {
       RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, created_at;
     `;
     const emailToSave = email ? email : null;
-    const { rows: newUser } = await query(sql, [firstName, lastName, emailToSave, passwordHash, phone, role]);
+    const { rows: newUser } = await query(sql, [firstName, lastName, emailToSave, passwordHash, normalizedPhone, role]);
     const user = newUser[0];
 
     if (user) {
