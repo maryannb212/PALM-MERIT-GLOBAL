@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import './Ambassadors.css';
 
 const Ambassadors = () => {
@@ -9,7 +9,7 @@ const Ambassadors = () => {
   useEffect(() => {
     const fetchAmbassadors = async () => {
       try {
-        const { data } = await axios.get('/api/ambassadors');
+        const { data } = await API.get('/ambassadors');
         setAmbassadors(data);
       } catch (error) {
         console.error('Error fetching ambassadors:', error);

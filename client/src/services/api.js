@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+const productionURL = 'https://palm-merit-global.onrender.com';
+const baseURL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? productionURL : '')) + '/api';
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL,
 });
 
 // Attach JWT token to every request if it exists in localStorage
@@ -38,7 +41,7 @@ API.interceptors.response.use(
       const userInfo = JSON.parse(localStorage.getItem('palmmerit_user'));
       if (userInfo?.refreshToken) {
         try {
-          const { data } = await axios.post(`${import.meta.env.VITE_API_URL || ''}/auth/refresh`, {
+          const { data } = await axios.post(`${baseURL}/auth/refresh`, {
             refreshToken: userInfo.refreshToken,
           });
           userInfo.token = data.token;
