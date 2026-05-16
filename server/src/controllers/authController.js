@@ -39,18 +39,21 @@ export const registerUser = async (req, res) => {
     const normalizedPhone = phone.trim();
     const normalizedEmail = email ? email.trim().toLowerCase() : null;
 
-    // Consolidate lookup into one atomic query
-    const { rows: existingUsers } = await query(
-      'SELECT email, phone FROM users WHERE phone = $1 OR (email IS NOT NULL AND email = $2)',
-      [normalizedPhone, normalizedEmail]
-    );
+    // Check phone existence
+    const { rows: phoneMatch } = await query('SELECT id, phone FROM users WHERE phone = $1', [normalizedPhone]);
+    if (phoneMatch.length > 0) {
+      return res.status(400).json({ 
+        message: `User with phone number ${normalizedPhone} already exists`,
+        debug: { matchedPhone: phoneMatch[0].phone }
+      });
+    }
 
-    if (existingUsers.length > 0) {
-      const match = existingUsers[0];
-      if (match.phone === normalizedPhone) {
-        return res.status(400).json({ message: 'User with this phone number already exists' });
+    // Check email existence (if provided)
+    if (normalizedEmail) {
+      const { rows: emailMatch } = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+      if (emailMatch.length > 0) {
+        return res.status(400).json({ message: 'User with this email already exists' });
       }
-      return res.status(400).json({ message: 'User with this email already exists' });
     }
 
     const salt = await bcrypt.genSalt(10);
