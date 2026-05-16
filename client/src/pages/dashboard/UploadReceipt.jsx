@@ -17,18 +17,18 @@ const UploadReceipt = () => {
     try {
       setLoading(true);
       const { data } = await getMyTransactions();
-      // Filter only membership transactions that have a receipt
-      const membershipReceipts = data
-        .filter(t => t.type === 'membership' && t.receipt_url)
+      // Show all transactions that have a receipt
+      const allReceipts = data
+        .filter(t => t.receipt_url)
         .map(t => ({
           id: t.id,
-          name: `Receipt #${t.reference.split('-').pop()}`,
+          name: t.type === 'membership' ? `Membership Receipt` : `Deposit Receipt #${t.reference.split('-').pop()}`,
           size: 'N/A',
           date: new Date(t.created_at).toLocaleDateString(),
           status: t.status.charAt(0).toUpperCase() + t.status.slice(1),
           url: t.receipt_url
         }));
-      setReceipts(membershipReceipts);
+      setReceipts(allReceipts);
     } catch (err) {
       console.error('Error fetching receipts:', err);
     } finally {
@@ -130,7 +130,7 @@ const UploadReceipt = () => {
                 <>
                   <div className="cloud-icon"><FaCloudUploadAlt /></div>
                   <h4>Drop your payment receipt here or click to browse</h4>
-                  <p className="file-limits">JPG, PNG, PDF, DOC • Max 20MB</p>
+                  <p className="file-limits">JPG, PNG, PDF, DOC • Max 10MB</p>
                 </>
               ) : (
                 <div className="upload-progress-container">
@@ -148,7 +148,12 @@ const UploadReceipt = () => {
           <div className="receipts-list-card">
             <h3>Recent Uploads</h3>
             
-            {receipts.length === 0 ? (
+            {loading ? (
+              <div className="table-loader" style={{ padding: '40px', textAlign: 'center' }}>
+                <div className="spinner-small" style={{ margin: '0 auto 15px' }}></div>
+                <span>Synchronizing receipts...</span>
+              </div>
+            ) : receipts.length === 0 ? (
               <div className="empty-receipts">
                 <FaFileAlt className="empty-file-icon" />
                 <p>No receipts uploaded yet</p>

@@ -91,6 +91,9 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
               {loading ? 'Processing...' : 'Proceed to Payment'}
             </button>
           </div>
+          <div className="manual-transfer-hint" style={{ marginTop: '15px', textAlign: 'center', fontSize: '0.85rem' }}>
+            <p>Already made a manual transfer? <a href="/dashboard/receipt" style={{ color: '#800020', fontWeight: 'bold' }}>Upload Receipt Here</a></p>
+          </div>
         </form>
       </div>
     </div>
