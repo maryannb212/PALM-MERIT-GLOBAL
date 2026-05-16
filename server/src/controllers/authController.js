@@ -11,7 +11,7 @@ dotenv.config();
 
 const generateAccessToken = (id) => {
   return jsonwebtoken.sign({ id }, process.env.JWT_SECRET || 'secret', {
-    expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+    expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '2h',
   });
 };
 
@@ -114,19 +114,22 @@ export const loginUser = async (req, res) => {
     const user = await findUserByEmailOrPhone(email);
 
     if (user && (await bcrypt.compare(password, user.password_hash))) {
-      // Generate and save OTP
-      const otp = await createAndSaveOTP(user.id, 'login');
-      
-      // Send OTP via SMS/Email (Non-blocking for better UX)
-      sendOTP(user.phone || user.email, otp.code).catch(err => {
-        console.error('[Auth Service] Background OTP delivery failed:', err.message);
-      });
+      // OTP BYPASSED per user request
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = await generateRefreshToken(user.id);
 
       res.json({
-        message: 'OTP sent successfully',
-        requiresOTP: true,
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
         email: user.email,
-        mockOtp: process.env.NODE_ENV !== 'production' ? otp.code : undefined
+        role: user.role,
+        hasPaidMembership: user.has_paid_membership,
+        kycStatus: user.kyc_status,
+        profileImage: user.profile_image,
+        token: accessToken,
+        refreshToken: refreshToken,
+        requiresOTP: false
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });

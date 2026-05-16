@@ -111,7 +111,11 @@ export const uploadMembershipReceipt = async (req, res) => {
     }
 
     const reference = `PM-MEM-MAN-${uuidv4().substring(0, 8).toUpperCase()}`;
-    const receiptUrl = `/uploads/${req.file.filename}`;
+    
+    // In production (Cloudinary), 'path' is the full URL.
+    const receiptUrl = process.env.NODE_ENV === 'production' 
+      ? req.file.path 
+      : `/uploads/${req.file.filename}`;
 
     // Create pending transaction in our DB with receipt URL
     const text = `

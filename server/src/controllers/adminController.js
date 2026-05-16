@@ -57,6 +57,8 @@ export const getDashboardStats = async (req, res) => {
     const sql = `
       SELECT 
         (SELECT COUNT(*) FROM users WHERE role = 'user') as total_users,
+        (SELECT COUNT(*) FROM users WHERE role = 'user' AND created_at >= CURRENT_DATE) as users_today,
+        (SELECT COUNT(*) FROM users WHERE kyc_status = 'verified') as verified_users,
         (SELECT COUNT(*) FROM savings_plans WHERE status = 'active') as active_plans,
         (SELECT COALESCE(SUM(current_amount), 0) FROM savings_plans WHERE status = 'active') as total_savings,
         (SELECT COALESCE(SUM(available_balance + held_balance), 0) FROM users WHERE role = 'user') as total_liabilities,
@@ -66,13 +68,26 @@ export const getDashboardStats = async (req, res) => {
     const result = await query(sql);
     const data = result.rows[0];
 
+    // Get recent users
+    const recentUsersSql = `
+      SELECT first_name, last_name, email, created_at 
+      FROM users 
+      WHERE role = 'user' 
+      ORDER BY created_at DESC 
+      LIMIT 5
+    `;
+    const recentUsers = await query(recentUsersSql);
+
     res.json({
       totalUsers: parseInt(data.total_users),
+      usersToday: parseInt(data.users_today),
+      verifiedUsers: parseInt(data.verified_users),
       activePlans: parseInt(data.active_plans),
       totalSavings: parseFloat(data.total_savings),
       totalLiabilities: parseFloat(data.total_liabilities),
       openTickets: parseInt(data.open_tickets),
-      pendingKYC: parseInt(data.pending_kyc)
+      pendingKYC: parseInt(data.pending_kyc),
+      recentUsers: recentUsers.rows
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
