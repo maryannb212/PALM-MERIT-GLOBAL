@@ -81,18 +81,7 @@ const generalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-const authLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 15, // Increased slightly
-  message: { message: 'Too many authentication attempts, please try again after an hour' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Apply rate limiting to sensitive routes
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/verify-otp', authLimiter);
+// Global rate limiters can stay here
 app.use('/api/transactions/initiate', generalLimiter);
 
 // Raw body parser for Paystack webhook (must be before express.json())
@@ -136,6 +125,7 @@ app.use('/api/admin/trigger', adminCronRoutes);
 
 // 404 Handler
 app.use((req, res) => {
+  logger.warn(`[404] Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ message: 'Route not found' });
 });
 

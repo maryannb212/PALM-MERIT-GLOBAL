@@ -10,12 +10,21 @@ import {
   getUserProfile
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
+import rateLimit from 'express-rate-limit';
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 15,
+  message: { message: 'Too many authentication attempts, please try again after an hour' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const router = express.Router();
 
 router.post('/register', registerUser);
-router.post('/login', loginUser);
-router.post('/verify-otp', verifyLoginOTP);
+router.post('/login', authLimiter, loginUser);
+router.post('/verify-otp', authLimiter, verifyLoginOTP);
 router.post('/refresh', refreshToken);
 router.post('/logout', logoutUser);
 router.post('/forgot-password', forgotPassword);
