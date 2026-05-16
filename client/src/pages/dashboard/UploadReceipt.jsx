@@ -3,8 +3,8 @@ import React, { useState, useRef } from 'react';
 import './Dashboard.css';
 import { FaCloudUploadAlt, FaFileAlt, FaCheckCircle, FaTrashAlt } from 'react-icons/fa';
 
-const UploadStatement = () => {
-  const [statements, setStatements] = useState([]);
+const UploadReceipt = () => {
+  const [receipts, setReceipts] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -22,14 +22,14 @@ const UploadStatement = () => {
 
   const processFile = (file) => {
     // Basic validation
-    const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-    if (!validTypes.includes(file.type) && !file.name.match(/\.(pdf|doc|docx|xls|xlsx)$/i)) {
-      alert('Invalid file type. Please upload PDF, DOC, or XLS.');
+    const validTypes = ['image/jpeg', 'image/png', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|pdf|doc|docx)$/i)) {
+      alert('Invalid file type. Please upload Image, PDF or DOC.');
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      alert('File size exceeds 50MB limit.');
+    if (file.size > 20 * 1024 * 1024) {
+      alert('File size exceeds 20MB limit.');
       return;
     }
 
@@ -42,14 +42,14 @@ const UploadStatement = () => {
         if (prev >= 100) {
           clearInterval(interval);
           setUploading(false);
-          const newStatement = {
+          const newReceipt = {
             id: Date.now(),
             name: file.name,
             size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
             date: new Date().toLocaleDateString(),
-            status: 'Uploaded'
+            status: 'Verified'
           };
-          setStatements((prevList) => [newStatement, ...prevList]);
+          setReceipts((prevList) => [newReceipt, ...prevList]);
           return 0;
         }
         return prev + 20;
@@ -72,20 +72,20 @@ const UploadStatement = () => {
   };
 
   const handleDelete = (id) => {
-    setStatements(statements.filter(s => s.id !== id));
+    setReceipts(receipts.filter(s => s.id !== id));
   };
 
   return (
     <>
         <header className="dashboard-header" style={{ marginBottom: '20px' }}>
-          <h2>Statement Upload</h2>
-          <p style={{ color: '#64748b' }}>Secure Document Portal</p>
+          <h2>Receipt Upload</h2>
+          <p style={{ color: '#64748b' }}>Secure Payment Verification Portal</p>
         </header>
 
-        <div className="upload-statement-container">
+        <div className="upload-receipt-container">
           
           <div className="upload-card">
-            <h3>Upload New Statement</h3>
+            <h3>Upload New Receipt</h3>
             
             <div 
               className={`drop-zone ${isDragging ? 'drag-active' : ''} ${uploading ? 'uploading' : ''}`}
@@ -99,19 +99,19 @@ const UploadStatement = () => {
                 ref={fileInputRef} 
                 onChange={handleFileChange} 
                 style={{ display: 'none' }} 
-                accept=".pdf,.doc,.docx,.xls,.xlsx"
+                accept="image/*,.pdf,.doc,.docx"
               />
               
               {!uploading ? (
                 <>
                   <div className="cloud-icon"><FaCloudUploadAlt /></div>
-                  <h4>Drop your statement here or click to browse</h4>
-                  <p className="file-limits">PDF, DOC, DOCX, XLS, XLSX • Max 50MB</p>
+                  <h4>Drop your payment receipt here or click to browse</h4>
+                  <p className="file-limits">JPG, PNG, PDF, DOC • Max 20MB</p>
                 </>
               ) : (
                 <div className="upload-progress-container">
                   <div className="cloud-icon uploading-icon"><FaCloudUploadAlt /></div>
-                  <h4>Uploading your document...</h4>
+                  <h4>Uploading your receipt...</h4>
                   <div className="progress-bar-bg">
                     <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
                   </div>
@@ -121,18 +121,18 @@ const UploadStatement = () => {
             </div>
           </div>
 
-          <div className="statements-list-card">
-            <h3>Your Statements</h3>
+          <div className="receipts-list-card">
+            <h3>Recent Uploads</h3>
             
-            {statements.length === 0 ? (
-              <div className="empty-statements">
+            {receipts.length === 0 ? (
+              <div className="empty-receipts">
                 <FaFileAlt className="empty-file-icon" />
-                <p>No statements uploaded yet</p>
+                <p>No receipts uploaded yet</p>
               </div>
             ) : (
-              <div className="statements-list">
-                {statements.map((stmt) => (
-                  <div key={stmt.id} className="statement-item">
+              <div className="receipts-list">
+                {receipts.map((stmt) => (
+                  <div key={stmt.id} className="receipt-item">
                     <div className="stmt-info">
                       <FaFileAlt className="stmt-icon" />
                       <div>
@@ -157,4 +157,4 @@ const UploadStatement = () => {
   );
 };
 
-export default UploadStatement;
+export default UploadReceipt;

@@ -2074,15 +2074,15 @@ input:checked + .slider:before {
   gap: 6px;
 }
 
-/* ─── Upload Statement Page ─── */
-.upload-statement-container {
+/* ─── Upload Receipt Page ─── */
+.upload-receipt-container {
   display: flex;
   flex-direction: column;
   gap: 30px;
   max-width: 800px;
 }
 
-.upload-card, .statements-list-card {
+.upload-card, .receipts-list-card {
   background: white;
   border: 1px solid var(--color-border);
   border-radius: 12px;
@@ -2090,7 +2090,7 @@ input:checked + .slider:before {
   box-shadow: var(--shadow-sm);
 }
 
-.upload-card h3, .statements-list-card h3 {
+.upload-card h3, .receipts-list-card h3 {
   margin: 0 0 24px 0;
   color: var(--color-primary-dark);
   font-size: 1.3rem;
@@ -2179,7 +2179,7 @@ input:checked + .slider:before {
   font-weight: 600;
 }
 
-.empty-statements {
+.empty-receipts {
   text-align: center;
   padding: 40px 20px;
 }
@@ -2190,18 +2190,18 @@ input:checked + .slider:before {
   margin-bottom: 16px;
 }
 
-.empty-statements p {
+.empty-receipts p {
   color: #64748b;
   margin: 0;
 }
 
-.statements-list {
+.receipts-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.statement-item {
+.receipt-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2212,7 +2212,7 @@ input:checked + .slider:before {
   transition: all 0.2s;
 }
 
-.statement-item:hover {
+.receipt-item:hover {
   border-color: #cbd5e1;
   background: white;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);

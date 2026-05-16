@@ -23,7 +23,7 @@ const DashboardHome = lazy(() => import('./pages/dashboard/DashboardHome'));
 const Packages = lazy(() => import('./pages/dashboard/Packages'));
 const Subscriptions = lazy(() => import('./pages/dashboard/Subscriptions'));
 const CreateSubscription = lazy(() => import('./pages/dashboard/CreateSubscription'));
-const UploadStatement = lazy(() => import('./pages/dashboard/UploadStatement'));
+const UploadReceipt = lazy(() => import('./pages/dashboard/UploadReceipt'));
 const Wallet = lazy(() => import('./pages/dashboard/Wallet'));
 const Transactions = lazy(() => import('./pages/dashboard/Transactions'));
 const Support = lazy(() => import('./pages/dashboard/Support'));
@@ -88,7 +88,7 @@ const AppLayout = () => {
               <Route path="packages" element={<Packages />} />
               <Route path="packages/subscribe" element={<CreateSubscription />} />
               <Route path="subscriptions" element={<Subscriptions />} />
-              <Route path="statement" element={<UploadStatement />} />
+              <Route path="receipt" element={<UploadReceipt />} />
               <Route path="wallet" element={<Wallet />} />
               <Route path="transactions" element={<Transactions />} />
               <Route path="support" element={<Support />} />

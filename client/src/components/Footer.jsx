@@ -18,7 +18,7 @@ const Footer = () => {
           <div className="social-icons">
             <a href="https://facebook.com/palmmerit" target="_blank" rel="noreferrer" className="social-icon"><FaFacebook /></a>
             <a href="https://instagram.com/palmmerit" target="_blank" rel="noreferrer" className="social-icon"><FaInstagram /></a>
-            <a href="https://wa.me/2341234567890" target="_blank" rel="noreferrer" className="social-icon"><FaWhatsapp /></a>
+            <a href="https://wa.me/2347026409761" target="_blank" rel="noreferrer" className="social-icon"><FaWhatsapp /></a>
             <a href="mailto:info@palmmeritglobal.com" className="social-icon"><FaEnvelope /></a>
           </div>
         </div>
@@ -47,7 +47,8 @@ const Footer = () => {
           <h4>Contact Us</h4>
           <ul className="footer-contact">
             <li><strong>Email:</strong> info@palmmeritglobal.com</li>
-            <li><strong>WhatsApp:</strong> +234 123 456 7890</li>
+            <li><strong>WhatsApp:</strong> +234 702 640 9761</li>
+            <li><strong>Phone:</strong> +234 701 259 7990</li>
             <li><strong>Address:</strong> Global Merit Center, Lagos</li>
           </ul>
         </div>

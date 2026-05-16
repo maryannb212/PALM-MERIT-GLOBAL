@@ -24,12 +24,11 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
         payment_provider: provider
       });
       
-      // Redirect to authorization URL (Mocked)
-      if (data.authorization_url) {
-        window.location.href = data.authorization_url;
-      }
-      
       if (onSuccess) onSuccess();
+      // Auto redirect to receipt upload after initialization
+      setTimeout(() => {
+        window.location.href = '/dashboard/receipt';
+      }, 1000);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to initialize deposit.');
     } finally {

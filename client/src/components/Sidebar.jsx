@@ -24,7 +24,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { name: 'Packages', path: '/dashboard/packages', icon: <FaBoxOpen /> },
     { name: 'Subscriptions', path: '/dashboard/subscriptions', icon: <FaBoxOpen /> },
     { name: 'Transactions History', path: '/dashboard/transactions', icon: <FaHistory /> },
-    { name: 'Upload Statement', path: '/dashboard/statement', icon: <FaHistory /> },
+    { name: 'Upload Receipt', path: '/dashboard/receipt', icon: <FaHistory /> },
     { name: 'Support / Log Complain', path: '/dashboard/support', icon: <FaHeadset /> },
     { name: 'KYC Verification', path: '/dashboard/kyc', icon: <FaUserShield /> },
     { name: 'Bank Details', path: '/dashboard/bank-details', icon: <FaShieldAlt /> },
