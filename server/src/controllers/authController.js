@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jsonwebtoken from 'jsonwebtoken';
 import crypto from 'crypto';
-import { createUser, findUserByEmail, findUserByPhone, findUserById } from '../models/userModel.js';
+import { createUser, findUserByEmail, findUserByPhone, findUserById, findUserByEmailOrPhone } from '../models/userModel.js';
 import { query } from '../config/db.js';
 import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
@@ -100,18 +100,16 @@ export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Email field can be either email or phone
-    let user = await findUserByPhone(email);
-    if (!user) {
-      user = await findUserByEmail(email);
-    }
+    const user = await findUserByEmailOrPhone(email);
 
     if (user && (await bcrypt.compare(password, user.password_hash))) {
       // Generate and save OTP
       const otp = await createAndSaveOTP(user.id, 'login');
       
-      // Send OTP via SMS/Email
-      await sendOTP(user.phone || user.email, otp.code);
+      // Send OTP via SMS/Email (Non-blocking for better UX)
+      sendOTP(user.phone || user.email, otp.code).catch(err => {
+        console.error('[Auth Service] Background OTP delivery failed:', err.message);
+      });
 
       res.json({
         message: 'OTP sent successfully',
@@ -227,8 +225,10 @@ export const forgotPassword = async (req, res) => {
     // Generate and save OTP for password reset
     const otp = await createAndSaveOTP(user.id, 'reset');
     
-    // Send OTP via SMS
-    await sendOTP(user.phone, otp.code);
+    // Send OTP via SMS (Non-blocking)
+    sendOTP(user.phone, otp.code).catch(err => {
+      console.error('[Auth Service] Background Password Reset OTP delivery failed:', err.message);
+    });
 
     res.json({ 
       message: 'Password reset OTP sent to your phone',
