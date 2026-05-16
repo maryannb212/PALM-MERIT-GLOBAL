@@ -82,9 +82,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (data) => {
-    const updatedUser = { ...user, ...data };
-    localStorage.setItem('palmmerit_user', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    setUser((prevUser) => {
+      const updatedUser = { ...prevUser, ...data };
+      localStorage.setItem('palmmerit_user', JSON.stringify(updatedUser));
+      return updatedUser;
+    });
   };
 
   const refreshProfile = async () => {

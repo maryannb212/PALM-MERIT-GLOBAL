@@ -170,6 +170,12 @@ const DashboardHome = () => {
           </div>
         )}
 
+        {user?.kycStatus === 'verified' && (
+          <div className="kyc-warning-banner" style={{ background: 'rgba(46, 204, 113, 0.1)', borderLeft: '4px solid #2ecc71' }}>
+            <p style={{ color: '#2ecc71' }}>✅ <strong>KYC Verified</strong>. Your identity has been successfully verified by our compliance team.</p>
+          </div>
+        )}
+
 
 
         {/* ─── Primary Stats Row (Financial) ─── */}
