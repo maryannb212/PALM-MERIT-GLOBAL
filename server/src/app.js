@@ -92,7 +92,7 @@ const authLimiter = rateLimit({
 
 // Apply rate limiting to sensitive routes
 app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/otp', authLimiter);
+app.use('/api/auth/verify-otp', authLimiter);
 app.use('/api/transactions/initiate', generalLimiter);
 
 // Raw body parser for Paystack webhook (must be before express.json())

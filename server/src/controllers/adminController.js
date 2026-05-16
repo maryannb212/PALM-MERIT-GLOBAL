@@ -54,37 +54,25 @@ export const getUserById = async (req, res) => {
  */
 export const getDashboardStats = async (req, res) => {
   try {
-    // Total users
-    const usersResult = await query("SELECT COUNT(*) FROM users WHERE role = 'user'");
-    const totalUsers = parseInt(usersResult.rows[0].count);
-
-    // Total active savings plans
-    const plansResult = await query("SELECT COUNT(*) FROM savings_plans WHERE status = 'active'");
-    const activePlans = parseInt(plansResult.rows[0].count);
-
-    // Total savings amount (current_amount across all active plans)
-    const amountResult = await query("SELECT SUM(current_amount) FROM savings_plans WHERE status = 'active'");
-    const totalSavings = amountResult.rows[0].sum || 0;
-
-    // Total liabilities (User balances)
-    const liabilitiesResult = await query("SELECT SUM(available_balance + held_balance) FROM users WHERE role = 'user'");
-    const totalLiabilities = liabilitiesResult.rows[0].sum || 0;
-
-    // Open support tickets
-    const ticketsResult = await query("SELECT COUNT(*) FROM tickets WHERE status = 'open'");
-    const openTickets = parseInt(ticketsResult.rows[0].count);
-
-    // Pending KYC
-    const kycResult = await query("SELECT COUNT(*) FROM users WHERE kyc_status = 'pending'");
-    const pendingKYC = parseInt(kycResult.rows[0].count);
+    const sql = `
+      SELECT 
+        (SELECT COUNT(*) FROM users WHERE role = 'user') as total_users,
+        (SELECT COUNT(*) FROM savings_plans WHERE status = 'active') as active_plans,
+        (SELECT COALESCE(SUM(current_amount), 0) FROM savings_plans WHERE status = 'active') as total_savings,
+        (SELECT COALESCE(SUM(available_balance + held_balance), 0) FROM users WHERE role = 'user') as total_liabilities,
+        (SELECT COUNT(*) FROM tickets WHERE status = 'open') as open_tickets,
+        (SELECT COUNT(*) FROM users WHERE kyc_status = 'pending') as pending_kyc
+    `;
+    const result = await query(sql);
+    const data = result.rows[0];
 
     res.json({
-      totalUsers,
-      activePlans,
-      totalSavings,
-      totalLiabilities,
-      openTickets,
-      pendingKYC
+      totalUsers: parseInt(data.total_users),
+      activePlans: parseInt(data.active_plans),
+      totalSavings: parseFloat(data.total_savings),
+      totalLiabilities: parseFloat(data.total_liabilities),
+      openTickets: parseInt(data.open_tickets),
+      pendingKYC: parseInt(data.pending_kyc)
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);

@@ -134,10 +134,7 @@ export const verifyLoginOTP = async (req, res) => {
       return res.status(400).json({ message: 'Phone/Email and OTP code are required' });
     }
 
-    let user = await findUserByPhone(email);
-    if (!user) {
-      user = await findUserByEmail(email);
-    }
+    const user = await findUserByEmailOrPhone(email);
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -149,8 +146,10 @@ export const verifyLoginOTP = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
-    // OTP is valid, update last_login
-    await query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+    // OTP is valid, update last_login (Non-blocking)
+    query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(err => {
+      console.error('[Auth] Failed to update last_login:', err.message);
+    });
 
     const accessToken = generateAccessToken(user.id);
     const refreshToken = await generateRefreshToken(user.id);
