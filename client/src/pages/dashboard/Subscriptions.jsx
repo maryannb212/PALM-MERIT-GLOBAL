@@ -31,6 +31,12 @@ const Subscriptions = () => {
   };
 
   const handlePayClearance = async (planId) => {
+    if (!user?.tshirt_paid) {
+      alert('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee (₦5,000) under the Wallet tab before you can pay clearance fees and collect payouts.');
+      navigate('/dashboard/wallet');
+      return;
+    }
+
     if (!window.confirm('Pay ₦3,000 clearance fee from your wallet balance?')) return;
     
     setActionLoading(true);
