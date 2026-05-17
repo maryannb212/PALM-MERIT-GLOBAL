@@ -19,14 +19,14 @@ const Sidebar = ({ isOpen, onClose }) => {
   };
 
   const menuItems = [
-    { name: 'Overview', path: '/dashboard', icon: <FaHome /> },
+    { name: 'Dashboard', path: '/dashboard', icon: <FaHome /> },
     { name: 'Fund Wallet', path: '/dashboard/wallet', icon: <FaWallet /> },
-    { name: 'Packages', path: '/dashboard/packages', icon: <FaBoxOpen /> },
-    { name: 'Subscriptions', path: '/dashboard/subscriptions', icon: <FaBoxOpen /> },
+    { name: 'Cooperative Programs', path: '/dashboard/packages', icon: <FaBoxOpen /> },
+    { name: 'Active Programs', path: '/dashboard/subscriptions', icon: <FaBoxOpen /> },
     { name: 'Transactions History', path: '/dashboard/transactions', icon: <FaHistory /> },
     { name: 'Upload Receipt', path: '/dashboard/receipt', icon: <FaCloudUploadAlt /> },
-    { name: 'Support / Log Complain', path: '/dashboard/support', icon: <FaHeadset /> },
-    { name: 'KYC Verification', path: '/dashboard/kyc', icon: <FaUserShield /> },
+    { name: 'Support', path: '/dashboard/support', icon: <FaHeadset /> },
+    { name: 'KYC & Profile', path: '/dashboard/kyc', icon: <FaUserShield /> },
     { name: 'Bank Details', path: '/dashboard/bank-details', icon: <FaShieldAlt /> },
     { name: 'Withdraw Funds', path: '/dashboard/withdraw', icon: <FaWallet /> },
     { name: 'Settings', path: '/dashboard/settings', icon: <FaCog /> },

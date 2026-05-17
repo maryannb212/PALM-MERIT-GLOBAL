@@ -23,6 +23,7 @@ export const submitKYC = async (req, res) => {
     const idFrontUrl = getFilePath('id_image');
     const idBackUrl = getFilePath('idBack');
     const selfieUrl = getFilePath('selfie');
+    const profileImageUrl = getFilePath('profile_image');
 
     // Basic validation
     if (!bvn || !id_type || !id_number) {
@@ -70,8 +71,16 @@ export const submitKYC = async (req, res) => {
         id_type, id_number, idFrontUrl, idBackUrl, selfieUrl
       ]);
 
-      const userSql = `UPDATE users SET kyc_status = 'pending' WHERE id = $1 RETURNING kyc_status;`;
-      const { rows: userRows } = await client.query(userSql, [userId]);
+      let userSql = `UPDATE users SET kyc_status = 'pending'`;
+      const userValues = [userId];
+      
+      if (profileImageUrl) {
+        userSql += `, profile_image = $2`;
+        userValues.push(profileImageUrl);
+      }
+      userSql += ` WHERE id = $1 RETURNING kyc_status;`;
+
+      const { rows: userRows } = await client.query(userSql, userValues);
 
       await client.query('COMMIT');
 

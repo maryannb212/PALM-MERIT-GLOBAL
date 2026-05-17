@@ -1,12 +1,12 @@
 import { query } from '../config/db.js';
 
-export const createSavingsPlan = async (userId, planName, targetAmount, numberOfAccounts = 1, clearanceRequired = false, refundOnly = false) => {
+export const createSavingsPlan = async (userId, planName, targetAmount, numberOfAccounts = 1, clearanceRequired = false, refundOnly = false, preferredDay = null) => {
   const sql = `
-    INSERT INTO savings_plans (user_id, plan_name, target_amount, number_of_accounts, clearance_required, refund_only)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO savings_plans (user_id, plan_name, target_amount, number_of_accounts, clearance_required, refund_only, preferred_day)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *;
   `;
-  const result = await query(sql, [userId, planName, targetAmount, numberOfAccounts, clearanceRequired, refundOnly]);
+  const result = await query(sql, [userId, planName, targetAmount, numberOfAccounts, clearanceRequired, refundOnly, preferredDay]);
   return result.rows[0];
 };
 

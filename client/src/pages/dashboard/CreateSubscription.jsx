@@ -16,6 +16,7 @@ const CreateSubscription = () => {
   const [referralCode, setReferralCode] = useState('');
   const [autoDebit, setAutoDebit] = useState(true);
   const [numberOfAccounts, setNumberOfAccounts] = useState(method === 'multiple' ? 2 : 1);
+  const [preferredDay, setPreferredDay] = useState('Friday');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -66,7 +67,8 @@ const CreateSubscription = () => {
         numberOfAccounts: numberOfAccounts,
         targetAmount: totalTargetSavings,
         referralCode: referralCode !== 'NEW' ? referralCode : null,
-        autoDebit: autoDebit
+        autoDebit: autoDebit,
+        preferredDay: plan.frequency.toLowerCase() === 'weekly' ? preferredDay : null
       });
       setMessage('Subscription successful! Redirecting to dashboard...');
       setTimeout(() => navigate('/dashboard'), 2000);
@@ -130,6 +132,26 @@ const CreateSubscription = () => {
                     min="2"
                     required
                   />
+                </div>
+              )}
+              
+              {plan.frequency.toLowerCase() === 'weekly' && (
+                <div className="form-group" style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#334155' }}>Preferred Contribution Day</label>
+                  <select 
+                    className="referral-input" 
+                    value={preferredDay} 
+                    onChange={(e) => setPreferredDay(e.target.value)}
+                    required
+                  >
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                  </select>
                 </div>
               )}
               

@@ -17,6 +17,14 @@ const DashboardHome = () => {
   const [error, setError] = useState(null);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
   const [announcementExpanded, setAnnouncementExpanded] = useState(false);
+  const [birthdayDismissed, setBirthdayDismissed] = useState(false);
+
+  // Birthday check
+  const isBirthday = user?.dob && (() => {
+    const today = new Date();
+    const dob = new Date(user.dob);
+    return today.getMonth() === dob.getMonth() && today.getDate() === dob.getDate();
+  })();
 
   const fetchPlans = async () => {
     if (!user?.hasPaidMembership && user?.role !== 'admin') {
@@ -52,6 +60,16 @@ const DashboardHome = () => {
     setAnnouncementDismissed(true);
     sessionStorage.setItem('announcement_dismissed', 'true');
   };
+
+  const handleDismissBirthday = () => {
+    setBirthdayDismissed(true);
+    sessionStorage.setItem('birthday_dismissed', 'true');
+  };
+
+  useEffect(() => {
+    const bDismissed = sessionStorage.getItem('birthday_dismissed');
+    if (bDismissed) setBirthdayDismissed(true);
+  }, []);
 
   if (user?.role === 'admin') {
     // Admin bypasses paywall
@@ -116,6 +134,17 @@ const DashboardHome = () => {
           </div>
         </div>
 
+        {/* ─── Birthday Banner ─── */}
+        {isBirthday && !birthdayDismissed && (
+          <div className="birthday-banner" style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500)', padding: '15px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', color: '#000', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🎉 Happy Birthday, {user?.firstName}! 🎂</h3>
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>Wishing you a fantastic day and prosperous year ahead from the Palm Merit Global team.</p>
+            </div>
+            <button onClick={handleDismissBirthday} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#000', opacity: 0.7 }}>&times;</button>
+          </div>
+        )}
+
         {/* ─── Attention Announcement Modal ─── */}
         {!announcementDismissed && (
           <div className="announcement-overlay" onClick={handleDismissAnnouncement}>
@@ -178,59 +207,29 @@ const DashboardHome = () => {
 
 
 
-        {/* ─── Primary Stats Row (Financial) ─── */}
-        <div className="stats-grid stats-grid-financial">
-          <div className="stat-card wallet">
-            <div className="stat-icon">💰</div>
-            <h3>Wallet Balance</h3>
-            <div className="stat-currency">₦</div>
-            <div className="stat-value">{formatCurrency(walletBalance)}</div>
-          </div>
-          <div className="stat-card balance">
-            <div className="stat-icon">🏦</div>
-            <h3>Total Savings</h3>
-            <div className="stat-currency">₦</div>
-            <div className="stat-value">{formatCurrency(totalSavings)}</div>
-          </div>
-          <div className="stat-card earning">
-            <div className="stat-icon">📈</div>
-            <h3>Total Earning</h3>
-            <div className="stat-currency">₦</div>
-            <div className="stat-value">{formatCurrency(totalEarning)}</div>
-          </div>
-        </div>
-
-        {/* ─── Secondary Stats Row (Counts) ─── */}
-        <div className="stats-grid stats-grid-counts">
-          <div className="stat-card count-card">
-            <div className="stat-icon">📋</div>
-            <h3>Subscriptions</h3>
-            <div className="stat-count">{plans.length}</div>
-          </div>
-          <div className="stat-card count-card">
-            <div className="stat-icon">💳</div>
-            <h3>Savings Account</h3>
-            <div className="stat-count">{savingsPlans.length}</div>
-          </div>
-          <div className="stat-card count-card">
-            <div className="stat-icon">🗂️</div>
-            <h3>Total Account</h3>
-            <div className="stat-count">{plans.length}</div>
-          </div>
-          <div className="stat-card count-card">
-            <div className="stat-icon">✅</div>
-            <h3>Active Account</h3>
+        {/* ─── Unified Stats Row ─── */}
+        <div className="stats-grid stats-grid-counts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+          <div className="stat-card count-card" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white' }}>
+            <div className="stat-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#FFD700' }}>✅</div>
+            <h3 style={{ color: '#FFD700' }}>Active Cooperative Programs</h3>
             <div className="stat-count">{activePlans.length}</div>
           </div>
           <div className="stat-card count-card">
-            <div className="stat-icon">🏅</div>
-            <h3>Paid Account</h3>
-            <div className="stat-count">{paidPlans.length}</div>
+            <div className="stat-icon">👥</div>
+            <h3>Total Members</h3>
+            <div className="stat-count">{user?.totalMembers || 0}</div>
           </div>
-          <div className="stat-card count-card pending-settlement">
-            <div className="stat-icon">⏳</div>
-            <h3>Pending Settlement</h3>
-            <div className="stat-count">{plans.filter(p => p.status === 'pending').length}</div>
+          <div className="stat-card count-card">
+            <div className="stat-icon">💰</div>
+            <h3>Wallet Balance</h3>
+            <div className="stat-count">
+              <span className="stat-currency">₦</span>{formatCurrency(walletBalance).replace('₦', '').trim()}
+            </div>
+          </div>
+          <div className="stat-card count-card">
+            <div className="stat-icon">📈</div>
+            <h3>Weekly Contributions</h3>
+            <div className="stat-count">{recentTransactions.length}</div>
           </div>
         </div>
 
@@ -240,7 +239,7 @@ const DashboardHome = () => {
             <h3>🗓️ What's up This Week</h3>
           </div>
           <p className="whats-up-subtitle">
-            Total <strong>{activePlans.length}</strong> active subscription{activePlans.length !== 1 ? 's' : ''}
+            Total <strong>{activePlans.length}</strong> active cooperative program{activePlans.length !== 1 ? 's' : ''}
           </p>
           {loading ? (
             <p className="text-muted">Loading activity...</p>
@@ -264,18 +263,18 @@ const DashboardHome = () => {
           )}
         </div>
 
-        {/* ─── Active Subscriptions ─── */}
+        {/* ─── Active Cooperative Programs ─── */}
         <div className="dashboard-section">
           <div className="section-header">
-            <h3>Active Subscriptions</h3>
-            <Link to="/dashboard/packages" className="btn btn-sm btn-secondary">New Subscription</Link>
+            <h3>Active Cooperative Programs</h3>
+            <Link to="/dashboard/packages" className="btn btn-sm btn-secondary">New Program</Link>
           </div>
           {loading ? (
-            <p className="text-muted">Loading your plans...</p>
+            <p className="text-muted">Loading your programs...</p>
           ) : activePlans.length === 0 ? (
             <div className="empty-state">
-              <p>You have no active savings plans yet.</p>
-              <Link to="/dashboard/packages" className="btn btn-primary">Browse Plans</Link>
+              <p>You have no active cooperative programs yet.</p>
+              <Link to="/dashboard/packages" className="btn btn-primary">Browse Programs</Link>
             </div>
           ) : (
             <div className="packages-list">

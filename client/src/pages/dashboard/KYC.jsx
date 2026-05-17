@@ -54,7 +54,8 @@ const KYC = () => {
   const [files, setFiles] = useState({
     id_image: null,
     idBack: null,
-    selfie: null
+    selfie: null,
+    profile_image: null
   });
 
   useEffect(() => {
@@ -102,6 +103,7 @@ const KYC = () => {
       if (files.id_image) data.append('id_image', files.id_image);
       if (files.idBack) data.append('idBack', files.idBack);
       if (files.selfie) data.append('selfie', files.selfie);
+      if (files.profile_image) data.append('profile_image', files.profile_image);
 
       await submitKYC(data);
       await refreshProfile();
@@ -258,6 +260,13 @@ const KYC = () => {
                       <div className="file-input-wrapper">
                         <FaUpload /> {files.selfie ? files.selfie.name : 'Choose Image'}
                         <input type="file" name="selfie" onChange={handleFileChange} accept="image/*" required />
+                      </div>
+                    </div>
+                    <div className="upload-box">
+                      <label>Profile Photo <span className="text-muted">(Optional)</span></label>
+                      <div className="file-input-wrapper">
+                        <FaUpload /> {files.profile_image ? files.profile_image.name : 'Choose Image'}
+                        <input type="file" name="profile_image" onChange={handleFileChange} accept="image/*" />
                       </div>
                     </div>
                   </div>

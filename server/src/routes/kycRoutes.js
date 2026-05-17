@@ -8,7 +8,8 @@ const router = express.Router();
 router.route('/submit').post(protect, upload.fields([
   { name: 'id_image', maxCount: 1 },
   { name: 'idBack', maxCount: 1 },
-  { name: 'selfie', maxCount: 1 }
+  { name: 'selfie', maxCount: 1 },
+  { name: 'profile_image', maxCount: 1 }
 ]), submitKYC);
 router.route('/status').get(protect, getKYCStatus);
 

@@ -27,6 +27,7 @@ import dotenv from 'dotenv';
 import crypto from 'crypto';
 import { createNotification } from '../models/notificationModel.js';
 import { logWebhookEvent } from '../utils/webhookLogger.js';
+import { query } from '../config/db.js';
 
 dotenv.config();
 
@@ -111,6 +112,23 @@ export const initializeTransaction = async (req, res) => {
 
     if (!amount || Number(amount) <= 0) {
       return res.status(400).json({ message: 'A valid positive amount is required.' });
+    }
+
+    // Savings Schedule Enforcement Validation
+    if (planId) {
+      const { rows: planRows } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
+      if (planRows.length > 0) {
+        const plan = planRows[0];
+        if (plan.preferred_day) {
+          const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const todayName = days[new Date().getDay()];
+          if (todayName.toLowerCase() !== plan.preferred_day.toLowerCase()) {
+            return res.status(400).json({
+              message: `Contribution Restricted: You can only add funds to this Cooperative Program on your selected preferred day: ${plan.preferred_day}. (Today is ${todayName})`
+            });
+          }
+        }
+      }
     }
 
     const reference = `PM-${uuidv4().replace(/-/g, '').substring(0, 12).toUpperCase()}`;

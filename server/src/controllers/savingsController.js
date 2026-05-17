@@ -4,7 +4,7 @@ import { createWalletLedgerEntry } from '../models/transactionModel.js';
 
 export const subscribeToPlan = async (req, res) => {
   try {
-    const { planName, targetAmount, numberOfAccounts } = req.body;
+    const { planName, targetAmount, numberOfAccounts, preferredDay } = req.body;
     const userId = req.user.id;
 
     if (!planName || !targetAmount) {
@@ -56,7 +56,7 @@ export const subscribeToPlan = async (req, res) => {
       // Alternatively, we could partially allow them, but flagging the whole plan is simpler
     }
 
-    const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly);
+    const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, preferredDay);
 
     res.status(201).json(plan);
   } catch (error) {

@@ -306,15 +306,21 @@ export const getUserProfile = async (req, res) => {
         u.id, u.first_name, u.last_name, u.email, u.role, u.phone,
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.profile_image, u.created_at,
         u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name,
-        b.account_name, b.account_number, b.bank_name, b.bank_code
+        b.account_name, b.account_number, b.bank_name, b.bank_code,
+        k.dob
       FROM users u
       LEFT JOIN bank_accounts b ON u.id = b.user_id
+      LEFT JOIN kyc_details k ON u.id = k.user_id
       WHERE u.id = $1
     `;
     const { rows } = await query(sql, [userId]);
     if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
     
     let user = rows[0];
+
+    // Get total members count
+    const { rows: countRows } = await query("SELECT COUNT(*) FROM users WHERE role = 'user'");
+    const totalMembers = parseInt(countRows[0].count, 10);
 
     // Retroactive Virtual Account Generation:
     // If the user is verified but doesn't have a virtual account (because it failed previously)
@@ -340,11 +346,13 @@ export const getUserProfile = async (req, res) => {
       role: user.role,
       hasPaidMembership: user.has_paid_membership,
       kycStatus: user.kyc_status,
+      dob: user.dob,
       walletBalance: user.wallet_balance,
       profileImage: user.profile_image,
       virtual_account_number: user.virtual_account_number,
       virtual_bank_name: user.virtual_bank_name,
       virtual_account_name: user.virtual_account_name,
+      totalMembers: totalMembers,
       bankDetails: user.account_number ? {
         accountName: user.account_name,
         accountNumber: user.account_number,
