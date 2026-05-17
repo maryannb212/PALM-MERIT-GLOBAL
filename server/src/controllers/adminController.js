@@ -402,3 +402,95 @@ export const getPendingTransactions = async (req, res) => {
     res.status(500).json({ message: 'Server error fetching pending transactions' });
   }
 };
+
+/**
+ * Get all users and their detailed referral chains and anti-abuse flags
+ * GET /api/admin/referrals
+ */
+export const getAdminReferralStats = async (req, res) => {
+  try {
+    const { rows: users } = await query(`
+      SELECT id, first_name, last_name, email, phone, referral_code, referred_by, referral_unlock_date, status, created_at
+      FROM users
+      ORDER BY created_at DESC
+    `);
+
+    const result = [];
+    for (const u of users) {
+      const directDownlines = users.filter(down => down.referred_by === u.id);
+      
+      let activeQualifiedCount = 0;
+      const downlineDetails = [];
+      
+      for (const down of directDownlines) {
+        const { rows: plans } = await query(
+          'SELECT plan_name, current_amount, total_paid FROM savings_plans WHERE user_id = $1',
+          [down.id]
+        );
+        
+        const isSuspended = down.status && down.status.toLowerCase() !== 'active';
+        const hasGoldenBasket = plans.some(p => p.plan_name === 'GOLDEN_BASKET');
+        const hasStandardPlan = plans.some(p => p.plan_name !== 'GOLDEN_BASKET');
+        const totalStandardPaid = plans.filter(p => p.plan_name !== 'GOLDEN_BASKET')
+                                       .reduce((sum, p) => sum + parseFloat(p.current_amount || p.total_paid || 0), 0);
+        
+        let referralStatus = 'inactive';
+        if (isSuspended) {
+          referralStatus = 'disqualified';
+        } else if (plans.length === 0) {
+          referralStatus = 'inactive';
+        } else if (plans.length > 0 && !hasStandardPlan) {
+          referralStatus = 'disqualified';
+        } else if (totalStandardPaid > 0) {
+          referralStatus = 'qualified';
+          activeQualifiedCount++;
+        } else {
+          referralStatus = 'pending';
+        }
+
+        downlineDetails.push({
+          id: down.id,
+          firstName: down.first_name,
+          lastName: down.last_name,
+          email: down.email,
+          referralStatus
+        });
+      }
+
+      let isSelfReferralSuspected = false;
+      const { rows: userBanks } = await query('SELECT account_number FROM bank_accounts WHERE user_id = $1', [u.id]);
+      if (userBanks.length > 0) {
+        const userBankNum = userBanks[0].account_number;
+        for (const down of directDownlines) {
+          const { rows: downBanks } = await query('SELECT id FROM bank_accounts WHERE user_id = $1 AND account_number = $2', [down.id, userBankNum]);
+          if (downBanks.length > 0) {
+            isSelfReferralSuspected = true;
+            break;
+          }
+        }
+      }
+
+      result.push({
+        id: u.id,
+        firstName: u.first_name,
+        lastName: u.last_name,
+        email: u.email,
+        phone: u.phone,
+        status: u.status,
+        createdAt: u.created_at,
+        referralCode: u.referral_code,
+        referralUnlockDate: u.referral_unlock_date,
+        downlinesCount: directDownlines.length,
+        activeQualifiedCount,
+        isEligible: activeQualifiedCount >= 2,
+        isSuspicious: isSelfReferralSuspected,
+        downlines: downlineDetails
+      });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching admin referral stats:', error);
+    res.status(500).json({ message: 'Server error fetching admin referral stats' });
+  }
+};

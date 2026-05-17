@@ -31,6 +31,7 @@ const KYC = lazy(() => import('./pages/dashboard/KYC'));
 const BankDetails = lazy(() => import('./pages/dashboard/BankDetails'));
 const WithdrawPage = lazy(() => import('./pages/dashboard/WithdrawPage'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
+const Referrals = lazy(() => import('./pages/dashboard/Referrals'));
 const VerifyMembership = lazy(() => import('./pages/VerifyMembership'));
 const VerifyDeposit = lazy(() => import('./pages/VerifyDeposit'));
 
@@ -47,6 +48,7 @@ const BroadcastPage = lazy(() => import('./pages/admin/BroadcastPage'));
 const AdminAmbassadors = lazy(() => import('./pages/admin/AdminAmbassadors'));
 const AdminCashflow = lazy(() => import('./pages/admin/AdminCashflow'));
 const AdminPlans = lazy(() => import('./pages/admin/AdminPlans'));
+const AdminReferrals = lazy(() => import('./pages/admin/AdminReferrals'));
 
 const LoadingSpinner = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
@@ -96,6 +98,7 @@ const AppLayout = () => {
               <Route path="bank-details" element={<BankDetails />} />
               <Route path="withdraw" element={<WithdrawPage />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="referrals" element={<Referrals />} />
             </Route>
 
             {/* Admin Routes */}
@@ -117,6 +120,7 @@ const AppLayout = () => {
               <Route path="ambassadors" element={<AdminAmbassadors />} />
               <Route path="cashflow" element={<AdminCashflow />} />
               <Route path="plans" element={<AdminPlans />} />
+              <Route path="referrals" element={<AdminReferrals />} />
             </Route>
           </Routes>
         </Suspense>

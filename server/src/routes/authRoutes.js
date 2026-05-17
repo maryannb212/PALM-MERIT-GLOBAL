@@ -7,7 +7,8 @@ import {
   resetPassword,
   refreshToken,
   logoutUser,
-  getUserProfile
+  getUserProfile,
+  getMyReferrals
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import rateLimit from 'express-rate-limit';
@@ -30,5 +31,6 @@ router.post('/logout', logoutUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.get('/profile', protect, getUserProfile);
+router.get('/referrals', protect, getMyReferrals);
 
 export default router;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank } from 'react-icons/fa';
+import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank, FaUserFriends } from 'react-icons/fa';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
   const { admin, adminLogout } = useAuth();
@@ -29,6 +29,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { name: 'Cash Flow Statement', path: '/admin/cashflow', icon: <FaMoneyBillWave /> },
     { name: 'Ambassadors', path: '/admin/ambassadors', icon: <FaUserCircle /> },
     { name: 'Savings Plans', path: '/admin/plans', icon: <FaPiggyBank /> },
+    { name: 'Referral Audits', path: '/admin/referrals', icon: <FaUserFriends /> },
   ];
 
   return (

@@ -243,36 +243,15 @@ const KYC = () => {
               </section>
 
               <section className="form-section mt-4">
-                <h3>Update Profile Photo & Documents <span className="text-muted">(Optional)</span></h3>
-                <p className="text-muted mb-4">You may update your profile photo or ID documents if needed. Leave empty to keep existing documents.</p>
+                <h3>Update Profile Photo <span className="text-muted">(Optional)</span></h3>
+                <p className="text-muted mb-4">You may update your profile photo below. To prevent security fraud, verified KYC documents cannot be uploaded again.</p>
                 
-                <div className="upload-grid">
-                  <div className="upload-box">
+                <div className="upload-grid" style={{ gridTemplateColumns: '1fr' }}>
+                  <div className="upload-box" style={{ maxWidth: '300px' }}>
                     <label>Profile Photo</label>
                     <div className="file-input-wrapper">
                       <FaUpload /> {files.profile_image ? files.profile_image.name : 'Choose Image'}
                       <input type="file" name="profile_image" onChange={handleFileChange} accept="image/*" />
-                    </div>
-                  </div>
-                  <div className="upload-box">
-                    <label>ID Card (Front)</label>
-                    <div className="file-input-wrapper">
-                      <FaUpload /> {files.id_image ? files.id_image.name : 'Choose Image'}
-                      <input type="file" name="id_image" onChange={handleFileChange} accept="image/*" />
-                    </div>
-                  </div>
-                  <div className="upload-box">
-                    <label>ID Card (Back)</label>
-                    <div className="file-input-wrapper">
-                      <FaUpload /> {files.idBack ? files.idBack.name : 'Choose Image'}
-                      <input type="file" name="idBack" onChange={handleFileChange} accept="image/*" />
-                    </div>
-                  </div>
-                  <div className="upload-box">
-                    <label>Selfie (Holding ID)</label>
-                    <div className="file-input-wrapper">
-                      <FaUpload /> {files.selfie ? files.selfie.name : 'Choose Image'}
-                      <input type="file" name="selfie" onChange={handleFileChange} accept="image/*" />
                     </div>
                   </div>
                 </div>

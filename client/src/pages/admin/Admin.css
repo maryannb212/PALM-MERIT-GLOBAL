@@ -540,3 +540,150 @@
     order: 1;
   }
 }
+
+/* ==========================================================================
+   ─── ADMIN REFERRALS OVERSIGHT STYLING ───
+   ========================================================================== */
+.suspicious-row-alert {
+  background: #fef2f2 !important;
+  border-left: 4px solid #ef4444 !important;
+}
+
+.suspicious-row-alert:hover {
+  background: #fee2e2 !important;
+}
+
+.referral-code-badge {
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: #fff0f3;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.badge-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.badge-flag.alert-danger {
+  background: #fecaca;
+  color: #b91c1c;
+}
+
+.badge-flag.safe {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-qualified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.badge-qualified.success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-qualified.standard {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.ref-date {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.ref-date.unlocked {
+  color: #16a34a;
+}
+
+.ref-date.locked {
+  color: #ef4444;
+}
+
+/* Expanded downlines sub-panel */
+.expanded-details-row {
+  background: #fafafa !important;
+}
+
+.downlines-expanded-panel {
+  padding: 20px 30px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin: 10px 0;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.downlines-expanded-panel h4 {
+  margin: 0 0 16px 0;
+  font-size: 0.95rem;
+  color: var(--color-primary-dark);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.expanded-table-container {
+  overflow-x: auto;
+}
+
+.expanded-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.expanded-table th, .expanded-table td {
+  padding: 10px 16px;
+  font-size: 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.expanded-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.expanded-table tbody tr:hover {
+  background: #fafafa;
+}
+
+.btn-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-filter:hover, .btn-filter.active {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: #fef2f2;
+}
+

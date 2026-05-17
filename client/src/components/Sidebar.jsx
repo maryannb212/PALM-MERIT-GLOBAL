@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaHome, FaWallet, FaBoxOpen, FaHistory, FaHeadset, FaUserShield, FaCog, FaSignOutAlt, FaShieldAlt, FaCloudUploadAlt } from 'react-icons/fa';
+import { FaHome, FaWallet, FaBoxOpen, FaHistory, FaHeadset, FaUserShield, FaCog, FaSignOutAlt, FaShieldAlt, FaCloudUploadAlt, FaUserFriends } from 'react-icons/fa';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
@@ -25,6 +25,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { name: 'Active Programs', path: '/dashboard/subscriptions', icon: <FaBoxOpen /> },
     { name: 'Transactions History', path: '/dashboard/transactions', icon: <FaHistory /> },
     { name: 'Upload Receipt', path: '/dashboard/receipt', icon: <FaCloudUploadAlt /> },
+    { name: 'Referral Hub', path: '/dashboard/referrals', icon: <FaUserFriends /> },
     { name: 'Support', path: '/dashboard/support', icon: <FaHeadset /> },
     { name: 'KYC & Profile', path: '/dashboard/kyc', icon: <FaUserShield /> },
     { name: 'Bank Details', path: '/dashboard/bank-details', icon: <FaShieldAlt /> },

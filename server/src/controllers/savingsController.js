@@ -1,6 +1,7 @@
 import { createSavingsPlan, getUserSavingsPlans } from '../models/savingsModel.js';
 import { getClient, query } from '../config/db.js';
 import { createWalletLedgerEntry } from '../models/transactionModel.js';
+import { isReferrerEligibleForMultiplier } from '../helpers/referralHelper.js';
 
 export const subscribeToPlan = async (req, res) => {
   try {
@@ -132,12 +133,24 @@ export const payClearanceFee = async (req, res) => {
       `;
       const { rows: updatedPlans } = await client.query(updatePlanText, [payoutDate, planId]);
 
-      // Create pending payout record
-      const expectedAmount = plan.plan_name === 'CREST' ? 96000 : (plan.plan_name === 'SILVER' ? 150000 : plan.target_amount);
+      // Check referral eligibility dynamically
+      const isEligible = await isReferrerEligibleForMultiplier(userId);
+      let expectedAmount = parseFloat(plan.target_amount);
+
+      if (plan.plan_name === 'CREST') {
+        expectedAmount = isEligible ? 96000.00 : 48000.00;
+      } else if (plan.plan_name === 'SILVER') {
+        expectedAmount = isEligible ? 150000.00 : 75000.00;
+      }
+
+      const notes = isEligible 
+        ? `Payout verified with active qualified downlines.`
+        : `Standard payout rate applied. Required active qualified downlines (min 2) not met.`;
+
       await client.query(`
-        INSERT INTO payouts (user_id, plan_id, amount, payout_type, status)
-        VALUES ($1, $2, $3, 'cash', 'pending')
-      `, [userId, planId, expectedAmount]);
+        INSERT INTO payouts (user_id, plan_id, amount, payout_type, status, notes)
+        VALUES ($1, $2, $3, 'cash', 'pending', $4)
+      `, [userId, planId, expectedAmount, notes]);
 
       await client.query('COMMIT');
       res.json({ message: 'Clearance fee paid successfully', plan: updatedPlans[0] });

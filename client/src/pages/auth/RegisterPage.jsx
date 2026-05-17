@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import './Auth.css';
@@ -10,14 +10,23 @@ const RegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formData, setFormData] = useState({
     surname: '', middleName: '', firstName: '', dob: '', phone: '',
     address: '', nearestBusStop: '',
     nokName: '', nokRelationship: '', nokPhone: '', nokAddress: '', nokDob: '',
-    email: '', password: '', confirmPassword: ''
+    email: '', password: '', confirmPassword: '', referredByCode: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const refCode = searchParams.get('ref');
+    if (refCode) {
+      setFormData(prev => ({ ...prev, referredByCode: refCode }));
+    }
+  }, [location]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -68,6 +77,7 @@ const RegisterPage = () => {
         email: formData.email,
         password: formData.password,
         phone: formData.phone,
+        referredByCode: formData.referredByCode,
       });
       navigate('/dashboard');
     } catch (err) {
@@ -234,6 +244,18 @@ const RegisterPage = () => {
                     name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} required 
                     placeholder="Repeat your password"
                     autoComplete="new-password"
+                  />
+                </div>
+
+                <div className="form-group full-width">
+                  <label>Referral Code (Optional)</label>
+                  <input 
+                    type="text" 
+                    name="referredByCode" 
+                    value={formData.referredByCode || ''} 
+                    onChange={handleInputChange} 
+                    placeholder="e.g. CKO-72841"
+                    autoComplete="off"
                   />
                 </div>
                 

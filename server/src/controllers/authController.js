@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../utils/emailService.js';
 import { createPaystackVirtualAccount } from '../services/virtualAccountService.js';
+import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
 
 dotenv.config();
 
@@ -31,7 +32,7 @@ const generateRefreshToken = async (userId) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone } = req.body;
+    const { firstName, lastName, email, password, phone, referredByCode } = req.body;
 
     if (!firstName || !lastName || !phone || !password) {
       return res.status(400).json({ message: 'Please provide all required fields including phone number' });
@@ -61,21 +62,65 @@ export const registerUser = async (req, res) => {
       }
     }
 
+    // Validate Referred By Code if provided
+    let referredById = null;
+    if (referredByCode && referredByCode.trim()) {
+      const { rows: referrerRows } = await query(
+        'SELECT id, referral_unlock_date FROM users WHERE referral_code = $1',
+        [referredByCode.trim()]
+      );
+      if (referrerRows.length === 0) {
+        return res.status(400).json({ message: 'Invalid referral code' });
+      }
+
+      const referrer = referrerRows[0];
+      const unlockDate = referrer.referral_unlock_date ? new Date(referrer.referral_unlock_date) : null;
+      if (unlockDate && unlockDate > new Date()) {
+        return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
+      }
+      referredById = referrer.id;
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Check if this is the first user
-    // const { rows: userCount } = await query('SELECT count(*) FROM users');
-    // const role = parseInt(userCount[0].count) === 0 ? 'admin' : 'user';
     const role = 'user'; // Default all registrations to 'user'
 
+    // Generate unique referral code for the new user
+    let isUnique = false;
+    let newReferralCode = '';
+    while (!isUnique) {
+      const f = (firstName || 'P').charAt(0).toUpperCase();
+      const l = (lastName || 'M').charAt(0).toUpperCase();
+      const randomNum = Math.floor(10000 + Math.random() * 90000);
+      newReferralCode = `${f}X${l}-${randomNum}`;
+      const { rows: checkCode } = await query('SELECT id FROM users WHERE referral_code = $1', [newReferralCode]);
+      if (checkCode.length === 0) isUnique = true;
+    }
+
+    // Calculate Referral Unlock Date: Exactly 4 months after registration
+    const createdDate = new Date();
+    const unlockDate = new Date(createdDate);
+    unlockDate.setMonth(unlockDate.getMonth() + 4);
+
     const sql = `
-      INSERT INTO users (first_name, last_name, email, password_hash, phone, role)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, created_at;
+      INSERT INTO users (first_name, last_name, email, password_hash, phone, role, referral_code, referred_by, referral_unlock_date, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, referral_code, referral_unlock_date, created_at;
     `;
     const emailToSave = email ? email : null;
-    const { rows: newUser } = await query(sql, [firstName, lastName, emailToSave, passwordHash, normalizedPhone, role]);
+    const { rows: newUser } = await query(sql, [
+      firstName,
+      lastName,
+      emailToSave,
+      passwordHash,
+      normalizedPhone,
+      role,
+      newReferralCode,
+      referredById,
+      unlockDate,
+      createdDate
+    ]);
     const user = newUser[0];
 
     if (user) {
@@ -99,6 +144,8 @@ export const registerUser = async (req, res) => {
         virtual_account_number: user.virtual_account_number,
         virtual_bank_name: user.virtual_bank_name,
         virtual_account_name: user.virtual_account_name,
+        referralCode: user.referral_code,
+        referralUnlockDate: user.referral_unlock_date,
         token: accessToken,
         refreshToken: refreshToken
       });
@@ -306,6 +353,7 @@ export const getUserProfile = async (req, res) => {
         u.id, u.first_name, u.last_name, u.email, u.role, u.phone,
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.profile_image, u.created_at,
         u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name,
+        u.referral_code, u.referral_unlock_date,
         b.account_name, b.account_number, b.bank_name, b.bank_code,
         k.dob, k.middle_name, k.address, k.gender, k.bvn, k.id_type, k.id_number
       FROM users u
@@ -358,6 +406,8 @@ export const getUserProfile = async (req, res) => {
       virtual_account_number: user.virtual_account_number,
       virtual_bank_name: user.virtual_bank_name,
       virtual_account_name: user.virtual_account_name,
+      referralCode: user.referral_code,
+      referralUnlockDate: user.referral_unlock_date,
       totalMembers: totalMembers,
       bankDetails: user.account_number ? {
         accountName: user.account_name,
@@ -369,5 +419,22 @@ export const getUserProfile = async (req, res) => {
   } catch (error) {
     console.error('Error in getUserProfile:', error);
     res.status(500).json({ message: 'Server error fetching profile' });
+  }
+};
+
+export const getMyReferrals = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const downlines = await getReferredDownlines(userId);
+    const activeQualifiedCount = await getActiveQualifiedCount(userId);
+    res.json({
+      downlines,
+      activeQualifiedCount,
+      eligibilityRequiredCount: 2,
+      isEligible: activeQualifiedCount >= 2
+    });
+  } catch (error) {
+    console.error('Error fetching referrals:', error);
+    res.status(500).json({ message: 'Server error fetching referrals' });
   }
 };
