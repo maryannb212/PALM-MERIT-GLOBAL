@@ -307,7 +307,7 @@ export const getUserProfile = async (req, res) => {
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.profile_image, u.created_at,
         u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name,
         b.account_name, b.account_number, b.bank_name, b.bank_code,
-        k.dob
+        k.dob, k.middle_name, k.address, k.gender, k.bvn, k.id_type, k.id_number
       FROM users u
       LEFT JOIN bank_accounts b ON u.id = b.user_id
       LEFT JOIN kyc_details k ON u.id = k.user_id
@@ -347,6 +347,12 @@ export const getUserProfile = async (req, res) => {
       hasPaidMembership: user.has_paid_membership,
       kycStatus: user.kyc_status,
       dob: user.dob,
+      middleName: user.middle_name,
+      address: user.address,
+      gender: user.gender,
+      bvn: user.bvn,
+      id_type: user.id_type,
+      id_number: user.id_number,
       walletBalance: user.wallet_balance,
       profileImage: user.profile_image,
       virtual_account_number: user.virtual_account_number,

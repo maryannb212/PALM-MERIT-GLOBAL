@@ -35,11 +35,11 @@ const KYC = () => {
   const [message, setMessage] = useState({ text: '', type: '' });
   
   const [formData, setFormData] = useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
+    firstName: '',
+    lastName: '',
     middleName: '',
-    phone: user?.phone || '',
-    email: user?.email || '',
+    phone: '',
+    email: '',
     address: '',
     gender: '',
     date_of_birth: '',
@@ -59,10 +59,25 @@ const KYC = () => {
   });
 
   useEffect(() => {
-    if (user?.kycStatus === 'verified') {
-      navigate('/dashboard');
+    if (user) {
+      setFormData({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        middleName: user.middleName || '',
+        phone: user.phone || '',
+        email: user.email || '',
+        address: user.address || '',
+        gender: user.gender || '',
+        date_of_birth: user.dob ? user.dob.split('T')[0] : '',
+        bvn: user.bvn || '',
+        bankName: user.bankDetails?.bankName || '',
+        bankCode: user.bankDetails?.bankCode || '',
+        accountNumber: user.bankDetails?.accountNumber || '',
+        id_type: user.id_type || '',
+        id_number: user.id_number || '',
+      });
     }
-  }, [user, navigate]);
+  }, [user]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -87,7 +102,7 @@ const KYC = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (step < 3) {
+    if (user?.kycStatus !== 'verified' && step < 3) {
       setStep(step + 1);
       return;
     }
@@ -105,12 +120,17 @@ const KYC = () => {
       if (files.selfie) data.append('selfie', files.selfie);
       if (files.profile_image) data.append('profile_image', files.profile_image);
 
-      await submitKYC(data);
+      const response = await submitKYC(data);
       await refreshProfile();
-      setMessage({ text: 'KYC submitted successfully! Pending review.', type: 'success' });
-      setTimeout(() => navigate('/dashboard'), 3000);
+      setMessage({ 
+        text: user?.kycStatus === 'verified' ? 'Profile updated successfully!' : 'KYC submitted successfully! Pending review.', 
+        type: 'success' 
+      });
+      if (user?.kycStatus !== 'verified') {
+        setTimeout(() => navigate('/dashboard'), 3000);
+      }
     } catch (err) {
-      setMessage({ text: err.response?.data?.message || 'Failed to submit KYC.', type: 'error' });
+      setMessage({ text: err.response?.data?.message || 'Failed to update profile details.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -136,158 +156,292 @@ const KYC = () => {
             <button className="btn-icon-only" onClick={() => navigate('/dashboard')}>
               <FaChevronLeft />
             </button>
-            <h2>Know Your Customer (KYC)</h2>
+            <h2>{user?.kycStatus === 'verified' ? 'Profile & Account Settings' : 'Know Your Customer (KYC)'}</h2>
           </div>
         </header>
 
-        <div className="kyc-wizard card">
-          <div className="wizard-steps">
-            <div className={`wizard-step ${step >= 1 ? 'active' : ''}`}>1. Personal</div>
-            <div className={`wizard-step ${step >= 2 ? 'active' : ''}`}>2. Identification</div>
-            <div className={`wizard-step ${step >= 3 ? 'active' : ''}`}>3. Documents</div>
+        {user?.kycStatus === 'verified' ? (
+          <div className="kyc-wizard card">
+            <div className="kyc-verified-header" style={{ display: 'flex', alignItems: 'center', gap: '15px', background: '#d4edda', color: '#155724', padding: '20px', borderRadius: '12px', marginBottom: '30px', border: '1px solid #c3e6cb' }}>
+              <FaCheckCircle size={32} color="#28a745" />
+              <div>
+                <h3 style={{ margin: 0, fontWeight: 'bold', fontSize: '1.25rem', color: '#155724' }}>KYC Approved & Verified</h3>
+                <p style={{ margin: '5px 0 0 0', fontSize: '0.92rem', opacity: 0.9 }}>Your identity and billing details have been successfully verified. You can update your profile details and photo below at any time.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="kyc-full-form">
+              <section className="form-section">
+                <h3>Basic Information</h3>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Last Name</label>
+                    <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label>First Name</label>
+                    <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Middle Name</label>
+                    <input type="text" name="middleName" value={formData.middleName} onChange={handleInputChange} />
+                  </div>
+                  <div className="form-group">
+                    <label>Date of Birth</label>
+                    <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group">
+                    <label>Gender</label>
+                    <select name="gender" value={formData.gender} onChange={handleInputChange} required>
+                      <option value="">Select...</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </div>
+                  <div className="form-group full-width">
+                    <label>Residential Address</label>
+                    <textarea name="address" value={formData.address} onChange={handleInputChange} rows="2" required></textarea>
+                  </div>
+                </div>
+              </section>
+
+              <section className="form-section mt-4">
+                <h3>Identity & Banking Details</h3>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>ID Type</label>
+                    <select name="id_type" value={formData.id_type} onChange={handleInputChange} required>
+                      <option value="">Select ID Type...</option>
+                      <option value="NIN">NIN</option>
+                      <option value="Voter Card">Voter Card</option>
+                      <option value="Driver License">Driver's License</option>
+                      <option value="Passport">International Passport</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>ID Number</label>
+                    <input type="text" name="id_number" value={formData.id_number} onChange={handleInputChange} required />
+                  </div>
+                  <div className="form-group full-width">
+                    <label>Bank Verification Number (BVN)</label>
+                    <input type="text" name="bvn" value={formData.bvn} onChange={handleInputChange} maxLength="11" required />
+                  </div>
+                  <div className="form-group">
+                    <label>Preferred Bank</label>
+                    <select name="bankCode" value={formData.bankCode} onChange={handleBankChange}>
+                      <option value="">Select Bank...</option>
+                      {NIGERIAN_BANKS.map(bank => (
+                        <option key={bank.code} value={bank.code}>{bank.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Account Number</label>
+                    <input type="text" name="accountNumber" value={formData.accountNumber} onChange={handleInputChange} maxLength="10" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="form-section mt-4">
+                <h3>Update Profile Photo & Documents <span className="text-muted">(Optional)</span></h3>
+                <p className="text-muted mb-4">You may update your profile photo or ID documents if needed. Leave empty to keep existing documents.</p>
+                
+                <div className="upload-grid">
+                  <div className="upload-box">
+                    <label>Profile Photo</label>
+                    <div className="file-input-wrapper">
+                      <FaUpload /> {files.profile_image ? files.profile_image.name : 'Choose Image'}
+                      <input type="file" name="profile_image" onChange={handleFileChange} accept="image/*" />
+                    </div>
+                  </div>
+                  <div className="upload-box">
+                    <label>ID Card (Front)</label>
+                    <div className="file-input-wrapper">
+                      <FaUpload /> {files.id_image ? files.id_image.name : 'Choose Image'}
+                      <input type="file" name="id_image" onChange={handleFileChange} accept="image/*" />
+                    </div>
+                  </div>
+                  <div className="upload-box">
+                    <label>ID Card (Back)</label>
+                    <div className="file-input-wrapper">
+                      <FaUpload /> {files.idBack ? files.idBack.name : 'Choose Image'}
+                      <input type="file" name="idBack" onChange={handleFileChange} accept="image/*" />
+                    </div>
+                  </div>
+                  <div className="upload-box">
+                    <label>Selfie (Holding ID)</label>
+                    <div className="file-input-wrapper">
+                      <FaUpload /> {files.selfie ? files.selfie.name : 'Choose Image'}
+                      <input type="file" name="selfie" onChange={handleFileChange} accept="image/*" />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {message.text && (
+                <div className={`form-message ${message.type === 'success' ? 'success' : 'error'}`}>
+                  {message.type === 'error' ? <FaExclamationTriangle /> : <FaCheckCircle />} {message.text}
+                </div>
+              )}
+
+              <div className="form-actions-footer">
+                <button type="button" className="btn btn-outline" onClick={() => navigate('/dashboard')}>Cancel</button>
+                <button type="submit" className="btn btn-accent" disabled={loading}>
+                  <FaSave /> {loading ? 'Saving...' : 'Save Profile Changes'}
+                </button>
+              </div>
+            </form>
           </div>
+        ) : (
+          <div className="kyc-wizard card">
+            <div className="wizard-steps">
+              <div className={`wizard-step ${step >= 1 ? 'active' : ''}`}>1. Personal</div>
+              <div className={`wizard-step ${step >= 2 ? 'active' : ''}`}>2. Identification</div>
+              <div className={`wizard-step ${step >= 3 ? 'active' : ''}`}>3. Documents</div>
+            </div>
 
-          <form onSubmit={handleSubmit} className="kyc-full-form">
-            {step === 1 && (
-              <div className="fade-in">
-                <section className="form-section">
-                  <h3>Basic Information</h3>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>Last Name</label>
-                      <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} required />
+            <form onSubmit={handleSubmit} className="kyc-full-form">
+              {step === 1 && (
+                <div className="fade-in">
+                  <section className="form-section">
+                    <h3>Basic Information</h3>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>Last Name</label>
+                        <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} required />
+                      </div>
+                      <div className="form-group">
+                        <label>First Name</label>
+                        <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Middle Name</label>
+                        <input type="text" name="middleName" value={formData.middleName} onChange={handleInputChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Date of Birth</label>
+                        <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleInputChange} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Gender</label>
+                        <select name="gender" value={formData.gender} onChange={handleInputChange} required>
+                          <option value="">Select...</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                        </select>
+                      </div>
+                      <div className="form-group full-width">
+                        <label>Residential Address</label>
+                        <textarea name="address" value={formData.address} onChange={handleInputChange} rows="2" required></textarea>
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label>First Name</label>
-                      <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} required />
-                    </div>
-                    <div className="form-group">
-                      <label>Middle Name</label>
-                      <input type="text" name="middleName" value={formData.middleName} onChange={handleInputChange} />
-                    </div>
-                    <div className="form-group">
-                      <label>Date of Birth</label>
-                      <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleInputChange} required />
-                    </div>
-                    <div className="form-group">
-                      <label>Gender</label>
-                      <select name="gender" value={formData.gender} onChange={handleInputChange} required>
-                        <option value="">Select...</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                      </select>
-                    </div>
-                    <div className="form-group full-width">
-                      <label>Residential Address</label>
-                      <textarea name="address" value={formData.address} onChange={handleInputChange} rows="2" required></textarea>
-                    </div>
+                  </section>
+                  <div className="form-actions-footer">
+                    <button type="button" className="btn btn-primary" onClick={() => setStep(2)}>Next Step</button>
                   </div>
-                </section>
-                <div className="form-actions-footer">
-                  <button type="button" className="btn btn-primary" onClick={() => setStep(2)}>Next Step</button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {step === 2 && (
-              <div className="fade-in">
-                <section className="form-section">
-                  <h3>Identity & Banking</h3>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>ID Type</label>
-                      <select name="id_type" value={formData.id_type} onChange={handleInputChange} required>
-                        <option value="">Select ID Type...</option>
-                        <option value="NIN">NIN</option>
-                        <option value="Voter Card">Voter Card</option>
-                        <option value="Driver License">Driver's License</option>
-                        <option value="Passport">International Passport</option>
-                      </select>
+              {step === 2 && (
+                <div className="fade-in">
+                  <section className="form-section">
+                    <h3>Identity & Banking</h3>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>ID Type</label>
+                        <select name="id_type" value={formData.id_type} onChange={handleInputChange} required>
+                          <option value="">Select ID Type...</option>
+                          <option value="NIN">NIN</option>
+                          <option value="Voter Card">Voter Card</option>
+                          <option value="Driver License">Driver's License</option>
+                          <option value="Passport">International Passport</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>ID Number</label>
+                        <input type="text" name="id_number" value={formData.id_number} onChange={handleInputChange} required />
+                      </div>
+                      <div className="form-group full-width">
+                        <label>Bank Verification Number (BVN)</label>
+                        <input type="text" name="bvn" value={formData.bvn} onChange={handleInputChange} maxLength="11" required />
+                      </div>
+                      <div className="form-group">
+                        <label>Preferred Bank</label>
+                        <select name="bankCode" value={formData.bankCode} onChange={handleBankChange}>
+                          <option value="">Select Bank...</option>
+                          {NIGERIAN_BANKS.map(bank => (
+                            <option key={bank.code} value={bank.code}>{bank.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Account Number</label>
+                        <input type="text" name="accountNumber" value={formData.accountNumber} onChange={handleInputChange} maxLength="10" />
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label>ID Number</label>
-                      <input type="text" name="id_number" value={formData.id_number} onChange={handleInputChange} required />
-                    </div>
-                    <div className="form-group full-width">
-                      <label>Bank Verification Number (BVN)</label>
-                      <input type="text" name="bvn" value={formData.bvn} onChange={handleInputChange} maxLength="11" required />
-                    </div>
-                    <div className="form-group">
-                      <label>Preferred Bank</label>
-                      <select name="bankCode" value={formData.bankCode} onChange={handleBankChange}>
-                        <option value="">Select Bank...</option>
-                        {NIGERIAN_BANKS.map(bank => (
-                          <option key={bank.code} value={bank.code}>{bank.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Account Number</label>
-                      <input type="text" name="accountNumber" value={formData.accountNumber} onChange={handleInputChange} maxLength="10" />
-                    </div>
+                  </section>
+                  <div className="form-actions-footer">
+                    <button type="button" className="btn btn-outline" onClick={() => setStep(1)}>Back</button>
+                    <button type="button" className="btn btn-primary" onClick={() => setStep(3)}>Next Step</button>
                   </div>
-                </section>
-                <div className="form-actions-footer">
-                  <button type="button" className="btn btn-outline" onClick={() => setStep(1)}>Back</button>
-                  <button type="button" className="btn btn-primary" onClick={() => setStep(3)}>Next Step</button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {step === 3 && (
-              <div className="fade-in">
-                <section className="form-section">
-                  <h3>Document Uploads</h3>
-                  <p className="text-muted mb-4">Please upload clear images of your documents (Max 5MB per file).</p>
-                  
-                  <div className="upload-grid">
-                    <div className="upload-box">
-                      <label>ID Card (Front)</label>
-                      <div className="file-input-wrapper">
-                        <FaUpload /> {files.id_image ? files.id_image.name : 'Choose Image'}
-                        <input type="file" name="id_image" onChange={handleFileChange} accept="image/*" required />
+              {step === 3 && (
+                <div className="fade-in">
+                  <section className="form-section">
+                    <h3>Document Uploads</h3>
+                    <p className="text-muted mb-4">Please upload clear images of your documents (Max 5MB per file).</p>
+                    
+                    <div className="upload-grid">
+                      <div className="upload-box">
+                        <label>ID Card (Front)</label>
+                        <div className="file-input-wrapper">
+                          <FaUpload /> {files.id_image ? files.id_image.name : 'Choose Image'}
+                          <input type="file" name="id_image" onChange={handleFileChange} accept="image/*" required />
+                        </div>
+                      </div>
+                      <div className="upload-box">
+                        <label>ID Card (Back)</label>
+                        <div className="file-input-wrapper">
+                          <FaUpload /> {files.idBack ? files.idBack.name : 'Choose Image'}
+                          <input type="file" name="idBack" onChange={handleFileChange} accept="image/*" />
+                        </div>
+                      </div>
+                      <div className="upload-box">
+                        <label>Selfie (Holding ID)</label>
+                        <div className="file-input-wrapper">
+                          <FaUpload /> {files.selfie ? files.selfie.name : 'Choose Image'}
+                          <input type="file" name="selfie" onChange={handleFileChange} accept="image/*" required />
+                        </div>
+                      </div>
+                      <div className="upload-box">
+                        <label>Profile Photo <span className="text-muted">(Optional)</span></label>
+                        <div className="file-input-wrapper">
+                          <FaUpload /> {files.profile_image ? files.profile_image.name : 'Choose Image'}
+                          <input type="file" name="profile_image" onChange={handleFileChange} accept="image/*" />
+                        </div>
                       </div>
                     </div>
-                    <div className="upload-box">
-                      <label>ID Card (Back)</label>
-                      <div className="file-input-wrapper">
-                        <FaUpload /> {files.idBack ? files.idBack.name : 'Choose Image'}
-                        <input type="file" name="idBack" onChange={handleFileChange} accept="image/*" />
-                      </div>
+                  </section>
+
+                  {message.text && (
+                    <div className={`form-message ${message.type === 'success' ? 'success' : 'error'}`}>
+                      {message.type === 'error' ? <FaExclamationTriangle /> : <FaCheckCircle />} {message.text}
                     </div>
-                    <div className="upload-box">
-                      <label>Selfie (Holding ID)</label>
-                      <div className="file-input-wrapper">
-                        <FaUpload /> {files.selfie ? files.selfie.name : 'Choose Image'}
-                        <input type="file" name="selfie" onChange={handleFileChange} accept="image/*" required />
-                      </div>
-                    </div>
-                    <div className="upload-box">
-                      <label>Profile Photo <span className="text-muted">(Optional)</span></label>
-                      <div className="file-input-wrapper">
-                        <FaUpload /> {files.profile_image ? files.profile_image.name : 'Choose Image'}
-                        <input type="file" name="profile_image" onChange={handleFileChange} accept="image/*" />
-                      </div>
-                    </div>
+                  )}
+
+                  <div className="form-actions-footer">
+                    <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>Back</button>
+                    <button type="submit" className="btn btn-accent" disabled={loading}>
+                      {loading ? 'Submitting...' : 'Complete & Submit'}
+                    </button>
                   </div>
-                </section>
-
-                {message.text && (
-                  <div className={`form-message ${message.type === 'success' ? 'success' : 'error'}`}>
-                    {message.type === 'error' ? <FaExclamationTriangle /> : <FaCheckCircle />} {message.text}
-                  </div>
-                )}
-
-                <div className="form-actions-footer">
-                  <button type="button" className="btn btn-outline" onClick={() => setStep(2)}>Back</button>
-                  <button type="submit" className="btn btn-accent" disabled={loading}>
-                    {loading ? 'Submitting...' : 'Complete & Submit'}
-                  </button>
                 </div>
-              </div>
-            )}
-          </form>
-        </div>
+              )}
+            </form>
+          </div>
+        )}
     </>
   );
 };

@@ -71,21 +71,34 @@ export const submitKYC = async (req, res) => {
         id_type, id_number, idFrontUrl, idBackUrl, selfieUrl
       ]);
 
-      let userSql = `UPDATE users SET kyc_status = 'pending'`;
-      const userValues = [userId];
+      // Check current kyc_status of user
+      const { rows: currentUsers } = await client.query('SELECT kyc_status FROM users WHERE id = $1', [userId]);
+      const currentKycStatus = currentUsers[0]?.kyc_status || 'unverified';
+      const targetKycStatus = currentKycStatus === 'verified' ? 'verified' : 'pending';
+
+      let userSql = `UPDATE users SET kyc_status = $2`;
+      const userValues = [userId, targetKycStatus];
       
       if (profileImageUrl) {
-        userSql += `, profile_image = $2`;
+        userSql += `, profile_image = $3`;
         userValues.push(profileImageUrl);
       }
       userSql += ` WHERE id = $1 RETURNING kyc_status;`;
 
       const { rows: userRows } = await client.query(userSql, userValues);
 
+      // Sync name and phone to users table immediately if already verified
+      if (targetKycStatus === 'verified') {
+        await client.query(
+          'UPDATE users SET first_name = $1, last_name = $2, phone = $3 WHERE id = $4',
+          [firstName, lastName, phone, userId]
+        );
+      }
+
       await client.query('COMMIT');
 
       res.status(200).json({
-        message: 'KYC submitted successfully and is now pending review',
+        message: targetKycStatus === 'verified' ? 'Profile updated successfully!' : 'KYC submitted successfully and is now pending review',
         kycStatus: userRows[0].kyc_status
       });
     } catch (error) {
