@@ -105,17 +105,13 @@ export const processCompletedPayment = async (reference, verifiedAmount = null, 
     const completedTx = updatedTx[0];
 
     // ── STEP 5: Process based on type ────────────────────────────────────────
-    if (completedTx.type === 'deposit' || completedTx.type === 'wallet_topup') {
+    if (completedTx.type === 'deposit' || completedTx.type === 'wallet_topup' || completedTx.type === 'contribution') {
       if (completedTx.plan_id) {
         // Linked to a savings plan
         await client.query(
           `UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
           [completedTx.amount, completedTx.plan_id]
         );
-        // We still credit the user's available_balance or just the plan?
-        // Usually, plan balance is separate. But the request says "wallet_topup -> create wallet CREDIT entry".
-        // If it's a plan deposit, maybe it doesn't go to wallet? 
-        // Let's stick to the spec: "wallet_topup -> create wallet CREDIT entry".
       } else {
         // Generic wallet top-up
         await client.query(
@@ -130,10 +126,27 @@ export const processCompletedPayment = async (reference, verifiedAmount = null, 
       await client.query(`UPDATE users SET has_paid_membership = TRUE WHERE id = $1`, [completedTx.user_id]);
     } else if (completedTx.type === 'clearance') {
       // Clearance fee payment
-      await client.query(
-        `UPDATE savings_plans SET status = 'pending_settlement', clearance_paid = TRUE, clearance_date = CURRENT_TIMESTAMP WHERE id = $1`,
-        [completedTx.plan_id]
-      );
+      const { rows: planRows } = await client.query('SELECT * FROM savings_plans WHERE id = $1', [completedTx.plan_id]);
+      if (planRows.length > 0) {
+        const plan = planRows[0];
+        const payoutDate = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000));
+        
+        await client.query(
+          `UPDATE savings_plans SET status = 'pending_settlement', clearance_paid = TRUE, clearance_date = CURRENT_TIMESTAMP, payout_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+          [payoutDate, completedTx.plan_id]
+        );
+
+        const expectedAmount = plan.plan_name === 'CREST' ? 96000 : (plan.plan_name === 'SILVER' ? 150000 : plan.target_amount);
+        
+        // Check if a payout record already exists to prevent duplicate payouts
+        const { rows: payoutRows } = await client.query('SELECT * FROM payouts WHERE plan_id = $1', [completedTx.plan_id]);
+        if (payoutRows.length === 0) {
+          await client.query(`
+            INSERT INTO payouts (user_id, plan_id, amount, payout_type, status)
+            VALUES ($1, $2, $3, 'cash', 'pending')
+          `, [completedTx.user_id, completedTx.plan_id, expectedAmount]);
+        }
+      }
     }
 
     await client.query('COMMIT');
