@@ -157,7 +157,7 @@ const Referrals = () => {
               
               <div className="referral-input-group mt-4">
                 <input type="text" value={referralLink} readOnly onClick={(e) => e.target.select()} />
-                <button className="copy-btn active" onClick={handleCopyLink}>
+                <button className={`copy-btn active ${copied ? 'copied-success' : ''}`} onClick={handleCopyLink}>
                   {copied ? <><FaCheckCircle /> Copied</> : <><FaCopy /> Copy Link</>}
                 </button>
               </div>

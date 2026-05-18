@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { subscribeToPlan } from '../../services/api';
+import { FaArrowRight } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -134,6 +135,16 @@ const Packages = () => {
                   <span>Target Withdral</span>
                 </div>
               </div>
+
+              <button 
+                className="btn get-started-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelectPlan(pkg);
+                }}
+              >
+                Get Started <FaArrowRight style={{ fontSize: '0.85rem' }} />
+              </button>
             </div>
           ))}
         </div>
