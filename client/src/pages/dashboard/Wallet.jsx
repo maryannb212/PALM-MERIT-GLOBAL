@@ -38,6 +38,10 @@ const Wallet = () => {
   const elapsedMs = oldestPlanDate ? (new Date() - oldestPlanDate) : 0;
   const isKycCompulsory = oldestPlanDate && (elapsedMs > ninetyDaysInMs);
 
+  const isClearanceDue = plans.some(p => 
+    ['matured', 'pending_clearance'].includes(p.status) && p.clearance_required
+  );
+
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
@@ -187,7 +191,7 @@ const Wallet = () => {
         </div>
 
         {/* ─── T-Shirt Reminder Banner ─── */}
-        {!user?.tshirt_paid && (
+        {!user?.tshirt_paid && isClearanceDue && (
           <div className="tshirt-banner">
             <div className="tshirt-content">
               <div className="tshirt-icon">👕</div>
