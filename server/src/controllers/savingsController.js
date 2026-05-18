@@ -54,12 +54,83 @@ export const subscribeToPlan = async (req, res) => {
     let refundOnly = false;
     if (monthlyTotal + requestedAccounts > 100) {
       refundOnly = true;
-      // Alternatively, we could partially allow them, but flagging the whole plan is simpler
     }
 
-    const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, preferredDay);
+    // 3. Define Plan Configurations for Wallet Balance Validation
+    const planConfigs = {
+      CREST: { initialSavings: 4000.00, regFee: 3000.00 },
+      SILVER: { initialSavings: 1500.00, regFee: 2500.00 },
+      GOLDEN_BASKET: { initialSavings: 2000.00, regFee: 3000.00 },
+      ISUSU: { initialSavings: 500.00, regFee: 0.00 }
+    };
 
-    res.status(201).json(plan);
+    const config = planConfigs[planName];
+    const initialSavingsTotal = config.initialSavings * requestedAccounts;
+    const regFeeTotal = config.regFee * requestedAccounts;
+    const totalFirstPayment = initialSavingsTotal + regFeeTotal;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Fetch user's available balance with row locking
+      const { rows: users } = await client.query(
+        'SELECT available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE',
+        [userId]
+      );
+      const user = users[0];
+      const availableBalance = parseFloat(user.available_balance);
+
+      if (availableBalance < totalFirstPayment) {
+        throw new Error(`Insufficient wallet balance. This subscription requires a total upfront payment of ₦${totalFirstPayment.toLocaleString()} (₦${initialSavingsTotal.toLocaleString()} initial savings + ₦${regFeeTotal.toLocaleString()} registration fee for ${requestedAccounts} account${requestedAccounts > 1 ? 's' : ''}), but your wallet has ₦${availableBalance.toLocaleString()}. Please fund your wallet to proceed.`);
+      }
+
+      // Deduct total first payment from balances
+      await client.query(
+        'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
+        [totalFirstPayment, userId]
+      );
+
+      // Create the plan
+      const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, preferredDay);
+
+      // Set the initial current_amount of the savings plan to initialSavingsTotal
+      await client.query(
+        'UPDATE savings_plans SET current_amount = $1 WHERE id = $2',
+        [initialSavingsTotal, plan.id]
+      );
+
+      // Log transactions
+      const savingsRef = `SAV-${Date.now()}`;
+      await client.query(`
+        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+        VALUES ($1, $2, 'savings', $3, 'completed', $4)
+      `, [userId, plan.id, initialSavingsTotal, savingsRef]);
+
+      await createWalletLedgerEntry(client, userId, 'debit', initialSavingsTotal, savingsRef, `Initial savings deposit for Plan: ${planName}`);
+
+      if (regFeeTotal > 0) {
+        const regRef = `REG-${Date.now()}`;
+        await client.query(`
+          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+          VALUES ($1, $2, 'registration', $3, 'completed', $4)
+        `, [userId, plan.id, regFeeTotal, regRef]);
+
+        await createWalletLedgerEntry(client, userId, 'debit', regFeeTotal, regRef, `One-time registration fee for Plan: ${planName}`);
+      }
+
+      await client.query('COMMIT');
+
+      // Update response object values
+      plan.current_amount = initialSavingsTotal;
+
+      res.status(201).json(plan);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ message: err.message });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('Error in subscribeToPlan:', error);
     res.status(500).json({ message: 'Server error during subscription' });

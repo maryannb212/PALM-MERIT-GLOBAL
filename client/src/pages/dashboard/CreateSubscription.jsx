@@ -27,8 +27,7 @@ const CreateSubscription = () => {
   }
 
   // Calculate the registration fee string and number
-  const regFeeMatch = plan.description.match(/₦[\d,]+/);
-  const regFeeStr = regFeeMatch ? regFeeMatch[0] : '₦0';
+  const regFeeStr = plan.regFee || '₦0';
   const regFeeNum = parseInt(regFeeStr.replace(/[^0-9]/g, ''), 10) || 0;
   
   // Calculate the first initial saving amount (e.g. from ₦1,500.00 string)
