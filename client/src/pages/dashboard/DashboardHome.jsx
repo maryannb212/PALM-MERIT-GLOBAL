@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getMyPlans } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import MembershipPaywall from '../../components/MembershipPaywall';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -14,6 +15,7 @@ const DashboardHome = () => {
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [hideBalances, setHideBalances] = useState(true);
   const [error, setError] = useState(null);
   const [announcementDismissed, setAnnouncementDismissed] = useState(false);
   const [announcementExpanded, setAnnouncementExpanded] = useState(false);
@@ -208,27 +210,39 @@ const DashboardHome = () => {
 
 
         {/* ─── Unified Stats Row ─── */}
-        <div className="stats-grid stats-grid-counts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="stats-grid stats-grid-counts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
           <div className="stat-card count-card" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white' }}>
             <div className="stat-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#FFD700' }}>✅</div>
             <h3 style={{ color: '#FFD700' }}>Active Cooperative Programs</h3>
             <div className="stat-count">{activePlans.length}</div>
           </div>
-          <div className="stat-card count-card">
-            <div className="stat-icon">👥</div>
-            <h3>Total Members</h3>
-            <div className="stat-count">{user?.totalMembers || 0}</div>
-          </div>
-          <div className="stat-card count-card">
-            <div className="stat-icon">💰</div>
-            <h3>Wallet Balance</h3>
+          <div className="stat-card count-card" onClick={() => setHideBalances(!hideBalances)} style={{ cursor: 'pointer' }}>
+            <div className="stat-icon">
+              {hideBalances ? <FaEyeSlash /> : <FaEye />}
+            </div>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+              Wallet Balance
+              <button 
+                onClick={(e) => { e.stopPropagation(); setHideBalances(!hideBalances); }}
+                className="btn-link"
+                style={{ background: 'none', border: 'none', padding: '0', color: 'var(--color-primary)', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline' }}
+              >
+                ({hideBalances ? 'Show' : 'Hide'})
+              </button>
+            </h3>
             <div className="stat-count">
-              <span className="stat-currency">₦</span>{formatCurrency(walletBalance).replace('₦', '').trim()}
+              {hideBalances ? (
+                <span style={{ fontSize: '1.5rem', letterSpacing: '3px' }}>••••••</span>
+              ) : (
+                <>
+                  <span className="stat-currency">₦</span>{formatCurrency(walletBalance).replace('₦', '').trim()}
+                </>
+              )}
             </div>
           </div>
           <div className="stat-card count-card">
             <div className="stat-icon">📈</div>
-            <h3>Weekly Contributions</h3>
+            <h3>My Contributions (7 Days)</h3>
             <div className="stat-count">{recentTransactions.length}</div>
           </div>
         </div>
@@ -280,10 +294,22 @@ const DashboardHome = () => {
             <div className="packages-list">
               {activePlans.map((plan) => {
                 const progress = getPlanProgress(plan);
+                const individualTarget = parseFloat(plan.target_amount || 0) / (plan.number_of_accounts || 1);
+                const individualSaved = parseFloat(plan.current_amount || 0) / (plan.number_of_accounts || 1);
+                const individualRemaining = Math.max(0, individualTarget - individualSaved);
+
+                const getWeeklySavingsAmount = (planName) => {
+                  if (planName === 'CREST') return '₦4,000';
+                  if (planName === 'SILVER') return '₦1,500';
+                  if (planName === 'GOLDEN_BASKET') return '₦2,000';
+                  if (planName === 'ISUSU') return '₦500 Daily (Min)';
+                  return '₦500';
+                };
+
                 return (
                   <div className="package-progress-card" key={plan.id}>
                     <div className="pkg-header">
-                      <h4>{plan.plan_name} Programme</h4>
+                      <h4>{plan.plan_name} Programme {plan.number_of_accounts > 1 && <span className="text-muted" style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>({plan.number_of_accounts} accounts)</span>}</h4>
                       <div className="pkg-actions">
                         <span className="badge badge-success">Active</span>
                         <button
@@ -295,13 +321,15 @@ const DashboardHome = () => {
                         </button>
                       </div>
                     </div>
-                    <div className="pkg-details">
-                      <p>Target: {formatCurrency(plan.target_amount)}</p>
-                      <p>Saved: {formatCurrency(plan.current_amount)}</p>
+                    <div className="pkg-details" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                      <p style={{ margin: 0 }}><strong>Target Savings:</strong> {formatCurrency(individualTarget)}</p>
+                      <p style={{ margin: 0 }}><strong>{plan.plan_name === 'ISUSU' ? 'Daily Savings:' : 'Weekly Savings:'}</strong> {getWeeklySavingsAmount(plan.plan_name)}</p>
+                      <p style={{ margin: 0 }}><strong>Schedule:</strong> {plan.preferred_day || (plan.plan_name === 'ISUSU' ? 'Daily' : 'Friday')}</p>
+                      <p style={{ margin: 0 }}><strong>Remaining Balance:</strong> {formatCurrency(individualRemaining)}</p>
                     </div>
-                    <div className="progress-wrapper">
+                    <div className="progress-wrapper" style={{ marginTop: '15px' }}>
                       <div className="progress-info">
-                        <span>{formatCurrency(plan.current_amount)} of {formatCurrency(plan.target_amount)}</span>
+                        <span>{formatCurrency(individualSaved)} saved of {formatCurrency(individualTarget)} target</span>
                         <span>{progress}%</span>
                       </div>
                       <div className="progress-bar">

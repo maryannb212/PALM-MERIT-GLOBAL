@@ -87,49 +87,23 @@ const Subscriptions = () => {
         </header>
 
         {/* ─── Portfolio Stats ─── */}
-        <div className="portfolio-grid">
-          <div className="portfolio-card total-savings-card">
-            <div className="pc-main-val">
-              <h3>{formatCurrency(plans.reduce((sum, p) => sum + parseFloat(p.current_amount || 0), 0))}</h3>
-              <p>Total Savings Portfolio</p>
+        <div className="cooperative-overview-banner" style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)', color: 'white', padding: '25px', borderRadius: '12px', marginBottom: '25px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#ff781f' }}>🛡️ Personal Savings Hub</h3>
+          <p style={{ margin: '8px 0 20px 0', opacity: 0.9, fontSize: '0.95rem' }}>
+            Build your future discreetly and securely. Manage each of your active cooperative programs below on a granular, subscription-focused basis.
+          </p>
+          <div className="portfolio-stats-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #ff781f' }}>
+              <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>Active Savings Programs</span>
+              <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => p.status === 'active').length}</strong>
             </div>
-            <div className="pc-list">
-              <div className="pc-list-item">
-                <span>Active Savings</span>
-                <strong>{formatCurrency(plans.filter(p => p.status === 'active').reduce((sum, p) => sum + parseFloat(p.current_amount || 0), 0))}</strong>
-              </div>
-              <div className="pc-list-item">
-                <span>Pending Settlement</span>
-                <strong>{formatCurrency(plans.filter(p => p.status === 'pending_settlement').reduce((sum, p) => sum + calculateROI(p), 0))}</strong>
-              </div>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #3b82f6' }}>
+              <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>Matured (Clearance)</span>
+              <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => ['matured', 'pending_clearance'].includes(p.status)).length}</strong>
             </div>
-          </div>
-
-          <div className="portfolio-card subs-count-card">
-            <div className="pc-header">
-              <h4>Subscription Overview</h4>
-              <p>{plans.filter(p => p.status === 'active').length} Active | {plans.filter(p => p.status === 'settled').length} Settled</p>
-            </div>
-            <div className="pc-big-num">
-              <h3>{plans.length}</h3>
-              <p>Total Accounts</p>
-            </div>
-            <div className="pc-list-sm">
-              <div className="pc-list-item-sm">
-                <span className="dot active-dot"></span>
-                <span>Active</span>
-                <strong>{plans.filter(p => p.status === 'active').length}</strong>
-              </div>
-              <div className="pc-list-item-sm">
-                <span className="dot pending-dot"></span>
-                <span>In Progress (Matured/Clearance)</span>
-                <strong>{plans.filter(p => ['matured', 'pending_clearance'].includes(p.status)).length}</strong>
-              </div>
-              <div className="pc-list-item-sm">
-                <span className="dot settled-dot"></span>
-                <span>Settled</span>
-                <strong>{plans.filter(p => p.status === 'settled').length}</strong>
-              </div>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #10b981' }}>
+              <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>Settled Accounts</span>
+              <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => p.status === 'settled').length}</strong>
             </div>
           </div>
         </div>
@@ -166,57 +140,78 @@ const Subscriptions = () => {
           </div>
         ) : (
           <div className="active-subscriptions-list">
-            {filteredPlans.map(plan => (
-              <div key={plan.id} className="active-sub-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                  <h4 style={{ margin: 0 }}>{plan.plan_name}</h4>
-                  {getStatusBadge(plan.status)}
+            {filteredPlans.map(plan => {
+              const individualTarget = parseFloat(plan.target_amount || 0) / (plan.number_of_accounts || 1);
+              const individualSaved = parseFloat(plan.current_amount || 0) / (plan.number_of_accounts || 1);
+              const individualRemaining = Math.max(0, individualTarget - individualSaved);
+              const individualROI = calculateROI(plan) / (plan.number_of_accounts || 1);
+
+              const getWeeklySavingsAmount = (planName) => {
+                if (planName === 'CREST') return '₦4,000';
+                if (planName === 'SILVER') return '₦1,500';
+                if (planName === 'GOLDEN_BASKET') return '₦2,000';
+                if (planName === 'ISUSU') return '₦500 Daily (Min)';
+                return '₦500';
+              };
+
+              return (
+                <div key={plan.id} className="active-sub-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                    <h4 style={{ margin: 0 }}>{plan.plan_name} Programme {plan.number_of_accounts > 1 && <span className="text-muted" style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>({plan.number_of_accounts} accounts)</span>}</h4>
+                    {getStatusBadge(plan.status)}
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '15px', fontSize: '0.9rem' }}>
+                    <p style={{ margin: 0 }}><strong>Target Savings:</strong> {formatCurrency(individualTarget)}</p>
+                    <p style={{ margin: 0 }}><strong>{plan.plan_name === 'ISUSU' ? 'Daily Savings:' : 'Weekly Savings:'}</strong> {getWeeklySavingsAmount(plan.plan_name)}</p>
+                    <p style={{ margin: 0 }}><strong>Saved:</strong> {formatCurrency(individualSaved)}</p>
+                    <p style={{ margin: 0 }}><strong>Remaining:</strong> {formatCurrency(individualRemaining)}</p>
+                    <p style={{ margin: 0 }}><strong>Schedule:</strong> {plan.preferred_day || (plan.plan_name === 'ISUSU' ? 'Daily' : 'Friday')}</p>
+                    <p style={{ margin: 0 }}><strong>Expected ROI:</strong> {formatCurrency(individualROI)} {plan.plan_name === 'GOLDEN_BASKET' ? '(Goods)' : ''}</p>
+                  </div>
+                  
+                  {plan.status === 'active' && (
+                    <div className="progress-bar-container">
+                      <div 
+                        className="progress-bar" 
+                        style={{ width: `${Math.min(100, (parseFloat(plan.current_amount || 0) / parseFloat(plan.target_amount || 1)) * 100)}%` }}
+                      ></div>
+                    </div>
+                  )}
+
+                  {plan.status === 'pending_clearance' && (
+                    <button 
+                      className="clearance-btn" 
+                      onClick={() => handlePayClearance(plan.id)}
+                      disabled={actionLoading}
+                    >
+                      <FaHandHoldingUsd /> {actionLoading ? 'Processing...' : 'Pay Clearance Fee (₦3,000)'}
+                    </button>
+                  )}
+
+                  {plan.status === 'pending_settlement' && (
+                    <div className="payout-info">
+                      <FaClock /> 
+                      <span>Settlement Date: {new Date(plan.payout_date).toLocaleDateString()}</span>
+                    </div>
+                  )}
+
+                  {plan.status === 'settled' && (
+                    <div className="payout-info" style={{ color: '#16a34a' }}>
+                      <FaCheckCircle /> 
+                      <span>Settlement Completed</span>
+                    </div>
+                  )}
+
+                  {plan.status === 'matured' && plan.plan_name === 'GOLDEN_BASKET' && (
+                     <div className="payout-info">
+                       <FaExclamationCircle /> 
+                       <span>Waiting for system update to Clearance-free status...</span>
+                     </div>
+                  )}
                 </div>
-                
-                <p><strong>Savings:</strong> {formatCurrency(plan.current_amount)} / {formatCurrency(plan.target_amount)}</p>
-                <p><strong>Expected ROI:</strong> {formatCurrency(calculateROI(plan))} {plan.plan_name === 'GOLDEN_BASKET' ? '(Goods)' : ''}</p>
-                
-                {plan.status === 'active' && (
-                  <div className="progress-bar-container">
-                    <div 
-                      className="progress-bar" 
-                      style={{ width: `${Math.min(100, (parseFloat(plan.current_amount || 0) / parseFloat(plan.target_amount || 1)) * 100)}%` }}
-                    ></div>
-                  </div>
-                )}
-
-                {plan.status === 'pending_clearance' && (
-                  <button 
-                    className="clearance-btn" 
-                    onClick={() => handlePayClearance(plan.id)}
-                    disabled={actionLoading}
-                  >
-                    <FaHandHoldingUsd /> {actionLoading ? 'Processing...' : 'Pay Clearance Fee (₦3,000)'}
-                  </button>
-                )}
-
-                {plan.status === 'pending_settlement' && (
-                  <div className="payout-info">
-                    <FaClock /> 
-                    <span>Settlement Date: {new Date(plan.payout_date).toLocaleDateString()}</span>
-                  </div>
-                )}
-
-                {plan.status === 'settled' && (
-                  <div className="payout-info" style={{ color: '#16a34a' }}>
-                    <FaCheckCircle /> 
-                    <span>Settlement Completed</span>
-                  </div>
-                )}
-
-                {plan.status === 'matured' && plan.plan_name === 'GOLDEN_BASKET' && (
-                   <div className="payout-info">
-                     <FaExclamationCircle /> 
-                     <span>Waiting for system update to Clearance-free status...</span>
-                   </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
     </>

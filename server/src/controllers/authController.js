@@ -408,7 +408,7 @@ export const getUserProfile = async (req, res) => {
       virtual_account_name: user.virtual_account_name,
       referralCode: user.referral_code,
       referralUnlockDate: user.referral_unlock_date,
-      totalMembers: totalMembers,
+      totalMembers: user.role === 'admin' ? totalMembers : null,
       bankDetails: user.account_number ? {
         accountName: user.account_name,
         accountNumber: user.account_number,

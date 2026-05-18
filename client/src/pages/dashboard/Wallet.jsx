@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { getMyTransactions, payTshirtFee } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -12,6 +13,7 @@ const Wallet = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tshirtLoading, setTshirtLoading] = useState(false);
+  const [hideBalances, setHideBalances] = useState(true);
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -84,9 +86,18 @@ const Wallet = () => {
               </button>
             </div>
           </div>
-          <div className="virtual-account-balance">
-            <span className="label">Wallet Balance</span>
-            <span className="amount">{formatCurrency(walletBalance)}</span>
+          <div className="virtual-account-balance" onClick={() => setHideBalances(!hideBalances)} style={{ cursor: 'pointer' }}>
+            <span className="label" style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
+              Wallet Balance 
+              <span style={{ fontSize: '0.85rem', color: '#ff781f' }}>({hideBalances ? 'Show' : 'Hide'})</span>
+            </span>
+            <span className="amount">
+              {hideBalances ? (
+                <span style={{ fontSize: '1.4rem', letterSpacing: '2px' }}>••••••</span>
+              ) : (
+                formatCurrency(walletBalance)
+              )}
+            </span>
           </div>
         </div>
 
@@ -169,21 +180,34 @@ const Wallet = () => {
         )}
 
         {/* ─── Stats Row ─── */}
-        <div className="stats-grid stats-grid-wallet">
-          <div className="stat-card wallet-balance-card">
+        <div className="stats-grid stats-grid-wallet" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
+          <div className="stat-card wallet-balance-card" onClick={() => setHideBalances(!hideBalances)} style={{ cursor: 'pointer' }}>
             <div className="stat-icon">💰</div>
-            <h3>Available Balance</h3>
-            <div className="stat-value">{formatCurrency(availableBalance)}</div>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+              Available Balance
+              <span style={{ fontSize: '0.8rem', color: '#ff781f', textDecoration: 'underline' }}>({hideBalances ? 'Show' : 'Hide'})</span>
+            </h3>
+            <div className="stat-value">
+              {hideBalances ? (
+                <span style={{ fontSize: '1.5rem', letterSpacing: '3px' }}>••••••</span>
+              ) : (
+                formatCurrency(availableBalance)
+              )}
+            </div>
           </div>
-          <div className="stat-card credit-card" style={{ background: '#fff3cd' }}>
+          <div className="stat-card credit-card" style={{ background: '#fff3cd', cursor: 'pointer' }} onClick={() => setHideBalances(!hideBalances)}>
             <div className="stat-icon">🔒</div>
-            <h3>Held Balance</h3>
-            <div className="stat-value">{formatCurrency(heldBalance)}</div>
-          </div>
-          <div className="stat-card credit-card">
-            <div className="stat-icon">📈</div>
-            <h3>Total Credit</h3>
-            <div className="stat-value">{formatCurrency(totalCredit)}</div>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+              Held Balance
+              <span style={{ fontSize: '0.8rem', color: '#ff781f', textDecoration: 'underline' }}>({hideBalances ? 'Show' : 'Hide'})</span>
+            </h3>
+            <div className="stat-value">
+              {hideBalances ? (
+                <span style={{ fontSize: '1.5rem', letterSpacing: '3px' }}>••••••</span>
+              ) : (
+                formatCurrency(heldBalance)
+              )}
+            </div>
           </div>
         </div>
 
