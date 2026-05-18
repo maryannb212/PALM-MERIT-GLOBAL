@@ -358,7 +358,8 @@ export const getUserProfile = async (req, res) => {
     const sql = `
       SELECT 
         u.id, u.first_name, u.last_name, u.email, u.role, u.phone,
-        u.has_paid_membership, u.kyc_status, u.wallet_balance, u.profile_image, u.created_at,
+        u.has_paid_membership, u.kyc_status, u.wallet_balance, u.available_balance, u.held_balance,
+        u.profile_image, u.created_at,
         u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name,
         u.referral_code, u.referral_unlock_date,
         b.account_name, b.account_number, b.bank_name, b.bank_code,
@@ -409,6 +410,8 @@ export const getUserProfile = async (req, res) => {
       id_type: user.id_type,
       id_number: user.id_number,
       walletBalance: user.wallet_balance,
+      available_balance: user.available_balance,
+      held_balance: user.held_balance,
       profileImage: user.profile_image,
       virtual_account_number: user.virtual_account_number,
       virtual_bank_name: user.virtual_bank_name,

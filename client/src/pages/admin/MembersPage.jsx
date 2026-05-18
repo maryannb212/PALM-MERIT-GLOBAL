@@ -25,7 +25,7 @@ const MembersPage = () => {
 
   useEffect(() => {
     const results = members.filter(member =>
-      `${member.first_name} ${member.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      `${member.first_name || ''} ${member.last_name || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (member.email && member.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (member.phone && member.phone.includes(searchTerm))
     );
@@ -156,7 +156,7 @@ const MembersPage = () => {
                           {(member.first_name?.[0] || 'U')}{(member.last_name?.[0] || '')}
                         </div>
                         <div className="member-info">
-                          <span className="member-name">{member.first_name} {member.last_name}</span>
+                          <span className="member-name">{member.first_name || 'Unknown'} {member.last_name || ''}</span>
                           <span className="member-id">UUID: {member.id.substring(0, 8).toUpperCase()}</span>
                         </div>
                       </div>
