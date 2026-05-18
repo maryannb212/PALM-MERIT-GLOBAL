@@ -98,10 +98,10 @@ export const registerUser = async (req, res) => {
       if (checkCode.length === 0) isUnique = true;
     }
 
-    // Calculate Referral Unlock Date: Exactly 4 months after registration
+    // Calculate Referral Unlock Date: Exactly 1 month after registration
     const createdDate = new Date();
     const unlockDate = new Date(createdDate);
-    unlockDate.setMonth(unlockDate.getMonth() + 4);
+    unlockDate.setMonth(unlockDate.getMonth() + 1);
 
     const sql = `
       INSERT INTO users (first_name, last_name, email, password_hash, phone, role, referral_code, referred_by, referral_unlock_date, created_at)

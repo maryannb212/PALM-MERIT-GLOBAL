@@ -142,7 +142,7 @@ const Referrals = () => {
                 </div>
                 <h4>Referral Link Locked</h4>
                 <p className="overlay-desc">
-                  To prevent fraud and maintain cooperative stability, all referral links are temporarily locked for 4 months from registration.
+                  To prevent fraud and maintain cooperative stability, all referral links are temporarily locked for 1 month from registration.
                 </p>
                 
                 <div className="countdown-display mt-4">
@@ -181,7 +181,7 @@ const Referrals = () => {
                 <div className="step-number">1</div>
                 <div className="step-content">
                   <h4>Wait Out Lock Period</h4>
-                  <p>Wait 4 months from registration for referral link auto-activation.</p>
+                  <p>Wait 1 month from registration for referral link auto-activation.</p>
                 </div>
               </div>
               <div className="step-item">

@@ -21,7 +21,7 @@ export const up = async function(knex) {
     const code = `${initials}-${randomNum}`;
 
     const unlockDate = new Date(user.created_at || new Date());
-    unlockDate.setMonth(unlockDate.getMonth() + 4); // exactly 4 months (3 months registration + 1 month lock)
+    unlockDate.setMonth(unlockDate.getMonth() + 1); // exactly 1 month from registration
 
     await knex('users')
       .where({ id: user.id })
