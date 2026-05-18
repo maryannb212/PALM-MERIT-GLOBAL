@@ -129,14 +129,14 @@ const MembershipPaywall = ({ user }) => {
           <div className="payment-options">
             <div className="provider-selection" style={{ marginBottom: '15px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Choose Gateway:</label>
-              <div style={{ display: 'flex', gap: '20px', marginBottom: '15px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input type="radio" value="paystack" checked={provider === 'paystack'} onChange={(e) => setProvider(e.target.value)} style={{ marginRight: '8px' }} />
-                  Paystack
+              <div className="provider-options">
+                <label className={`provider-card ${provider === 'paystack' ? 'selected' : ''}`}>
+                  <input type="radio" value="paystack" checked={provider === 'paystack'} onChange={(e) => setProvider(e.target.value)} />
+                  <img src="https://paystack.com/favicon.png" alt="Paystack" style={{width: '20px', marginRight: '8px'}}/> Paystack
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input type="radio" value="flutterwave" checked={provider === 'flutterwave'} onChange={(e) => setProvider(e.target.value)} style={{ marginRight: '8px' }} />
-                  Flutterwave
+                <label className={`provider-card ${provider === 'flutterwave' ? 'selected' : ''}`}>
+                  <input type="radio" value="flutterwave" checked={provider === 'flutterwave'} onChange={(e) => setProvider(e.target.value)} />
+                  <img src="https://flutterwave.com/favicon.ico" alt="Flutterwave" style={{width: '20px', marginRight: '8px'}}/> Flutterwave
                 </label>
               </div>
             </div>

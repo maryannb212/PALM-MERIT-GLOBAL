@@ -60,28 +60,26 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
 
           <div className="form-group">
             <label>Choose Payment Provider</label>
-            <div className="provider-options" style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <div className="provider-options">
+              <label className={`provider-card ${provider === 'paystack' ? 'selected' : ''}`}>
                 <input 
                   type="radio" 
                   name="provider" 
                   value="paystack" 
                   checked={provider === 'paystack'} 
                   onChange={(e) => setProvider(e.target.value)}
-                  style={{ marginRight: '8px' }}
                 />
-                Paystack
+                <img src="https://paystack.com/favicon.png" alt="Paystack" style={{width: '20px', marginRight: '8px'}}/> Paystack
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <label className={`provider-card ${provider === 'flutterwave' ? 'selected' : ''}`}>
                 <input 
                   type="radio" 
                   name="provider" 
                   value="flutterwave" 
                   checked={provider === 'flutterwave'} 
                   onChange={(e) => setProvider(e.target.value)}
-                  style={{ marginRight: '8px' }}
                 />
-                Flutterwave
+                <img src="https://flutterwave.com/favicon.ico" alt="Flutterwave" style={{width: '20px', marginRight: '8px'}}/> Flutterwave
               </label>
             </div>
           </div>
