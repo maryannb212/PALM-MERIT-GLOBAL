@@ -18,7 +18,6 @@ const PACKAGES = [
     duration: '12',
     durationLabel: 'Weeks',
     targetSavings: '₦48,000',
-    targetWithdrawal: '₦48,000',
     rawMinTarget: 48000
   },
   {
@@ -33,7 +32,6 @@ const PACKAGES = [
     duration: '50',
     durationLabel: 'Weeks',
     targetSavings: '₦75,000',
-    targetWithdrawal: '₦75,000',
     rawMinTarget: 75000
   },
   {
@@ -48,7 +46,6 @@ const PACKAGES = [
     duration: '50',
     durationLabel: 'Weeks',
     targetSavings: '₦100,000',
-    targetWithdrawal: '₦100,000',
     rawMinTarget: 100000
   },
   {
@@ -63,7 +60,6 @@ const PACKAGES = [
     duration: '30',
     durationLabel: 'Days',
     targetSavings: '₦15,000',
-    targetWithdrawal: '₦15,000',
     rawMinTarget: 15000
   }
 ];
@@ -129,10 +125,6 @@ const Packages = () => {
                 <div className="plan-stat">
                   <h4>{pkg.targetSavings}</h4>
                   <span>Target Savings</span>
-                </div>
-                <div className="plan-stat">
-                  <h4>{pkg.targetWithdrawal}</h4>
-                  <span>Target Withdral</span>
                 </div>
               </div>
 
