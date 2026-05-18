@@ -158,7 +158,7 @@ const Packages = () => {
               </div>
               <div className="modal-body">
                 <p className="modal-disclaimer">
-                  You're about to join the Savings. By proceeding, you agree to pay <strong>{selectedPlan.description.match(/₦[\d,]+/)?.[0] || '₦3,000'}</strong> for registration and contribute <strong>{selectedPlan.amount}</strong> {selectedPlan.frequency} for weeks and abide by the group's terms.
+                  You're about to join the Savings. By proceeding, you agree to pay <strong>{selectedPlan.regFee || '₦0'}</strong> for registration and contribute <strong>{selectedPlan.amount}</strong> {selectedPlan.frequency} for {selectedPlan.duration} {selectedPlan.durationLabel.toLowerCase()} and abide by the group's terms.
                 </p>
 
                 <div className="creation-methods">

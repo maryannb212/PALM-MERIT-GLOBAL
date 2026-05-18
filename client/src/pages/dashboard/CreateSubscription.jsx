@@ -101,6 +101,10 @@ const CreateSubscription = () => {
                 <span className="detail-label">Plan Title</span>
                 <span className="detail-value">{plan.name}</span>
               </div>
+              <div className="detail-row animate-fade-in" style={{ borderLeft: '3px solid var(--color-accent)', paddingLeft: '8px' }}>
+                <span className="detail-label" style={{ fontWeight: '600', color: 'var(--color-primary)' }}>One-Time Registration Fee (for {numberOfAccounts} Account{numberOfAccounts > 1 ? 's' : ''})</span>
+                <span className="detail-value" style={{ fontWeight: '700', color: 'var(--color-primary)' }}>{formatCurrency(totalRegFee)}</span>
+              </div>
               <div className="detail-row">
                 <span className="detail-label">{plan.frequency.charAt(0).toUpperCase() + plan.frequency.slice(1)} Savings Amount (for {numberOfAccounts} Account{numberOfAccounts > 1 ? 's' : ''})</span>
                 <span className="detail-value">{formatCurrency(totalSavingsAmount)}</span>
