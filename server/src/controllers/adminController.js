@@ -30,21 +30,57 @@ export const getAllUsers = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const sql = `
-      SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, created_at
+    
+    // 1. Fetch user standard fields + wallet balances
+    const userSql = `
+      SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, 
+             wallet_balance, available_balance, held_balance, created_at, profile_image, status
       FROM users 
       WHERE id = $1;
     `;
-    const result = await query(sql, [id]);
+    const userResult = await query(userSql, [id]);
     
-    if (result.rows.length === 0) {
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    res.json(result.rows[0]);
+    const user = userResult.rows[0];
+    
+    // 2. Fetch KYC details
+    const kycSql = `
+      SELECT first_name, last_name, middle_name, phone, email, address, gender, dob, bvn, 
+             bank_name, account_number, id_type, id_number, document_url, document_back_url, selfie_url, submitted_at
+      FROM kyc_details
+      WHERE user_id = $1;
+    `;
+    const kycResult = await query(kycSql, [id]);
+    user.kyc = kycResult.rows[0] || null;
+    
+    // 3. Fetch all Bank Accounts
+    const bankSql = `
+      SELECT account_name, account_number, bank_name, is_primary
+      FROM bank_accounts
+      WHERE user_id = $1
+      ORDER BY is_primary DESC, created_at DESC;
+    `;
+    const bankResult = await query(bankSql, [id]);
+    user.bank_accounts = bankResult.rows;
+    
+    // 4. Fetch Savings Plans
+    const plansSql = `
+      SELECT id, plan_name, status, start_date, end_date, target_amount, current_amount, 
+             interest_rate, number_of_accounts, clearance_required, clearance_paid, maturity_date
+      FROM savings_plans
+      WHERE user_id = $1
+      ORDER BY created_at DESC;
+    `;
+    const plansResult = await query(plansSql, [id]);
+    user.savings_plans = plansResult.rows;
+    
+    res.json(user);
   } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({ message: 'Server error fetching user' });
+    console.error('Error fetching user detailed info:', error);
+    res.status(500).json({ message: 'Server error fetching user details' });
   }
 };
 

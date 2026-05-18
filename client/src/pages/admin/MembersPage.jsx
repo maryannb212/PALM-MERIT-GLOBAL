@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser } from '../../services/api';
-import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt } from 'react-icons/fa';
+import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye } from 'react-icons/fa';
 import EditMemberModal from './EditMemberModal';
+import MemberDetailsModal from './MemberDetailsModal';
 import '../dashboard/Dashboard.css';
 import './Admin.css';
 
@@ -13,6 +14,8 @@ const MembersPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingMember, setEditingMember] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedDetailsUserId, setSelectedDetailsUserId] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const avatarColors = ['#800020', '#D4AF37', '#1e293b', '#475569', '#64748b'];
 
@@ -206,6 +209,14 @@ const MembersPage = () => {
                           </button>
                         )}
                         <button 
+                          onClick={() => { setSelectedDetailsUserId(member.id); setIsDetailsModalOpen(true); }}
+                          className="btn btn-sm"
+                          title="View Details"
+                          style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(212, 175, 55, 0.1)', color: '#d4af37', border: '1px solid rgba(212, 175, 55, 0.3)' }}
+                        >
+                          <FaEye />
+                        </button>
+                        <button 
                           onClick={() => { setEditingMember(member); setIsEditModalOpen(true); }}
                           className="btn btn-sm btn-secondary"
                           title="Edit User"
@@ -236,6 +247,12 @@ const MembersPage = () => {
         onClose={() => { setIsEditModalOpen(false); setEditingMember(null); }}
         member={editingMember}
         onSave={handleEditSave}
+      />
+      
+      <MemberDetailsModal 
+        isOpen={isDetailsModalOpen}
+        onClose={() => { setIsDetailsModalOpen(false); setSelectedDetailsUserId(null); }}
+        userId={selectedDetailsUserId}
       />
     </div>
   );

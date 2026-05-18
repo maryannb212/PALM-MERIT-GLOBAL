@@ -115,6 +115,7 @@ export const getMyTickets = () => API.get('/tickets');
 export const adminLogin = (credentials) => API.post('/admin/login', credentials);
 export const getAdminStats = () => API.get('/admin/stats');
 export const getAllUsers = () => API.get('/admin/users');
+export const getAdminUserById = (id) => API.get(`/admin/users/${id}`);
 export const updateAdminUser = (id, data) => API.put(`/admin/users/${id}`, data);
 export const deleteAdminUser = (id) => API.delete(`/admin/users/${id}`);
 export const getAllAdminTickets = () => API.get('/admin/tickets');
