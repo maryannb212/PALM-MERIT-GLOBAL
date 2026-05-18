@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import jsonwebtoken from 'jsonwebtoken';
 import crypto from 'crypto';
 import { createUser, findUserByEmail, findUserByPhone, findUserById, findUserByEmailOrPhone } from '../models/userModel.js';
@@ -39,36 +39,43 @@ export const registerUser = async (req, res) => {
     }
 
     const normalizedPhone = phone.trim();
-    const normalizedEmail = email ? email.trim().toLowerCase() : null;
+    const normalizedEmail = (email && email.trim() !== '') ? email.trim().toLowerCase() : null;
 
-    // Check phone existence
-    const { rows: phoneMatch } = await query('SELECT id, phone FROM users WHERE phone = $1', [normalizedPhone]);
+    // Check storage existence and validate referred code in a single parallel round-trip
+    const validationPromises = [
+      query('SELECT id, phone FROM users WHERE phone = $1', [normalizedPhone])
+    ];
+
+    if (normalizedEmail) {
+      validationPromises.push(query('SELECT id FROM users WHERE email = $1', [normalizedEmail]));
+    } else {
+      validationPromises.push(Promise.resolve({ rows: [] }));
+    }
+
+    if (referredByCode && referredByCode.trim()) {
+      validationPromises.push(query('SELECT id, referral_unlock_date FROM users WHERE referral_code = $1', [referredByCode.trim()]));
+    } else {
+      validationPromises.push(Promise.resolve({ rows: [] }));
+    }
+
+    const [phoneMatchRes, emailMatchRes, referrerRes] = await Promise.all(validationPromises);
+
+    const phoneMatch = phoneMatchRes.rows;
     if (phoneMatch.length > 0) {
       return res.status(400).json({ 
-        message: `User with phone number ${normalizedPhone} already exists`,
-        debug: { 
-          receivedPhone: phone,
-          normalizedPhone: normalizedPhone,
-          matchedPhone: phoneMatch[0].phone 
-        }
+        message: `User with phone number ${normalizedPhone} already exists`
       });
     }
 
-    // Check email existence (if provided)
-    if (normalizedEmail) {
-      const { rows: emailMatch } = await query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
-      if (emailMatch.length > 0) {
-        return res.status(400).json({ message: 'User with this email already exists' });
-      }
+    const emailMatch = emailMatchRes.rows;
+    if (normalizedEmail && emailMatch.length > 0) {
+      return res.status(400).json({ message: 'User with this email already exists' });
     }
 
     // Validate Referred By Code if provided
     let referredById = null;
+    const referrerRows = referrerRes.rows;
     if (referredByCode && referredByCode.trim()) {
-      const { rows: referrerRows } = await query(
-        'SELECT id, referral_unlock_date FROM users WHERE referral_code = $1',
-        [referredByCode.trim()]
-      );
       if (referrerRows.length === 0) {
         return res.status(400).json({ message: 'Invalid referral code' });
       }
@@ -108,7 +115,7 @@ export const registerUser = async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, referral_code, referral_unlock_date, created_at;
     `;
-    const emailToSave = email ? email : null;
+    const emailToSave = normalizedEmail;
     const { rows: newUser } = await query(sql, [
       firstName,
       lastName,
