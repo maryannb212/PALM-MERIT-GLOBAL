@@ -9,7 +9,7 @@ import {
 import './Dashboard.css';
 
 const Referrals = () => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -22,6 +22,9 @@ const Referrals = () => {
 
   // Fetch referrals from API
   useEffect(() => {
+    if (refreshProfile) {
+      refreshProfile();
+    }
     const fetchReferrals = async () => {
       try {
         setLoading(true);
