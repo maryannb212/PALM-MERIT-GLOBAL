@@ -128,64 +128,38 @@ const Wallet = () => {
           </div>
         </div>
 
-        {/* ─── Virtual Account Section ─── */}
-        <div className="funding-account-section card mt-4">
-          <div className="card-header">
-            <h3>Virtual Account</h3>
-            <span className="badge badge-success">Automated Funding</span>
+        {/* ─── Fund Wallet Section ─── */}
+        <div className="funding-account-section card mt-4" style={{ border: '1px solid rgba(128, 0, 32, 0.15)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)' }}>
+          <div className="card-header" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '1.4rem' }}>💳</span>
+            <div style={{ textAlign: 'left' }}>
+              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>Instant Wallet Funding</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>Secure online deposits via Card, Transfer, USSD, or Bank App</p>
+            </div>
           </div>
-          <div className="funding-account-body">
-            {user?.virtual_account_number ? (
-              <div className="funding-account-details">
-                <div className="funding-info-grid">
-                  <div className="info-item">
-                    <span className="label">Account Number</span>
-                    <div className="value-with-copy">
-                      <span className="value">{user.virtual_account_number}</span>
-                      <button 
-                        className="btn-copy" 
-                        onClick={() => {
-                          navigator.clipboard.writeText(user.virtual_account_number);
-                          alert('Account number copied!');
-                        }}
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                  <div className="info-item">
-                    <span className="label">Bank Name</span>
-                    <span className="value">{user.virtual_bank_name}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="label">Account Name</span>
-                    <span className="value">{user.virtual_account_name}</span>
-                  </div>
-                </div>
-                <div className="funding-instructions">
-                  <p><strong>Instructions:</strong> Transfer money directly to this account to fund your wallet instantly. All transfers are credited automatically.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="funding-pending-state">
-                <p style={{ lineHeight: '1.5' }}>
-                  {user?.kycStatus === 'verified' 
-                    ? "We're setting up your virtual account. Please check back in a few minutes." 
-                    : isKycCompulsory
-                      ? "⚠️ Your KYC verification is now required because 3 months have elapsed since you started your first savings program. Please complete KYC to generate your virtual account."
-                      : "Your automated virtual account is generated upon KYC verification. Note: KYC is optional for your first 3 months and only becomes required 3 months after starting your first program."}
-                </p>
-                {user?.kycStatus !== 'verified' && user?.kycStatus !== 'pending' && (
-                  <Link to="/dashboard/kyc" className={`btn mt-2 ${isKycCompulsory ? 'btn-warning' : 'btn-primary'}`}>
-                    {isKycCompulsory ? 'Complete KYC Now (Required)' : 'Verify Now (Optional)'}
-                  </Link>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="card-footer" style={{ borderTop: '1px solid #eee', padding: '15px' }}>
-            <button className="btn btn-primary btn-block" onClick={() => setIsModalOpen(true)}>
-              Other Funding Options (Paystack/Flutterwave)
+          <div className="card-body" style={{ padding: '30px', textAlign: 'center' }}>
+            <p style={{ margin: '0 0 25px 0', fontSize: '0.95rem', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+              Fund your wallet instantly using secure and integrated online channels. Deposits are automatically verified and credited to your available balance in real time.
+            </p>
+            <button 
+              className="btn btn-primary" 
+              onClick={() => setIsModalOpen(true)}
+              style={{ 
+                padding: '12px 30px', 
+                fontSize: '1rem', 
+                fontWeight: 'bold', 
+                textTransform: 'uppercase', 
+                letterSpacing: '1px', 
+                boxShadow: '0 4px 15px rgba(128, 0, 32, 0.25)',
+                background: 'linear-gradient(135deg, #800020, #a30029)',
+                border: 'none',
+                color: 'white',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              Deposit Funds Now
             </button>
           </div>
         </div>
