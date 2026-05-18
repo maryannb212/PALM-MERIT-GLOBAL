@@ -23,7 +23,7 @@ const MembersPage = () => {
   useEffect(() => {
     const results = members.filter(member =>
       `${member.first_name} ${member.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (member.email && member.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (member.phone && member.phone.includes(searchTerm))
     );
     setFilteredMembers(results);
@@ -160,7 +160,7 @@ const MembersPage = () => {
                     </td>
                     <td>
                       <div className="contact-info">
-                        <div className="contact-item"><FaEnvelope size={12} /> {member.email}</div>
+                        <div className="contact-item"><FaEnvelope size={12} /> {member.email || 'No email'}</div>
                         <div className="contact-item"><FaPhone size={12} /> {member.phone || 'N/A'}</div>
                       </div>
                     </td>
