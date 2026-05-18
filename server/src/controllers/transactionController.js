@@ -141,10 +141,14 @@ export const initializeTransaction = async (req, res) => {
     if (!isMockMode()) {
       if (provider === 'paystack') {
         try {
+          const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+          const callback_url = `${baseUrl}/verify-deposit?reference=${reference}`;
+
           const paystackRes = await axios.post('https://api.paystack.co/transaction/initialize', {
             email,
             amount: Math.round(Number(amount) * 100),
             reference,
+            callback_url,
             metadata: { userId, planId, type }
           }, {
             headers: { 
@@ -160,7 +164,7 @@ export const initializeTransaction = async (req, res) => {
       } else if (provider === 'flutterwave') {
         try {
           const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
-          const redirect_url = `${baseUrl}/dashboard/wallet?ref=${reference}`;
+          const redirect_url = `${baseUrl}/verify-deposit?reference=${reference}`;
 
           const flutterwaveRes = await axios.post('https://api.flutterwave.com/v3/payments', {
             tx_ref: reference,

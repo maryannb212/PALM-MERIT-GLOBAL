@@ -24,11 +24,12 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
         payment_provider: provider
       });
       
-      if (onSuccess) onSuccess();
-      // Auto redirect to receipt upload after initialization
-      setTimeout(() => {
-        window.location.href = '/dashboard/receipt';
-      }, 1000);
+      // Redirect user to the payment gateway to complete actual payment
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        setError('Payment gateway did not return a valid payment link. Please try again.');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to initialize deposit.');
     } finally {
