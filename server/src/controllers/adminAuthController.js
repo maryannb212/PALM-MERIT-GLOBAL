@@ -10,10 +10,29 @@ export const ceoLogin = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    // Strict Input Validation: Block blank or missing credentials
+    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Officer username and password are required' });
+    }
 
-    if (username === adminUsername && password === adminPassword) {
+    const trimmedUser = username.trim();
+    const trimmedPass = password.trim();
+
+    if (trimmedUser === '' || trimmedPass === '') {
+      return res.status(400).json({ message: 'Officer username and password cannot be empty' });
+    }
+
+    // Strict Server Configuration Check: Default to 'admin'/'admin123' only if they are not defined.
+    // If they are explicitly defined as empty strings in env, reject and throw configuration alert.
+    const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim();
+    const adminPassword = (process.env.ADMIN_PASSWORD || 'admin123').trim();
+
+    if (adminUsername === '' || adminPassword === '') {
+      console.error('[SECURITY ALERT] Administrative credentials are left blank in environment configurations!');
+      return res.status(500).json({ message: 'Administrative authentication is currently offline. Please configure server credentials.' });
+    }
+
+    if (trimmedUser === adminUsername && trimmedPass === adminPassword) {
       // Create token
       const token = jwt.sign(
         { id: 'ceo-admin-id', role: 'admin' },

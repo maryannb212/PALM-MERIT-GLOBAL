@@ -8,19 +8,19 @@ export const AuthProvider = ({ children }) => {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount, check localStorage for existing sessions
+  // On mount, check storage for existing sessions
   useEffect(() => {
     const storedUser = localStorage.getItem('palmmerit_user');
-    const storedAdmin = localStorage.getItem('palmmerit_admin');
+    const storedAdmin = sessionStorage.getItem('palmmerit_admin');
     
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        // Migration: if old palmmerit_user has admin role, move it to palmmerit_admin
+        // Migration: if old palmmerit_user has admin role, move it to palmmerit_admin in sessionStorage
         if (parsed.role === 'admin') {
           localStorage.removeItem('palmmerit_user');
           if (!storedAdmin) {
-            localStorage.setItem('palmmerit_admin', JSON.stringify(parsed));
+            sessionStorage.setItem('palmmerit_admin', JSON.stringify(parsed));
             setAdmin(parsed);
           }
         } else {
@@ -35,7 +35,7 @@ export const AuthProvider = ({ children }) => {
       try {
         setAdmin(JSON.parse(storedAdmin));
       } catch {
-        localStorage.removeItem('palmmerit_admin');
+        sessionStorage.removeItem('palmmerit_admin');
       }
     }
     setLoading(false);
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
 
   const ceoLogin = async (username, password) => {
     const { data } = await adminLoginAPI({ username, password });
-    localStorage.setItem('palmmerit_admin', JSON.stringify(data));
+    sessionStorage.setItem('palmmerit_admin', JSON.stringify(data));
     setAdmin(data);
     return data;
   };
@@ -77,7 +77,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const adminLogout = () => {
-    localStorage.removeItem('palmmerit_admin');
+    sessionStorage.removeItem('palmmerit_admin');
     setAdmin(null);
   };
 
