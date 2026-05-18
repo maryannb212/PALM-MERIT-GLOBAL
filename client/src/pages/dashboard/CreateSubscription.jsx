@@ -121,19 +121,17 @@ const CreateSubscription = () => {
             </div>
 
             <form onSubmit={handleCreateSubscription} className="create-subscription-form">
-              {method === 'multiple' && (
-                <div className="form-group" style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#334155' }}>Number of Accounts</label>
-                  <input 
-                    type="number" 
-                    className="referral-input"
-                    value={numberOfAccounts}
-                    onChange={(e) => setNumberOfAccounts(Math.max(2, parseInt(e.target.value) || 2))}
-                    min="2"
-                    required
-                  />
-                </div>
-              )}
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#334155' }}>Number of Accounts</label>
+                <input 
+                  type="number" 
+                  className="referral-input"
+                  value={numberOfAccounts}
+                  onChange={(e) => setNumberOfAccounts(Math.max(1, parseInt(e.target.value) || 1))}
+                  min="1"
+                  required
+                />
+              </div>
               
               {plan.frequency.toLowerCase() === 'weekly' && (
                 <div className="form-group" style={{ marginBottom: '20px' }}>
