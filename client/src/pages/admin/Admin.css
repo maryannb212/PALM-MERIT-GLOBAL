@@ -687,3 +687,50 @@
   background: #fef2f2;
 }
 
+/* ─── MOBILE RESPONSIVENESS ─── */
+@media (max-width: 768px) {
+  .admin-table-container,
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    display: block;
+  }
+  
+  .admin-table {
+    min-width: 700px; /* Forces scroll on mobile instead of squeezing */
+  }
+
+  .header-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .admin-tabs-nav {
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 5px;
+    white-space: nowrap;
+    display: flex;
+    flex-wrap: nowrap;
+  }
+  
+  .admin-tab-btn {
+    white-space: nowrap;
+  }
+
+  .admin-refined-form {
+    padding: 15px;
+  }
+  
+  .form-card, .admin-side-help {
+    padding: 15px;
+  }
+  
+  .btn-large {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

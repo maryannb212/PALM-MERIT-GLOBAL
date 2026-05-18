@@ -51,3 +51,15 @@
 
 .netflow.negative .cf-icon { color: #dd6b20; }
 .netflow.negative .cf-details p { color: #dd6b20; }
+
+/* ─── MOBILE RESPONSIVENESS ─── */
+@media (max-width: 768px) {
+  .admin-cashflow {
+    padding: 1rem;
+  }
+  
+  .cashflow-summary-cards {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}

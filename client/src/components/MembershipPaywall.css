@@ -204,3 +204,23 @@
 .full-width {
   width: 100%;
 }
+
+/* ─── MOBILE RESPONSIVENESS ─── */
+@media (max-width: 768px) {
+  .paywall-container {
+    padding: 20px 10px;
+  }
+  
+  .paywall-card {
+    padding: 20px;
+  }
+  
+  .fee-badge .amount {
+    font-size: 2rem;
+  }
+  
+  .btn-whatsapp {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -76,3 +76,32 @@
   gap: 1rem;
   margin-top: 2rem;
 }
+
+/* ─── MOBILE RESPONSIVENESS ─── */
+@media (max-width: 768px) {
+  .admin-ambassadors {
+    padding: 1rem;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
+  .header-actions h2 {
+    font-size: 1.3rem;
+  }
+  
+  .header-actions button {
+    width: 100%;
+  }
+  
+  .ambassador-form .form-actions {
+    flex-direction: column;
+  }
+  
+  .ambassador-form .form-actions button {
+    width: 100%;
+  }
+}

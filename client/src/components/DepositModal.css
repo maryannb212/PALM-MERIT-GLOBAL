@@ -128,3 +128,23 @@
 .btn-secondary:hover {
   background: #e9ecef;
 }
+
+/* ─── MOBILE RESPONSIVENESS ─── */
+@media (max-width: 480px) {
+  .modal-header {
+    padding: 15px;
+  }
+  
+  .modal-form {
+    padding: 15px;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .modal-actions .btn {
+    width: 100%;
+  }
+}
