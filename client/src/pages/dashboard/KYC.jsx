@@ -81,7 +81,12 @@ const KYC = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    if (name === 'date_of_birth') {
+      const cleaned = value.replace(/[^0-9-]/g, '').slice(0, 10);
+      setFormData({ ...formData, [name]: cleaned });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   const handleBankChange = (e) => {
@@ -188,7 +193,16 @@ const KYC = () => {
                   </div>
                   <div className="form-group">
                     <label>Date of Birth</label>
-                    <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleInputChange} required />
+                    <input 
+                      type="text" 
+                      name="date_of_birth" 
+                      placeholder="YYYY-MM-DD" 
+                      value={formData.date_of_birth} 
+                      onChange={handleInputChange} 
+                      required 
+                      style={{ letterSpacing: '1px' }}
+                    />
+                    <span className="text-muted" style={{ fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>Format: YYYY-MM-DD (e.g. 1995-08-24)</span>
                   </div>
                   <div className="form-group">
                     <label>Gender</label>
@@ -299,7 +313,16 @@ const KYC = () => {
                       </div>
                       <div className="form-group">
                         <label>Date of Birth</label>
-                        <input type="date" name="date_of_birth" value={formData.date_of_birth} onChange={handleInputChange} required />
+                        <input 
+                          type="text" 
+                          name="date_of_birth" 
+                          placeholder="YYYY-MM-DD" 
+                          value={formData.date_of_birth} 
+                          onChange={handleInputChange} 
+                          required 
+                          style={{ letterSpacing: '1px' }}
+                        />
+                        <span className="text-muted" style={{ fontSize: '0.72rem', marginTop: '4px', display: 'block' }}>Format: YYYY-MM-DD (e.g. 1995-08-24)</span>
                       </div>
                       <div className="form-group">
                         <label>Gender</label>

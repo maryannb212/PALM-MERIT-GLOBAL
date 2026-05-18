@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { getMyTransactions, payTshirtFee } from '../../services/api';
+import { getMyTransactions, payTshirtFee, getMyPlans } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
@@ -14,6 +14,29 @@ const Wallet = () => {
   const [loading, setLoading] = useState(true);
   const [tshirtLoading, setTshirtLoading] = useState(false);
   const [hideBalances, setHideBalances] = useState(true);
+  const [plans, setPlans] = useState([]);
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const { data } = await getMyPlans();
+        setPlans(data || []);
+      } catch (err) {
+        console.error('Error fetching plans in wallet:', err);
+      }
+    };
+    fetchPlans();
+  }, []);
+
+  const oldestPlan = plans.reduce((oldest, p) => {
+    if (!oldest) return p;
+    return new Date(p.created_at) < new Date(oldest.created_at) ? p : oldest;
+  }, null);
+
+  const oldestPlanDate = oldestPlan ? new Date(oldestPlan.created_at) : null;
+  const ninetyDaysInMs = 90 * 24 * 60 * 60 * 1000;
+  const elapsedMs = oldestPlanDate ? (new Date() - oldestPlanDate) : 0;
+  const isKycCompulsory = oldestPlanDate && (elapsedMs > ninetyDaysInMs);
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -141,13 +164,17 @@ const Wallet = () => {
               </div>
             ) : (
               <div className="funding-pending-state">
-                <p>
+                <p style={{ lineHeight: '1.5' }}>
                   {user?.kycStatus === 'verified' 
                     ? "We're setting up your virtual account. Please check back in a few minutes." 
-                    : "Your virtual account will be generated once your KYC verification is approved."}
+                    : isKycCompulsory
+                      ? "⚠️ Your KYC verification is now required because 3 months have elapsed since you started your first savings program. Please complete KYC to generate your virtual account."
+                      : "Your automated virtual account is generated upon KYC verification. Note: KYC is optional for your first 3 months and only becomes required 3 months after starting your first program."}
                 </p>
                 {user?.kycStatus !== 'verified' && user?.kycStatus !== 'pending' && (
-                  <Link to="/dashboard/kyc" className="btn btn-primary mt-2">Complete KYC</Link>
+                  <Link to="/dashboard/kyc" className={`btn mt-2 ${isKycCompulsory ? 'btn-warning' : 'btn-primary'}`}>
+                    {isKycCompulsory ? 'Complete KYC Now (Required)' : 'Verify Now (Optional)'}
+                  </Link>
                 )}
               </div>
             )}

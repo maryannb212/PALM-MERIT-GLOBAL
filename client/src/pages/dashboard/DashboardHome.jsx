@@ -86,6 +86,61 @@ const DashboardHome = () => {
   const walletBalance = parseFloat(user?.wallet_balance || 0);
   const totalEarning = parseFloat(user?.total_earning || 0);
 
+  const oldestPlan = plans.reduce((oldest, p) => {
+    if (!oldest) return p;
+    return new Date(p.created_at) < new Date(oldest.created_at) ? p : oldest;
+  }, null);
+
+  const oldestPlanDate = oldestPlan ? new Date(oldestPlan.created_at) : null;
+  const ninetyDaysInMs = 90 * 24 * 60 * 60 * 1000; // 90 days
+  const elapsedMs = oldestPlanDate ? (new Date() - oldestPlanDate) : 0;
+  const remainingDays = oldestPlanDate ? Math.max(0, Math.ceil((ninetyDaysInMs - elapsedMs) / (1000 * 60 * 60 * 24))) : 90;
+  const isKycCompulsory = oldestPlanDate && (elapsedMs > ninetyDaysInMs);
+
+  const renderKycGraceStatus = () => {
+    if (user?.kycStatus === 'verified') {
+      return (
+        <div className="kyc-warning-banner" style={{ background: 'rgba(46, 204, 113, 0.1)', borderLeft: '4px solid #2ecc71' }}>
+          <p style={{ color: '#2ecc71', margin: 0 }}>✅ <strong>KYC Verified</strong>. Your identity has been successfully verified by our compliance team.</p>
+        </div>
+      );
+    }
+
+    if (user?.kycStatus === 'pending') {
+      return (
+        <div className="kyc-warning-banner pending" style={{ borderLeft: '4px solid #f1c40f' }}>
+          <p style={{ margin: 0 }}>⏳ Your KYC verification is <strong>in progress</strong>. You will be notified once our team reviews your details.</p>
+          <span className="badge badge-warning" style={{ marginLeft: '10px' }}>Pending Approval</span>
+        </div>
+      );
+    }
+
+    if (isKycCompulsory) {
+      return (
+        <div className="kyc-warning-banner" style={{ background: 'rgba(231, 76, 60, 0.1)', borderLeft: '4px solid #e74c3c' }}>
+          <p style={{ color: '#c0392b', margin: 0 }}>
+            ⚠️ <strong>KYC Verification Required!</strong> It has been more than 3 months ({Math.ceil(elapsedMs / (1000 * 60 * 60 * 24))} days) since you started your first savings program. Complete your KYC now to keep your account in good standing.
+          </p>
+          <Link to="/dashboard/kyc" className="btn btn-sm btn-warning" style={{ marginLeft: '15px', color: '#000', fontWeight: 'bold' }}>Complete KYC Now</Link>
+        </div>
+      );
+    } else {
+      return (
+        <div className="kyc-warning-banner" style={{ background: 'rgba(52, 152, 219, 0.1)', borderLeft: '4px solid #3498db', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+          <p style={{ color: '#2980b9', margin: 0 }}>
+            🌱 <strong>KYC Optional!</strong> You can save, fund, and run programs freely. KYC is only required 3 months after starting your first program.
+            {oldestPlanDate ? (
+              <span> (<strong>{remainingDays} days remaining</strong> of your optional grace period).</span>
+            ) : (
+              <span> (Grace period of <strong>90 days</strong> starts once you subscribe to your first savings program).</span>
+            )}
+          </p>
+          <Link to="/dashboard/kyc" className="btn btn-sm btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>Verify Now (Optional)</Link>
+        </div>
+      );
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -187,25 +242,7 @@ const DashboardHome = () => {
         )}
 
         {/* ─── KYC Banners ─── */}
-        {user?.kycStatus === 'unverified' && (
-          <div className="kyc-warning-banner">
-            <p>👋 Welcome, <strong>{user?.firstName} {user?.lastName}</strong>! You have to complete your KYC to create a wallet and get started.</p>
-            <Link to="/dashboard/kyc" className="btn btn-sm btn-warning">Complete KYC Now</Link>
-          </div>
-        )}
-
-        {user?.kycStatus === 'pending' && (
-          <div className="kyc-warning-banner pending">
-            <p>⏳ Your KYC verification is <strong>in progress</strong>. You will be notified once our team reviews your details.</p>
-            <span className="badge badge-warning">Pending Approval</span>
-          </div>
-        )}
-
-        {user?.kycStatus === 'verified' && (
-          <div className="kyc-warning-banner" style={{ background: 'rgba(46, 204, 113, 0.1)', borderLeft: '4px solid #2ecc71' }}>
-            <p style={{ color: '#2ecc71' }}>✅ <strong>KYC Verified</strong>. Your identity has been successfully verified by our compliance team.</p>
-          </div>
-        )}
+        {renderKycGraceStatus()}
 
 
 
