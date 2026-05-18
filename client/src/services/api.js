@@ -13,7 +13,7 @@ API.interceptors.request.use((config) => {
   const isAdminRequest = config.url.includes('/admin') || config.url.includes('/ambassadors');
   
   const storageKey = isAdminRequest ? 'palmmerit_admin' : 'palmmerit_user';
-  const userInfo = localStorage.getItem(storageKey);
+  const userInfo = isAdminRequest ? sessionStorage.getItem(storageKey) : localStorage.getItem(storageKey);
   
   if (userInfo) {
     const { token } = JSON.parse(userInfo);
