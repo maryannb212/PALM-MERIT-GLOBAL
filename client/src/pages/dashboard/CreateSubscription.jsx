@@ -124,16 +124,36 @@ const CreateSubscription = () => {
             </div>
 
             <form onSubmit={handleCreateSubscription} className="create-subscription-form">
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#334155' }}>Number of Accounts</label>
-                <input 
-                  type="number" 
-                  className="referral-input"
-                  value={numberOfAccounts}
-                  onChange={(e) => setNumberOfAccounts(Math.max(1, parseInt(e.target.value) || 1))}
-                  min="1"
-                  required
-                />
+              <div className="form-group" style={{ marginBottom: '25px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600', color: '#1e293b', fontSize: '0.95rem' }}>Number of Accounts</label>
+                <div className="quantity-adjuster-wrapper">
+                  <button 
+                    type="button" 
+                    className="qty-adjust-btn decrement"
+                    onClick={() => setNumberOfAccounts(prev => Math.max(1, prev - 1))}
+                    disabled={numberOfAccounts <= 1 || loading}
+                    title="Reduce account count"
+                  >
+                    −
+                  </button>
+                  <input 
+                    type="number" 
+                    className="referral-input qty-adjust-input"
+                    value={numberOfAccounts}
+                    onChange={(e) => setNumberOfAccounts(Math.max(1, parseInt(e.target.value) || 1))}
+                    min="1"
+                    required
+                  />
+                  <button 
+                    type="button" 
+                    className="qty-adjust-btn increment"
+                    onClick={() => setNumberOfAccounts(prev => prev + 1)}
+                    disabled={loading}
+                    title="Increase account count"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               
               {plan.frequency.toLowerCase() === 'weekly' && (
@@ -185,9 +205,21 @@ const CreateSubscription = () => {
                 </label>
               </div>
 
-              <button type="submit" className="btn btn-primary submit-subscription-btn" disabled={loading}>
-                {loading ? 'Processing...' : 'Create Subscription'}
-              </button>
+              <div className="form-action-group" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+                <button type="submit" className="btn btn-primary submit-subscription-btn" disabled={loading}>
+                  {loading ? 'Processing...' : 'Create Subscription'}
+                </button>
+                
+                <button 
+                  type="button" 
+                  className="btn btn-secondary cancel-subscription-btn" 
+                  onClick={() => navigate('/dashboard/packages')}
+                  disabled={loading}
+                  style={{ width: '100%', padding: '14px', fontSize: '1.05rem', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer', transition: '0.2s' }}
+                >
+                  Cancel & Select Different Plan
+                </button>
+              </div>
               {message && <p className={`form-message ${message.includes('successful') ? 'success' : 'error'}`} style={{marginTop: '15px', textAlign: 'center', fontWeight: 'bold'}}>{message}</p>}
             </form>
           </div>

@@ -3143,3 +3143,78 @@ input:checked + .slider:before {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Premium Quantity Adjuster & Cancel States ─── */
+.quantity-adjuster-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 220px;
+  background: #f8fafc;
+}
+
+.qty-adjust-btn {
+  background: #e2e8f0;
+  color: #334155;
+  border: none;
+  font-size: 1.3rem;
+  font-weight: bold;
+  width: 50px;
+  height: 46px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.qty-adjust-btn:hover:not(:disabled) {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+
+.qty-adjust-btn:active:not(:disabled) {
+  background: #94a3b8;
+}
+
+.qty-adjust-btn:disabled {
+  background: #f1f5f9;
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.qty-adjust-input {
+  flex-grow: 1;
+  text-align: center;
+  border: none !important;
+  background: transparent !important;
+  font-weight: 700 !important;
+  font-size: 1.15rem !important;
+  color: #1e293b !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  height: 46px;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+}
+
+.qty-adjust-input::-webkit-outer-spin-button,
+.qty-adjust-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cancel-subscription-btn:hover:not(:disabled) {
+  background: #e2e8f0 !important;
+  color: #1e293b !important;
+  border-color: #94a3b8 !important;
+}
+
+.cancel-subscription-btn:active:not(:disabled) {
+  background: #cbd5e1 !important;
+  transform: translateY(1px);
+}
