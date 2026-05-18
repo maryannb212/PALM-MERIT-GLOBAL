@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jsonwebtoken from 'jsonwebtoken';
 import crypto from 'crypto';
 import { createUser, findUserByEmail, findUserByPhone, findUserById, findUserByEmailOrPhone } from '../models/userModel.js';
