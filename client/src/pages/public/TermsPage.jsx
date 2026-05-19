@@ -30,13 +30,10 @@ const TermsPage = () => {
             <li>Complaints must be reported to customer care for resolution.</li>
             <li>Management reserves the right to review or update policies at any time.</li>
             <li>Participation in our programmes and activities confirms acceptance of our company terms and conditions.</li>
+            <li>Food items/ incentives are the exclusive right of the company and to be determined by the Company management in accordance with the economic situation.</li>
+            <li>Cancellation, Termination and / withdrawal of membership contributory programme must follow process policy and can only be refunded at the completion of the programme cycle.</li>
+            <li>All members and or you intending members are advised to carefully understand the policy, processes of the company before selecting membership option, as no reversals shall be allowed after signing in.</li>
           </ul>
-
-          <div style={{ background: '#f9f9f9', padding: '20px', borderRadius: '5px', borderLeft: '4px solid #800020' }}>
-            <p style={{ marginBottom: '15px' }}><strong>Food items/ incentives are the exclusive right of the company and to be determined by the Company management in accordance with the economic situation.</strong></p>
-            <p style={{ marginBottom: '15px' }}><strong>Cancellation, Termination and / withdrawal of membership contributory programme must follow process policy and can only be refunded at the completion of the programme cycle.</strong></p>
-            <p><strong>All members and or you intending members are advised to carefully understand the policy, processes of the company before selecting membership option, as no reversals shall be allowed after signing in.</strong></p>
-          </div>
         </div>
       </section>
     </div>

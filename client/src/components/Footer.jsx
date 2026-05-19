@@ -16,9 +16,9 @@ const Footer = () => {
             Touch the lives of vulnerable families, empower youths with practical skills, restore hope to communities, and ensure dignity for all.
           </p>
           <div className="social-icons">
-            <a href="https://facebook.com/palmmerit" target="_blank" rel="noreferrer" className="social-icon"><FaFacebook /></a>
+            <a href="https://www.facebook.com/share/1B8w2RUd7r/?mibextid=wwXIfr" target="_blank" rel="noreferrer" className="social-icon"><FaFacebook /></a>
             <a href="https://instagram.com/palmmerit" target="_blank" rel="noreferrer" className="social-icon"><FaInstagram /></a>
-            <a href="https://wa.me/2347026409761" target="_blank" rel="noreferrer" className="social-icon"><FaWhatsapp /></a>
+            <a href="https://chat.whatsapp.com/DLN74m6izwkJOyvcADozKF?mode=gi_t" target="_blank" rel="noreferrer" className="social-icon"><FaWhatsapp /></a>
             <a href="mailto:info@palmmeritglobal.com" className="social-icon"><FaEnvelope /></a>
           </div>
         </div>
@@ -36,9 +36,9 @@ const Footer = () => {
         <div className="footer-col">
           <h4>Our Pillars</h4>
           <ul className="footer-links">
-            <li>Community Growth</li>
-            <li>Skills Acquisition</li>
-            <li>Humanitarian Support</li>
+            <li>Cooperative Empowerment</li>
+            <li>Cooperative Members loans/Credits </li>
+            <li>We Build Your Business/We Build Your Finances</li>
             <li>Food Security</li>
           </ul>
         </div>
@@ -47,9 +47,8 @@ const Footer = () => {
           <h4>Contact Us</h4>
           <ul className="footer-contact">
             <li><strong>Email:</strong> info@palmmeritglobal.com</li>
-            <li><strong>WhatsApp:</strong> +234 702 640 9761</li>
-            <li><strong>Phone:</strong> +234 701 259 7990</li>
-            <li><strong>Address:</strong> Global Merit Center, Lagos</li>
+            <li><strong>WhatsApp:</strong> +2347026409761 </li>
+            <li><strong>Address:</strong> Ijegun-Ikotu Road, Old Garage Bus Stop, Beside Libra Park, Ikotun, Lagos State.</li>
           </ul>
         </div>
       </div>

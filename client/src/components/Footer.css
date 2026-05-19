@@ -56,6 +56,7 @@
 
 .footer-links li, .footer-contact li {
   margin-bottom: var(--spacing-sm);
+  color: #a0a0a0;
 }
 
 .footer-links a {
