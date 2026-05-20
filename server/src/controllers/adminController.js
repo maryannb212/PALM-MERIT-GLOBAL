@@ -11,7 +11,7 @@ import * as withdrawalController from './withdrawalController.js';
 export const getAllUsers = async (req, res) => {
   try {
     const sql = `
-      SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, created_at
+      SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance, created_at
       FROM users 
       ORDER BY created_at DESC;
     `;
@@ -91,7 +91,7 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, last_name, email, phone, role, has_paid_membership } = req.body;
+    const { first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance } = req.body;
 
     const sql = `
       UPDATE users 
@@ -100,11 +100,14 @@ export const updateUser = async (req, res) => {
           email = COALESCE($3, email),
           phone = COALESCE($4, phone),
           role = COALESCE($5, role),
-          has_paid_membership = COALESCE($6, has_paid_membership)
-      WHERE id = $7
-      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status;
+          has_paid_membership = COALESCE($6, has_paid_membership),
+          wallet_balance = COALESCE($7, wallet_balance),
+          available_balance = COALESCE($8, available_balance),
+          held_balance = COALESCE($9, held_balance)
+      WHERE id = $10
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance;
     `;
-    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, id]);
+    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });

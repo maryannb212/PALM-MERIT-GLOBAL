@@ -9,7 +9,10 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
     email: '',
     phone: '',
     role: 'user',
-    has_paid_membership: false
+    has_paid_membership: false,
+    wallet_balance: 0,
+    available_balance: 0,
+    held_balance: 0
   });
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +24,10 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
         email: member.email || '',
         phone: member.phone || '',
         role: member.role || 'user',
-        has_paid_membership: member.has_paid_membership || false
+        has_paid_membership: member.has_paid_membership || false,
+        wallet_balance: member.wallet_balance || 0,
+        available_balance: member.available_balance || 0,
+        held_balance: member.held_balance || 0
       });
     }
   }, [member]);
@@ -87,6 +93,21 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
               <label htmlFor="membership_toggle" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold' }}>Premium Member</label>
+            </div>
+          </div>
+          
+          <div className="form-row" style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Wallet Balance (₦)</label>
+              <input type="number" name="wallet_balance" value={formData.wallet_balance} onChange={handleChange} className="refined-input" />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Available Balance (₦)</label>
+              <input type="number" name="available_balance" value={formData.available_balance} onChange={handleChange} className="refined-input" />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Held Balance (₦)</label>
+              <input type="number" name="held_balance" value={formData.held_balance} onChange={handleChange} className="refined-input" />
             </div>
           </div>
           <div className="modal-actions" style={{ marginTop: '20px' }}>
