@@ -17,8 +17,6 @@ const DashboardHome = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [hideBalances, setHideBalances] = useState(true);
   const [error, setError] = useState(null);
-  const [announcementDismissed, setAnnouncementDismissed] = useState(false);
-  const [announcementExpanded, setAnnouncementExpanded] = useState(false);
   const [birthdayDismissed, setBirthdayDismissed] = useState(false);
 
   // Birthday check
@@ -51,17 +49,6 @@ const DashboardHome = () => {
     refreshProfile(); // Always fetch latest profile (KYC status, membership, etc.)
     fetchPlans();
   }, []);
-
-  // Check if announcement was dismissed this session
-  useEffect(() => {
-    const dismissed = sessionStorage.getItem('announcement_dismissed');
-    if (dismissed) setAnnouncementDismissed(true);
-  }, []);
-
-  const handleDismissAnnouncement = () => {
-    setAnnouncementDismissed(true);
-    sessionStorage.setItem('announcement_dismissed', 'true');
-  };
 
   const handleDismissBirthday = () => {
     setBirthdayDismissed(true);
@@ -202,44 +189,7 @@ const DashboardHome = () => {
           </div>
         )}
 
-        {/* ─── Attention Announcement Modal ─── */}
-        {!announcementDismissed && (
-          <div className="announcement-overlay" onClick={handleDismissAnnouncement}>
-            <div className="announcement-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="announcement-header">
-                <div className="announcement-header-content">
-                  <span className="announcement-icon">📢</span>
-                  <span className="announcement-title">ATTENTION! ATTENTION!! ATTENTION!!!</span>
-                </div>
-                <button
-                  className="announcement-close"
-                  onClick={handleDismissAnnouncement}
-                  aria-label="Dismiss announcement"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="announcement-body">
-                <p>
-                  Dear Esteem subscriber, the reduction in the number of accounts each subscribers can
-                  operate is in compliance with <strong>government policies and regulatory guidelines</strong>.
-                  As we are all aware, similar limitations apply to our daily banking transactions, where
-                  customers are restricted to certain transaction and account limits.
-                </p>
-                <p>
-                  In the same way, each person on Palm Merit Global is limited to a specific number of
-                  subscriptions (<strong>100</strong>) per month. In line with these policies, any account
-                  more than 100 would only receive a full payment on 100 subscription and the remaining
-                  subscription fee will be <strong>refunded</strong>.
-                </p>
-                <p className="announcement-note">
-                  ⚠️ Be aware that you can only make use of the <strong>bulk clearance button</strong> during clearance.
-                </p>
-                <p className="announcement-footer">Thank you for your understanding and continued cooperation.<br/>— <em>Management</em></p>
-              </div>
-            </div>
-          </div>
-        )}
+
 
         {/* ─── KYC Banners ─── */}
         {renderKycGraceStatus()}
