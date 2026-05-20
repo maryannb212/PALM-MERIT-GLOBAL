@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 const VerifyDeposit = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { updateUser } = useAuth();
+  const { refreshProfile } = useAuth();
   const [status, setStatus] = useState('verifying');
   const [error, setError] = useState('');
 
@@ -26,6 +26,7 @@ const VerifyDeposit = () => {
         if (data.transaction.status === 'completed') {
           setStatus('success');
           // Refresh profile to get updated balance
+          await refreshProfile();
           setTimeout(() => navigate('/dashboard/wallet'), 2000);
         } else {
           setError('Payment not completed.');

@@ -70,7 +70,7 @@ const DashboardHome = () => {
   const activePlans = plans.filter(p => p.status === 'active');
   const paidPlans = plans.filter(p => p.status === 'completed');
   const savingsPlans = plans.filter(p => p.plan_type === 'savings');
-  const walletBalance = parseFloat(user?.wallet_balance || 0);
+  const walletBalance = parseFloat(user?.walletBalance || user?.wallet_balance || 0);
   const totalEarning = parseFloat(user?.total_earning || 0);
 
   const oldestPlan = plans.reduce((oldest, p) => {
