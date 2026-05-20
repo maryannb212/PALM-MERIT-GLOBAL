@@ -40,7 +40,8 @@ const KYCQueue = () => {
       setQueue(queue.filter(item => item.user_id !== id));
       setSelectedRequest(null);
     } catch (err) {
-      alert('Failed to update KYC status. Please try again.');
+      const errorMessage = err.response?.data?.message || 'Failed to update KYC status. Please try again.';
+      alert(errorMessage);
     } finally {
       setProcessingId(null);
     }

@@ -112,8 +112,15 @@ const UploadReceipt = () => {
           
           <div className="upload-card">
             <h3>Upload New Receipt</h3>
+            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>Manual Transfer Details</h4>
+              <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#475569' }}><strong>Bank Name:</strong> Sterling Bank</p>
+              <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#475569' }}><strong>Account Name:</strong> palm merit global limited</p>
+              <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: '#475569' }}><strong>Account No:</strong> 0145238769</p>
+              <p style={{ margin: '0', fontSize: '0.9rem', color: '#475569' }}><strong>Account Type:</strong> Business</p>
+            </div>
             
-            <div 
+            <div  
               className={`drop-zone ${isDragging ? 'drag-active' : ''} ${uploading ? 'uploading' : ''}`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}

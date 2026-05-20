@@ -3,10 +3,11 @@ import API from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { 
   FaLock, FaUnlock, FaCopy, FaCheckCircle, FaUserFriends, 
-  FaUserCheck, FaChevronRight, FaTimesCircle, FaExclamationTriangle,
-  FaShieldAlt, FaInfoCircle
+  FaUserCheck, FaTimesCircle, FaExclamationTriangle,
+  FaShieldAlt, FaInfoCircle, FaCalendarAlt, FaStar, FaChartLine
 } from 'react-icons/fa';
 import './Dashboard.css';
+import './Referrals.css';
 
 const Referrals = () => {
   const { user, refreshProfile } = useAuth();
@@ -82,16 +83,16 @@ const Referrals = () => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'qualified':
-        return <span className="ref-badge qualified"><FaCheckCircle /> Qualified</span>;
+        return <span className="badge-status qualified"><FaCheckCircle /> Qualified</span>;
       case 'active':
-        return <span className="ref-badge active"><FaCheckCircle /> Active</span>;
+        return <span className="badge-status active"><FaCheckCircle /> Active</span>;
       case 'pending':
-        return <span className="ref-badge pending"><FaExclamationTriangle /> Pending</span>;
+        return <span className="badge-status pending"><FaExclamationTriangle /> Pending</span>;
       case 'disqualified':
-        return <span className="ref-badge disqualified"><FaTimesCircle /> Disqualified</span>;
+        return <span className="badge-status disqualified"><FaTimesCircle /> Disqualified</span>;
       case 'inactive':
       default:
-        return <span className="ref-badge inactive"><FaInfoCircle /> Inactive</span>;
+        return <span className="badge-status inactive"><FaInfoCircle /> Inactive</span>;
     }
   };
 
@@ -108,16 +109,8 @@ const Referrals = () => {
 
   return (
     <div className="dashboard-container referrals-page">
-      <div className="referral-welcome-banner mb-4">
-        <div className="banner-content">
-          <h2>Referral Hub</h2>
-          <p>Invite your network to grow together and double your payout rates</p>
-        </div>
-        <div className="banner-decoration"></div>
-      </div>
-
       {error && (
-        <div className="premium-error-card mb-4">
+        <div className="premium-error-card">
           <div className="error-icon"><FaExclamationTriangle /></div>
           <div className="error-details">
             <h4>System Notice</h4>
@@ -126,183 +119,167 @@ const Referrals = () => {
         </div>
       )}
 
-      <div className="referral-hub-layout">
-        {/* Left Column: Invitation and Stepper Info */}
-        <div className="hub-sidebar">
-          {/* Invitation Card */}
-          <div className="ref-card invitation-panel">
-            <div className="panel-header">
-              <h3>Your Invitation Link</h3>
-              <span className={`lock-pill ${isLocked ? 'locked' : 'unlocked'}`}>
-                {isLocked ? <><FaLock /> Locked</> : <><FaUnlock /> Unlocked</>}
-              </span>
-            </div>
-
+      {/* Hero Section */}
+      <div className="ref-hero-section">
+        <div className="ref-hero-bg-accent"></div>
+        <div className="ref-hero-bg-accent gold"></div>
+        
+        <div className="ref-hero-content">
+          <h2>Referral Hub</h2>
+          <p>Invite your network to grow together and double your payout rates</p>
+          
+          <div className="ref-glass-card">
             {isLocked ? (
-              <div className="lock-details-overlay">
-                <div className="lock-icon-container">
-                  <FaLock className="huge-lock-icon" />
-                </div>
-                <h4>Referral Link Locked</h4>
-                <p className="overlay-desc">
-                  To prevent fraud and maintain cooperative stability, all referral links are temporarily locked for 1 month from registration.
-                </p>
+              <div className="ref-locked-state">
+                <FaLock className="lock-icon-hero" />
+                <h3>Referral Link Locked</h3>
+                <p>To prevent fraud and maintain cooperative stability, all referral links are temporarily locked for 1 month from registration.</p>
                 
-                <div className="countdown-display mt-4">
-                  <div className="countdown-label">Activation Countdown</div>
-                  <div className="countdown-timer">{timeLeft || 'Calculating...'}</div>
-                  <div className="countdown-subtext">Unlocks on {unlockDate ? unlockDate.toLocaleDateString(undefined, { dateStyle: 'long' }) : 'N/A'}</div>
-                </div>
-
-                {/* Fake input display */}
-                <div className="referral-input-group locked mt-4">
+                <div className="ref-countdown">{timeLeft || 'Calculating...'}</div>
+                <p className="text-muted" style={{fontSize: '0.9rem'}}>Unlocks on {unlockDate ? unlockDate.toLocaleDateString(undefined, { dateStyle: 'long' }) : 'N/A'}</p>
+                
+                <div className="ref-input-wrapper mt-3">
                   <input type="text" value="https://palmmeritglobal.com/ref/LOCKED..." disabled />
-                  <button disabled className="copy-btn-locked"><FaCopy /></button>
+                  <button disabled className="ref-copy-btn"><FaCopy /> Copy</button>
                 </div>
               </div>
             ) : (
-              <div className="link-active-container">
-                <p className="invitation-text">
-                  Share this personalized link with colleagues, friends, or family. When they register and start saving actively, you qualify for 2x payout multipliers!
-                </p>
+              <div className="ref-unlocked-state">
+                <FaUnlock className="lock-icon-hero" style={{color: '#10b981'}} />
+                <h3>Your Invitation Link is Active!</h3>
+                <p>Share this personalized link with colleagues, friends, or family. When they register and start saving actively, you qualify for 2x payout multipliers!</p>
                 
-                <div className="referral-input-group mt-4">
+                <div className="ref-input-wrapper mt-3">
                   <input type="text" value={referralLink} readOnly onClick={(e) => e.target.select()} />
-                  <button className={`copy-btn active ${copied ? 'copied-success' : ''}`} onClick={handleCopyLink}>
-                    {copied ? <><FaCheckCircle /> Copied</> : <><FaCopy /> Copy Link</>}
+                  <button className={`ref-copy-btn ${copied ? 'copied' : ''}`} onClick={handleCopyLink}>
+                    {copied ? <><FaCheckCircle /> Copied</> : <><FaCopy /> Copy</>}
                   </button>
                 </div>
               </div>
             )}
           </div>
+        </div>
+      </div>
 
-          {/* Stepper Card */}
-          <div className="ref-card rules-panel mt-4">
-            <h3>How It Works</h3>
-            <div className="vertical-stepper mt-4">
-              <div className="step-item">
-                <div className="step-number">1</div>
-                <div className="step-content">
-                  <h4>Wait Out Lock Period</h4>
-                  <p>Wait 1 month from registration for referral link auto-activation.</p>
-                </div>
-              </div>
-              <div className="step-item">
-                <div className="step-number">2</div>
-                <div className="step-content">
-                  <h4>Invite Partners</h4>
-                  <p>Invite at least 2 partners. They must start active plans (CREST, SILVER, or ISUSU).</p>
-                </div>
-              </div>
-              <div className="step-item">
-                <div className="step-number">3</div>
-                <div className="step-content">
-                  <h4>Double Payout Settlement</h4>
-                  <p>Enjoy multiplied 2x payouts on plan settlements (e.g. ₦96k instead of ₦48k for CREST!).</p>
-                </div>
+      {/* Metrics Row */}
+      <div className="ref-metrics-row">
+        <div className="ref-metric-card">
+          <div className="ref-metric-icon blue"><FaUserFriends /></div>
+          <div className="ref-metric-details">
+            <span>Total Referred</span>
+            <h4>{stats.downlines.length}</h4>
+          </div>
+        </div>
+        
+        <div className="ref-metric-card">
+          <div className="ref-metric-icon green"><FaUserCheck /></div>
+          <div className="ref-metric-details">
+            <span>Active Qualified</span>
+            <h4>{stats.activeQualifiedCount}</h4>
+          </div>
+        </div>
+
+        <div className="ref-metric-card">
+          <div className="ref-metric-icon gold"><FaShieldAlt /></div>
+          <div className="ref-metric-details">
+            <span>Payout Status</span>
+            <h4>
+              {stats.isEligible ? 'QUALIFIED' : 'STANDARD'}
+              {stats.isEligible ? <span className="pill-qualified">2X</span> : <span className="pill-standard">1X</span>}
+            </h4>
+          </div>
+        </div>
+      </div>
+
+      <div className="ref-bottom-section">
+        {/* Horizontal Timeline Step Guide */}
+        <div className="ref-card">
+          <h3 style={{ marginBottom: '25px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <FaInfoCircle color="#0f172a" /> How It Works
+          </h3>
+          
+          <div className="ref-timeline">
+            <div className="ref-timeline-step">
+              <div className="ref-timeline-icon"><FaCalendarAlt /></div>
+              <div className="ref-timeline-content">
+                <h4>1. Wait Out Lock Period</h4>
+                <p>Wait 1 month from registration for link auto-activation.</p>
               </div>
             </div>
-
-            <div className="onboarding-notice mt-4">
-              <div className="icon"><FaInfoCircle /></div>
-              <div className="content">
-                <strong>Anti-Abuse Rule:</strong> Golden Basket plans are excluded from referral payouts and do NOT count towards downline validation.
+            <div className="ref-timeline-step">
+              <div className="ref-timeline-icon"><FaUserFriends /></div>
+              <div className="ref-timeline-content">
+                <h4>2. Invite Partners</h4>
+                <p>Invite at least 2 partners. They must start active plans.</p>
               </div>
+            </div>
+            <div className="ref-timeline-step">
+              <div className="ref-timeline-icon"><FaStar /></div>
+              <div className="ref-timeline-content">
+                <h4>3. Double Payouts</h4>
+                <p>Enjoy multiplied 2x payouts on plan settlements.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="ref-anti-abuse">
+            <div className="icon"><FaExclamationTriangle /></div>
+            <div className="content">
+              <strong>Anti-Abuse Rule:</strong> Golden Basket plans are excluded from referral payouts and do NOT count towards downline validation.
             </div>
           </div>
         </div>
 
-        {/* Right Column: Metrics Row and Table */}
-        <div className="hub-main-content">
-          <div className="metrics-cards-grid">
-            <div className="metric-box">
-              <div className="metric-icon-wrap"><FaUserFriends /></div>
-              <div className="metric-info">
-                <span className="metric-label">Total Referred Users</span>
-                <h4 className="metric-val">{stats.downlines.length}</h4>
-                <p className="metric-desc">Registered accounts</p>
-              </div>
-            </div>
-
-            <div className="metric-box green">
-              <div className="metric-icon-wrap"><FaUserCheck /></div>
-              <div className="metric-info">
-                <span className="metric-label">Active Qualified</span>
-                <h4 className="metric-val">{stats.activeQualifiedCount}</h4>
-                <p className="metric-desc">Members saving actively</p>
-              </div>
-            </div>
-
-            <div className="metric-box gold">
-              <div className="metric-icon-wrap"><FaShieldAlt /></div>
-              <div className="metric-info">
-                <span className="metric-label">Payout Eligibility</span>
-                <h4 className="metric-val">
-                  {stats.isEligible ? (
-                    <span className="eligible-pill">QUALIFIED (2x)</span>
-                  ) : (
-                    <span className="standard-pill">STANDARD</span>
-                  )}
-                </h4>
-                <p className="metric-desc">Min. 2 active downlines</p>
-              </div>
-            </div>
+        {/* Referred Downlines Table */}
+        <div className="ref-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}><FaChartLine color="#0f172a" /> Referred Downlines</h3>
+            <span style={{background: '#f1f5f9', padding: '4px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold'}}>{stats.downlines.length} Members</span>
           </div>
 
-          {/* Referred Downlines Card */}
-          <div className="ref-card table-card mt-4">
-            <div className="panel-header">
-              <h3>Your Referred Downlines</h3>
-              <span className="count-pill">{stats.downlines.length} members</span>
+          {stats.downlines.length === 0 ? (
+            <div style={{textAlign: 'center', padding: '40px 0'}}>
+              <FaUserFriends style={{fontSize: '3rem', color: '#cbd5e1', margin: '0 auto 15px', display: 'block'}} />
+              <h4 style={{color: '#64748b'}}>No members registered yet</h4>
+              <p style={{color: '#94a3b8', fontSize: '0.9rem'}}>Share your link to see your network grow here.</p>
             </div>
-
-            {stats.downlines.length === 0 ? (
-              <div className="empty-state mt-4">
-                <FaUserFriends className="empty-icon" />
-                <h4>No members registered yet</h4>
-                <p>Once your referral link is active, share it with others to see them here.</p>
-              </div>
-            ) : (
-              <div className="table-responsive mt-4">
-                <table className="custom-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Joined Date</th>
-                      <th>Cooperative Program Active</th>
-                      <th>Downline Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stats.downlines.map((downline) => {
-                      const goldenBasketOnly = downline.plans.length > 0 && downline.plans.every(p => p.planName === 'GOLDEN_BASKET');
-                      
-                      return (
-                        <tr key={downline.id}>
-                          <td className="font-weight-bold">{downline.firstName} {downline.lastName}</td>
-                          <td>{new Date(downline.createdAt).toLocaleDateString()}</td>
-                          <td>
-                            {downline.plans.length === 0 ? (
-                              <span className="ref-plan-pill none">None</span>
-                            ) : goldenBasketOnly ? (
-                              <span className="ref-plan-pill golden-basket-label" title="Golden Basket plans are excluded from referral benefits">
-                                Golden Basket (Non-Referral)
-                              </span>
-                            ) : (
-                              <span className="ref-plan-pill active-plan">
-                                {downline.plans.filter(p => p.planName !== 'GOLDEN_BASKET').map(p => p.planName).join(', ')}
-                              </span>
-                            )}
-                          </td>
-                          <td>{getStatusBadge(downline.referralStatus)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          ) : (
+            <div className="ref-table-wrapper">
+              <table className="ref-premium-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Joined Date</th>
+                    <th>Active Programs</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.downlines.map((downline) => {
+                    const goldenBasketOnly = downline.plans.length > 0 && downline.plans.every(p => p.planName === 'GOLDEN_BASKET');
+                    return (
+                      <tr key={downline.id}>
+                        <td style={{fontWeight: '600'}}>{downline.firstName} {downline.lastName}</td>
+                        <td>{new Date(downline.createdAt).toLocaleDateString()}</td>
+                        <td>
+                          {downline.plans.length === 0 ? (
+                            <span className="plan-pill none">None</span>
+                          ) : goldenBasketOnly ? (
+                            <span className="plan-pill golden" title="Excluded from referrals">Golden Basket</span>
+                          ) : (
+                            downline.plans.filter(p => p.planName !== 'GOLDEN_BASKET').map(p => (
+                              <span key={p.planName} className="plan-pill">{p.planName}</span>
+                            ))
+                          )}
+                        </td>
+                        <td>{getStatusBadge(downline.referralStatus)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

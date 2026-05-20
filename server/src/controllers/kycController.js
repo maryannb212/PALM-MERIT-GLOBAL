@@ -89,6 +89,14 @@ export const submitKYC = async (req, res) => {
 
       // Sync name and phone to users table immediately if already verified
       if (targetKycStatus === 'verified') {
+        if (phone) {
+          const phoneCheck = await client.query('SELECT id FROM users WHERE phone = $1 AND id != $2', [phone, userId]);
+          if (phoneCheck.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'The phone number provided is already associated with another user account.' });
+          }
+        }
+
         await client.query(
           'UPDATE users SET first_name = $1, last_name = $2, phone = $3 WHERE id = $4',
           [firstName, lastName, phone, userId]
@@ -114,7 +122,7 @@ export const submitKYC = async (req, res) => {
     if (error.message.includes('column') || error.message.includes('relation')) {
       res.status(500).json({ message: 'Database structure needs update. Please run the ALTER TABLE command provided.' });
     } else {
-      res.status(500).json({ message: 'Server error updating KYC. Please check server logs.' });
+      res.status(500).json({ message: `Server error updating KYC: ${error.message}` });
     }
   }
 };
@@ -179,6 +187,15 @@ export const verifyUserKYC = async (req, res) => {
         const kycResult = await client.query('SELECT first_name, last_name, phone FROM kyc_details WHERE user_id = $1', [userId]);
         if (kycResult.rows.length > 0) {
           const kyc = kycResult.rows[0];
+
+          if (kyc.phone) {
+            const phoneCheck = await client.query('SELECT id FROM users WHERE phone = $1 AND id != $2', [kyc.phone, userId]);
+            if (phoneCheck.rows.length > 0) {
+              await client.query('ROLLBACK');
+              return res.status(400).json({ message: 'Cannot verify: The phone number provided in the KYC application is already associated with another user account.' });
+            }
+          }
+
           await client.query(
             'UPDATE users SET first_name = $1, last_name = $2, phone = $3 WHERE id = $4',
             [kyc.first_name, kyc.last_name, kyc.phone, userId]
@@ -203,6 +220,6 @@ export const verifyUserKYC = async (req, res) => {
     }
   } catch (error) {
     console.error('Admin Verify KYC Error:', error);
-    res.status(500).json({ message: 'Server error updating KYC status' });
+    res.status(500).json({ message: `Server error updating KYC status: ${error.message}` });
   }
 };

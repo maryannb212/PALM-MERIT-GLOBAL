@@ -149,9 +149,10 @@ const MembershipPaywall = ({ user }) => {
             <div className="manual-payment">
               <h3>Manual Bank Transfer</h3>
               <p className="bank-details">
-                <strong>Bank:</strong> Zenith Bank<br />
-                <strong>Account Name:</strong> Palm Merit Global Resources<br />
-                <strong>Account Number:</strong> 1234567890
+                <strong>Bank Name:</strong> Sterling Bank<br />
+                <strong>Account Name:</strong> palm merit global limited<br />
+                <strong>Account Number:</strong> 0145238769<br />
+                <strong>Account Type:</strong> Business
               </p>
               
               <div className="upload-section">
