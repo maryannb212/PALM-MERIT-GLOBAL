@@ -15,6 +15,8 @@ export const initializeMembershipPayment = async (req, res) => {
   try {
     const userId = req.user.id;
     const amount = 500; // Registration fee
+    // Fallback email for users who registered without one — Paystack requires a valid email
+    const email = req.user.email || `user${userId}@palmmeritglobal.com`;
 
     const reference = `PM-MEM-${uuidv4().substring(0, 8).toUpperCase()}`;
 
@@ -26,7 +28,7 @@ export const initializeMembershipPayment = async (req, res) => {
     
     // Convert amount to kobo for Paystack (multiply by 100)
     const paystackData = {
-      email: req.user.email,
+      email,
       amount: amount * 100,
       reference: reference,
       metadata: {

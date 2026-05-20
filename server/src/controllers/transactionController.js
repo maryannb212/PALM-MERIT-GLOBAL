@@ -107,8 +107,9 @@ export const initializeTransaction = async (req, res) => {
   try {
     const { amount, planId, type, payment_provider } = req.body;
     const userId = req.user.id;
-    const email = req.user.email;
-    const provider = payment_provider || 'paystack';
+    // Fallback email for users who registered without one — payment gateways require a valid email
+    const email = req.user.email || `user${userId}@palmmeritglobal.com`;
+    const provider = payment_provider || 'flutterwave';
 
     if (!amount || Number(amount) <= 0) {
       return res.status(400).json({ message: 'A valid positive amount is required.' });

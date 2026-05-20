@@ -5,7 +5,7 @@ import './DepositModal.css';
 const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('card');
-  const [internalProvider] = useState(Math.random() > 0.5 ? 'paystack' : 'flutterwave');
+  const [internalProvider] = useState('flutterwave');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

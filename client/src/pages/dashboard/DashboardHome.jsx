@@ -201,7 +201,7 @@ const DashboardHome = () => {
           <div className="stat-card count-card" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white' }}>
             <div className="stat-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#FFD700' }}>✅</div>
             <h3 style={{ color: '#FFD700' }}>Active Cooperative Programs</h3>
-            <div className="stat-count">{activePlans.length}</div>
+            <div className="stat-count" style={{ color: '#FFFFFF', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{activePlans.length}</div>
           </div>
           <div className="stat-card count-card" onClick={() => setHideBalances(!hideBalances)} style={{ cursor: 'pointer' }}>
             <div className="stat-icon">

@@ -6,7 +6,7 @@ import './MembershipPaywall.css';
 const MembershipPaywall = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');
-  const [internalProvider] = useState(Math.random() > 0.5 ? 'paystack' : 'flutterwave');
+  const [internalProvider] = useState('flutterwave');
   const [receiptUploaded, setReceiptUploaded] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
