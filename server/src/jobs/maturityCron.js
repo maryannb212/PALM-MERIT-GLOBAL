@@ -42,20 +42,8 @@ export const runMaturityCheck = async () => {
       if (now >= maturityDate) {
         logger.info(`Plan ${plan.id} (${plan.plan_name}) has matured.`);
 
-        let newStatus = 'matured'; // Fallback
+        let newStatus = 'eligibility_review';
         let payoutDate = null;
-
-        if (['CREST', 'SILVER'].includes(plan.plan_name)) {
-          newStatus = 'pending_clearance';
-        } else if (plan.plan_name === 'GOLDEN_BASKET') {
-          // ISUSU or others
-          newStatus = 'pending_settlement';
-          payoutDate = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000)); // +7 days
-        } else {
-          // Others
-          newStatus = 'pending_settlement';
-          payoutDate = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
-        }
 
         const updateQuery = `
           UPDATE savings_plans 
@@ -63,14 +51,6 @@ export const runMaturityCheck = async () => {
           WHERE id = $4
         `;
         await client.query(updateQuery, [newStatus, now, payoutDate, plan.id]);
-
-        if (newStatus === 'pending_settlement') {
-          const payoutType = plan.plan_name === 'GOLDEN_BASKET' ? 'goods' : 'cash';
-          await client.query(`
-            INSERT INTO payouts (user_id, plan_id, amount, payout_type, status)
-            VALUES ($1, $2, $3, $4, 'pending')
-          `, [plan.user_id, plan.id, null, payoutType]);
-        }
       }
     }
 

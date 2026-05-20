@@ -113,6 +113,15 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
               </div>
             </div>
           )}
+
+          <div className="security-notice" style={{ marginTop: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem', color: '#475569', textAlign: 'center', lineHeight: '1.5' }}>
+            <p style={{ margin: '0 0 8px 0', color: '#0f172a', fontWeight: 'bold' }}>🔒 Secure Cooperative Contribution</p>
+            <p style={{ margin: 0 }}>
+              Payment gateways (like Flutterwave or Paystack) and your bank are <strong>strictly used to securely process your deposit</strong> into the platform. 
+              <br/><br/>
+              <strong>PALM MERIT GLOBAL</strong> internally manages your cooperative tracking, savings lifecycle, referral validation, and maturity payouts.
+            </p>
+          </div>
         </form>
       </div>
     </div>

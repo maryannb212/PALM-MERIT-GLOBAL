@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyPlans, payClearanceFee } from '../../services/api';
+import { getMyPlans, payClearanceFee, cancelSubscription } from '../../services/api';
 
 import './Dashboard.css';
-import { FaPlus, FaCheckCircle, FaClock, FaExclamationCircle, FaHandHoldingUsd } from 'react-icons/fa';
+import { FaPlus, FaCheckCircle, FaClock, FaExclamationCircle, FaHandHoldingUsd, FaTrash } from 'react-icons/fa';
 
 const Subscriptions = () => {
   const navigate = useNavigate();
@@ -51,20 +51,32 @@ const Subscriptions = () => {
     }
   };
 
+  const handleCancelSubscription = async (planId) => {
+    if (!window.confirm('Are you sure you want to delete this subscription? Any saved funds will be refunded to your wallet balance.')) return;
+    
+    setActionLoading(true);
+    try {
+      await cancelSubscription(planId);
+      alert('Subscription cancelled successfully.');
+      fetchPlans();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to cancel subscription.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
   };
 
   const calculateROI = (plan) => {
-    if (plan.plan_name === 'CREST') return 96000;
-    if (plan.plan_name === 'SILVER') return 150000;
-    if (plan.plan_name === 'GOLDEN_BASKET') return plan.target_amount; // ROI in goods
     return plan.target_amount;
   };
 
   const filteredPlans = plans.filter(p => {
     if (activeTab === 'active') return p.status === 'active';
-    if (activeTab === 'matured') return ['matured', 'pending_clearance'].includes(p.status);
+    if (activeTab === 'matured') return ['matured', 'pending_clearance', 'eligibility_review'].includes(p.status);
     if (activeTab === 'payouts') return ['pending_settlement', 'settled'].includes(p.status);
     return true;
   });
@@ -72,10 +84,11 @@ const Subscriptions = () => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'active': return <span className="badge badge-success">Active</span>;
-      case 'matured': return <span className="badge badge-matured">Matured</span>;
-      case 'pending_clearance': return <span className="badge badge-pending-clearance">Pending Clearance</span>;
-      case 'pending_settlement': return <span className="badge badge-pending-settlement">Pending Settlement</span>;
-      case 'settled': return <span className="badge badge-settled">Settled</span>;
+      case 'eligibility_review': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Eligibility Review</span>;
+      case 'matured': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Eligibility Review</span>;
+      case 'pending_clearance': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Pending Clearance</span>;
+      case 'pending_settlement': return <span className="badge" style={{ background: '#3b82f6', color: '#fff' }}>Approved for Payout</span>;
+      case 'settled': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Paid</span>;
       default: return <span className="badge badge-secondary">{status}</span>;
     }
   };
@@ -98,8 +111,8 @@ const Subscriptions = () => {
               <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => p.status === 'active').length}</strong>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #3b82f6' }}>
-              <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>Matured (Clearance)</span>
-              <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => ['matured', 'pending_clearance'].includes(p.status)).length}</strong>
+              <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>In Review / Clearance</span>
+              <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => ['matured', 'eligibility_review', 'pending_clearance'].includes(p.status)).length}</strong>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #10b981' }}>
               <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>Settled Accounts</span>
@@ -139,10 +152,10 @@ const Subscriptions = () => {
             Active <span className="tab-badge">{plans.filter(p => p.status === 'active').length}</span>
           </div>
           <div className={`subs-tab ${activeTab === 'matured' ? 'active' : ''}`} onClick={() => setActiveTab('matured')}>
-            Matured/Clearance <span className="tab-badge">{plans.filter(p => ['matured', 'pending_clearance'].includes(p.status)).length}</span>
+            Eligibility Review <span className="tab-badge">{plans.filter(p => ['matured', 'eligibility_review', 'pending_clearance'].includes(p.status)).length}</span>
           </div>
           <div className={`subs-tab ${activeTab === 'payouts' ? 'active' : ''}`} onClick={() => setActiveTab('payouts')}>
-            Payouts/Settled <span className="tab-badge">{plans.filter(p => ['pending_settlement', 'settled'].includes(p.status)).length}</span>
+            Approved & Paid <span className="tab-badge">{plans.filter(p => ['pending_settlement', 'settled'].includes(p.status)).length}</span>
           </div>
         </div>
 
@@ -190,11 +203,28 @@ const Subscriptions = () => {
                   </div>
                   
                   {plan.status === 'active' && (
-                    <div className="progress-bar-container">
-                      <div 
-                        className="progress-bar" 
-                        style={{ width: `${Math.min(100, (parseFloat(plan.current_amount || 0) / parseFloat(plan.target_amount || 1)) * 100)}%` }}
-                      ></div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px' }}>
+                      <div className="progress-bar-container" style={{ flex: 1, marginRight: '15px', marginBottom: 0 }}>
+                        <div 
+                          className="progress-bar" 
+                          style={{ width: `${Math.min(100, (parseFloat(plan.current_amount || 0) / parseFloat(plan.target_amount || 1)) * 100)}%` }}
+                        ></div>
+                      </div>
+                      <button 
+                        className="btn btn-secondary btn-sm" 
+                        style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '5px' }}
+                        onClick={() => handleCancelSubscription(plan.id)}
+                        disabled={actionLoading}
+                      >
+                        <FaTrash /> Delete
+                      </button>
+                    </div>
+                  )}
+
+                  {plan.status === 'eligibility_review' && (
+                    <div className="payout-info">
+                      <FaExclamationCircle /> 
+                      <span>Your plan is currently undergoing Eligibility Review for referral bonuses.</span>
                     </div>
                   )}
 

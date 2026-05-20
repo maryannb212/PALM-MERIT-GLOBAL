@@ -126,7 +126,7 @@ const Referrals = () => {
         
         <div className="ref-hero-content">
           <h2>Referral Hub</h2>
-          <p>Invite your network to grow together and double your payout rates</p>
+          <p>Invite your network to grow together and unlock exclusive cooperative bonuses.</p>
           
           <div className="ref-glass-card">
             {isLocked ? (
@@ -147,7 +147,7 @@ const Referrals = () => {
               <div className="ref-unlocked-state">
                 <FaUnlock className="lock-icon-hero" style={{color: '#10b981'}} />
                 <h3>Your Invitation Link is Active!</h3>
-                <p>Share this personalized link with colleagues, friends, or family. When they register and start saving actively, you qualify for 2x payout multipliers!</p>
+                <p>Share this personalized link with colleagues, friends, or family. When they register and start saving actively, you increase your eligibility for premium payout bonuses during maturity review!</p>
                 
                 <div className="ref-input-wrapper mt-3">
                   <input type="text" value={referralLink} readOnly onClick={(e) => e.target.select()} />
@@ -184,8 +184,8 @@ const Referrals = () => {
           <div className="ref-metric-details">
             <span>Payout Status</span>
             <h4>
-              {stats.isEligible ? 'QUALIFIED' : 'STANDARD'}
-              {stats.isEligible ? <span className="pill-qualified">2X</span> : <span className="pill-standard">1X</span>}
+              {stats.isEligible ? 'ELIGIBLE' : 'STANDARD'}
+              {stats.isEligible ? <span className="pill-qualified">BONUS</span> : <span className="pill-standard">BASE</span>}
             </h4>
           </div>
         </div>
@@ -216,8 +216,8 @@ const Referrals = () => {
             <div className="ref-timeline-step">
               <div className="ref-timeline-icon"><FaStar /></div>
               <div className="ref-timeline-content">
-                <h4>3. Double Payouts</h4>
-                <p>Enjoy multiplied 2x payouts on plan settlements.</p>
+                <h4>3. Earn Bonuses</h4>
+                <p>Your referral activity is reviewed for bonuses upon plan maturity.</p>
               </div>
             </div>
           </div>

@@ -15,7 +15,9 @@ import {
   getPendingWithdrawals,
   approveWithdrawal,
   rejectWithdrawal,
-  getAdminReferralStats
+  getAdminReferralStats,
+  getEligibilityQueue,
+  approveEligibility
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -50,6 +52,8 @@ router.put('/withdrawals/:id/reject', rejectWithdrawal);
 router.get('/payouts', getPendingPayouts);
 router.post('/approve-payout', approvePayout);
 router.get('/referrals', getAdminReferralStats);
+router.get('/eligibility-queue', getEligibilityQueue);
+router.post('/approve-eligibility', approveEligibility);
 
 // Security Locks
 router.get('/security/locks', getPageLocks);

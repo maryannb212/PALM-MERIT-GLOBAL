@@ -75,6 +75,7 @@ export const subscribeToPlan = (planData) => API.post('/savings/subscribe', plan
 export const getMyPlans = () => API.get('/savings/my-plans');
 export const payClearanceFee = (data) => API.post('/savings/pay-clearance', data);
 export const payTshirtFee = () => API.post('/savings/pay-tshirt');
+export const cancelSubscription = (planId) => API.delete(`/savings/cancel/${planId}`);
 
 // Transaction endpoints
 export const initializeTransaction = (data) => API.post('/transactions/initialize', data);
@@ -86,6 +87,10 @@ export const getMyTransactions = () => API.get('/transactions/my-transactions');
 
 // Profile endpoint
 export const getProfile = () => API.get('/auth/profile');
+export const uploadProfileImage = (formData) => API.put('/auth/profile-image', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
+export const removeProfileImage = () => API.delete('/auth/profile-image');
 
 // Membership endpoints
 export const initializeMembership = (data) => API.post('/membership/initialize', data);

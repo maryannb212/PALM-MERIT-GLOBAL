@@ -533,3 +533,85 @@ export const getAdminReferralStats = async (req, res) => {
     res.status(500).json({ message: 'Server error fetching admin referral stats' });
   }
 };
+
+/**
+ * Get all savings plans in the eligibility review phase
+ * GET /api/admin/eligibility-queue
+ */
+export const getEligibilityQueue = async (req, res) => {
+  try {
+    const sql = `
+      SELECT sp.*, u.first_name, u.last_name, u.email, u.phone
+      FROM savings_plans sp
+      JOIN users u ON sp.user_id = u.id
+      WHERE sp.status = 'eligibility_review'
+      ORDER BY sp.maturity_date ASC;
+    `;
+    const result = await query(sql);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching eligibility queue:', error);
+    res.status(500).json({ message: 'Server error fetching eligibility queue' });
+  }
+};
+
+/**
+ * Approve a plan from eligibility review, setting final payout amount
+ * POST /api/admin/approve-eligibility
+ */
+export const approveEligibility = async (req, res) => {
+  try {
+    const { planId, approvedAmount, notes } = req.body;
+
+    if (!planId || !approvedAmount) {
+      return res.status(400).json({ message: 'Plan ID and approved amount are required.' });
+    }
+
+    const { rows: plans } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
+    if (plans.length === 0) {
+      return res.status(404).json({ message: 'Plan not found' });
+    }
+    const plan = plans[0];
+
+    if (plan.status !== 'eligibility_review') {
+      return res.status(400).json({ message: 'Plan is not in eligibility review status' });
+    }
+
+    let newStatus = 'pending_settlement';
+    let payoutDate = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000));
+
+    if (['CREST', 'SILVER'].includes(plan.plan_name)) {
+      newStatus = 'pending_clearance';
+      payoutDate = null;
+    }
+
+    await query('BEGIN');
+
+    // Update plan status
+    const updatePlanSql = `
+      UPDATE savings_plans 
+      SET status = $1, payout_date = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *;
+    `;
+    const updatedPlanResult = await query(updatePlanSql, [newStatus, payoutDate, planId]);
+
+    // Create payout record
+    const payoutType = plan.plan_name === 'GOLDEN_BASKET' ? 'goods' : 'cash';
+    await query(`
+      INSERT INTO payouts (user_id, plan_id, amount, payout_type, status, notes)
+      VALUES ($1, $2, $3, $4, 'pending', $5)
+    `, [plan.user_id, planId, approvedAmount, payoutType, notes || 'Approved by admin']);
+
+    await logAudit(req.user.id, 'APPROVE_ELIGIBILITY', 'savings_plan', planId, { approvedAmount, newStatus });
+
+    await query('COMMIT');
+
+    res.json({ message: 'Plan eligibility approved successfully', plan: updatedPlanResult.rows[0] });
+  } catch (error) {
+    await query('ROLLBACK');
+    console.error('Error approving eligibility:', error);
+    res.status(500).json({ message: 'Server error approving eligibility' });
+  }
+};
+

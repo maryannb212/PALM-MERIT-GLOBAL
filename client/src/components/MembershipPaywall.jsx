@@ -60,7 +60,7 @@ const MembershipPaywall = ({ user }) => {
           <div className="whatsapp-join">
             <h3>Join our Community</h3>
             <p>Connect with other members and get real-time updates.</p>
-            <a href="https://chat.whatsapp.com/your-group-link" target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp">
+            <a href="https://chat.whatsapp.com/DLN74m6izwkJOyvcADozKF?mode=gi_t" target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp">
               <FaWhatsapp /> Join General WhatsApp Group
             </a>
           </div>
@@ -108,7 +108,7 @@ const MembershipPaywall = ({ user }) => {
               Connect with thousands of fellow members, ask questions, and receive real-time updates in our WhatsApp general group.
             </p>
             <a 
-              href="https://chat.whatsapp.com/your-group-link" 
+              href="https://chat.whatsapp.com/DLN74m6izwkJOyvcADozKF?mode=gi_t" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="btn btn-whatsapp"
@@ -172,6 +172,15 @@ const MembershipPaywall = ({ user }) => {
             )}
           </div>
           {error && <p className="error-message">{error}</p>}
+          
+          <div className="security-notice" style={{ marginTop: '25px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#475569', textAlign: 'center', lineHeight: '1.5' }}>
+            <p style={{ margin: '0 0 8px 0', color: '#0f172a', fontWeight: 'bold' }}>🔒 Secure Cooperative Contribution</p>
+            <p style={{ margin: 0 }}>
+              Payment gateways (like Flutterwave or Paystack) and your bank are <strong>strictly used to securely process your deposit</strong> into the platform. 
+              <br/><br/>
+              <strong>PALM MERIT GLOBAL</strong> internally manages your cooperative tracking, savings lifecycle, referral validation, and payouts.
+            </p>
+          </div>
         </div>
         
         <div className="paywall-footer">

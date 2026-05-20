@@ -103,7 +103,7 @@ CREATE TABLE savings_plans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     plan_name VARCHAR(50) NOT NULL CHECK (plan_name IN ('CREST', 'SILVER', 'GOLDEN_BASKET', 'ISUSU')),
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled', 'matured', 'pending_clearance', 'pending_settlement', 'settled')),
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled', 'matured', 'pending_clearance', 'pending_settlement', 'settled', 'eligibility_review')),
     start_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     end_date TIMESTAMP WITH TIME ZONE,
     target_amount DECIMAL(12, 2) NOT NULL,

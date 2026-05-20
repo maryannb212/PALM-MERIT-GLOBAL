@@ -448,3 +448,43 @@ export const getMyReferrals = async (req, res) => {
     res.status(500).json({ message: 'Server error fetching referrals' });
   }
 };
+
+export const uploadProfileImage = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image file provided' });
+    }
+
+    // In production, req.file.path is the Cloudinary URL
+    // In development, it's the local file path
+    const imageUrl = req.file.path || req.file.location;
+
+    await query(
+      'UPDATE users SET profile_image = $1 WHERE id = $2',
+      [imageUrl, userId]
+    );
+
+    res.json({ profileImage: imageUrl, message: 'Profile image updated successfully' });
+  } catch (error) {
+    console.error('Error uploading profile image:', error);
+    res.status(500).json({ message: 'Server error uploading profile image' });
+  }
+};
+
+export const removeProfileImage = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await query(
+      'UPDATE users SET profile_image = NULL WHERE id = $1',
+      [userId]
+    );
+
+    res.json({ message: 'Profile image removed successfully' });
+  } catch (error) {
+    console.error('Error removing profile image:', error);
+    res.status(500).json({ message: 'Server error removing profile image' });
+  }
+};

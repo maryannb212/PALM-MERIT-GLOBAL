@@ -8,9 +8,12 @@ import {
   refreshToken,
   logoutUser,
   getUserProfile,
-  getMyReferrals
+  getMyReferrals,
+  uploadProfileImage,
+  removeProfileImage
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
+import upload from '../middleware/uploadMiddleware.js';
 import rateLimit from 'express-rate-limit';
 
 const authLimiter = rateLimit({
@@ -32,5 +35,7 @@ router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.get('/profile', protect, getUserProfile);
 router.get('/referrals', protect, getMyReferrals);
+router.put('/profile-image', protect, upload.single('profileImage'), uploadProfileImage);
+router.delete('/profile-image', protect, removeProfileImage);
 
 export default router;

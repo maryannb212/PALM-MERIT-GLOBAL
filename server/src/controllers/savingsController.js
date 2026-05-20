@@ -204,24 +204,8 @@ export const payClearanceFee = async (req, res) => {
       `;
       const { rows: updatedPlans } = await client.query(updatePlanText, [payoutDate, planId]);
 
-      // Check referral eligibility dynamically
-      const isEligible = await isReferrerEligibleForMultiplier(userId);
-      let expectedAmount = parseFloat(plan.target_amount);
-
-      if (plan.plan_name === 'CREST') {
-        expectedAmount = isEligible ? 96000.00 : 48000.00;
-      } else if (plan.plan_name === 'SILVER') {
-        expectedAmount = isEligible ? 150000.00 : 75000.00;
-      }
-
-      const notes = isEligible 
-        ? `Payout verified with active qualified downlines.`
-        : `Standard payout rate applied. Required active qualified downlines (min 2) not met.`;
-
-      await client.query(`
-        INSERT INTO payouts (user_id, plan_id, amount, payout_type, status, notes)
-        VALUES ($1, $2, $3, 'cash', 'pending', $4)
-      `, [userId, planId, expectedAmount, notes]);
+      // Note: Payout record has already been created by the Admin during the Eligibility Review phase.
+      // We only need to transition the plan to pending_settlement.
 
       await client.query('COMMIT');
       res.json({ message: 'Clearance fee paid successfully', plan: updatedPlans[0] });
@@ -280,3 +264,67 @@ export const payTshirtFee = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+export const cancelSubscription = async (req, res) => {
+  try {
+    const { planId } = req.params;
+    const userId = req.user.id;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const { rows: plans } = await client.query('SELECT * FROM savings_plans WHERE id = $1 AND user_id = $2 FOR UPDATE', [planId, userId]);
+      
+      if (plans.length === 0) {
+        throw new Error('Plan not found or unauthorized');
+      }
+
+      const plan = plans[0];
+
+      if (plan.status !== 'active') {
+        throw new Error('Only active plans can be deleted/cancelled.');
+      }
+
+      const refundAmount = parseFloat(plan.current_amount || 0);
+
+      if (refundAmount > 0) {
+        // Refund to wallet
+        await client.query(
+          'UPDATE users SET available_balance = available_balance + $1, wallet_balance = wallet_balance + $1 WHERE id = $2',
+          [refundAmount, userId]
+        );
+
+        // Log transaction
+        const reference = `REF-${Date.now()}`;
+        await client.query(`
+          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+          VALUES ($1, $2, 'refund', $3, 'completed', $4)
+        `, [userId, planId, refundAmount, reference]);
+
+        // Ledger entry
+        await createWalletLedgerEntry(client, userId, 'credit', refundAmount, reference, `Refund for cancelled plan: ${plan.plan_name}`);
+      }
+
+      // Update plan status
+      const updatePlanText = `
+        UPDATE savings_plans 
+        SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 RETURNING *;
+      `;
+      const { rows: updatedPlans } = await client.query(updatePlanText, [planId]);
+
+      await client.query('COMMIT');
+      res.json({ message: 'Subscription deleted successfully.', plan: updatedPlans[0] });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ message: error.message });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error cancelling subscription:', error);
+    res.status(500).json({ message: 'Server error during cancellation' });
+  }
+};
+

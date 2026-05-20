@@ -10,6 +10,7 @@ const Transactions = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -38,6 +39,12 @@ const Transactions = () => {
   const totalDebit = transactions
     .filter(t => (t.type === 'withdrawal' || t.type === 'subscription') && t.status === 'completed')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  const filteredTransactions = transactions.filter(tx => 
+    (tx.plan_name && tx.plan_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    tx.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tx.status.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <>
@@ -71,17 +78,24 @@ const Transactions = () => {
         <div className="transaction-history-section">
           <h3>Transaction History</h3>
           
-          <div className="table-controls">
-            <div className="filters">
+          <div className="table-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div className="filters" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <select className="control-select">
                 <option>All time</option>
               </select>
               <select className="control-select">
-                <option>All Orders</option>
+                <option>All Transactions</option>
               </select>
             </div>
-            <div className="search-box">
-              <input type="text" placeholder="Search Order" className="control-input" />
+            <div className="search-box" style={{ flex: '1 1 250px', minWidth: '200px' }}>
+              <input 
+                type="text" 
+                placeholder="Search transactions..." 
+                className="control-input" 
+                style={{ width: '100%', boxSizing: 'border-box' }}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
           </div>
 
@@ -101,8 +115,8 @@ const Transactions = () => {
                   <tr>
                     <td colSpan="5" className="empty-table-msg">Loading transactions...</td>
                   </tr>
-                ) : transactions.length > 0 ? (
-                  transactions.map((tx) => (
+                ) : filteredTransactions.length > 0 ? (
+                  filteredTransactions.map((tx) => (
                     <tr key={tx.id}>
                       <td>{tx.plan_name ? `Subscription: ${tx.plan_name}` : (tx.type.charAt(0).toUpperCase() + tx.type.slice(1))}</td>
                       <td>{new Date(tx.created_at).toLocaleDateString()}</td>

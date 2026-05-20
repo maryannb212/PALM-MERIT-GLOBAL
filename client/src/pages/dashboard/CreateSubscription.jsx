@@ -123,6 +123,45 @@ const CreateSubscription = () => {
               </div>
             </div>
 
+            <div className="lifecycle-container" style={{ margin: '30px 0', padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '1rem', textAlign: 'center' }}>🔄 Cooperative Savings Lifecycle</h4>
+              <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '0.85rem', textAlign: 'center', lineHeight: '1.4' }}>
+                PALM MERIT GLOBAL internally manages your entire savings journey. Here is how your program will progress:
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#800020', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }}>1</div>
+                  <div style={{ fontSize: '0.9rem', color: '#334155' }}><strong>Join Program</strong> &amp; securely deposit initial contribution.</div>
+                </div>
+                <div style={{ borderLeft: '2px solid #cbd5e1', height: '15px', marginLeft: '13px' }}></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#800020', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }}>2</div>
+                  <div style={{ fontSize: '0.9rem', color: '#334155' }}><strong>Contribute</strong> regularly towards your target.</div>
+                </div>
+                <div style={{ borderLeft: '2px solid #cbd5e1', height: '15px', marginLeft: '13px' }}></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#800020', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }}>3</div>
+                  <div style={{ fontSize: '0.9rem', color: '#334155' }}><strong>Track Progress</strong> transparently on your dashboard.</div>
+                </div>
+                <div style={{ borderLeft: '2px solid #cbd5e1', height: '15px', marginLeft: '13px' }}></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#800020', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }}>4</div>
+                  <div style={{ fontSize: '0.9rem', color: '#334155' }}><strong>Target Reached</strong> automatically flags the plan.</div>
+                </div>
+                <div style={{ borderLeft: '2px solid #cbd5e1', height: '15px', marginLeft: '13px' }}></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#800020', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }}>5</div>
+                  <div style={{ fontSize: '0.9rem', color: '#334155' }}><strong>Eligibility Review</strong> by PALM MERIT (referrals & compliance).</div>
+                </div>
+                <div style={{ borderLeft: '2px solid #cbd5e1', height: '15px', marginLeft: '13px' }}></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }}>6</div>
+                  <div style={{ fontSize: '0.9rem', color: '#334155' }}><strong>Maturity Payout</strong> is securely processed & disbursed.</div>
+                </div>
+              </div>
+            </div>
+
             <form onSubmit={handleCreateSubscription} className="create-subscription-form">
               <div className="form-group" style={{ marginBottom: '25px' }}>
                 <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600', color: '#1e293b', fontSize: '0.95rem' }}>Number of Accounts</label>
