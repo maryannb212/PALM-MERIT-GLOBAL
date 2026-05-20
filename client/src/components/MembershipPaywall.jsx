@@ -5,7 +5,8 @@ import './MembershipPaywall.css';
 
 const MembershipPaywall = ({ user }) => {
   const [loading, setLoading] = useState(false);
-  const [provider, setProvider] = useState('paystack');
+  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [internalProvider] = useState(Math.random() > 0.5 ? 'paystack' : 'flutterwave');
   const [receiptUploaded, setReceiptUploaded] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -17,7 +18,7 @@ const MembershipPaywall = ({ user }) => {
       const { data } = await initializeMembership({
         amount: 500,
         type: 'membership',
-        payment_provider: provider
+        payment_provider: internalProvider
       });
       if (data.authorization_url) {
         window.location.href = data.authorization_url;
@@ -127,47 +128,48 @@ const MembershipPaywall = ({ user }) => {
           </div>
 
           <div className="payment-options">
-            <div className="provider-selection" style={{ marginBottom: '15px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Choose Gateway:</label>
-              <div className="provider-options">
-                <label className={`provider-card ${provider === 'paystack' ? 'selected' : ''}`}>
-                  <input type="radio" value="paystack" checked={provider === 'paystack'} onChange={(e) => setProvider(e.target.value)} />
-                  <img src="https://paystack.com/favicon.png" alt="Paystack" style={{width: '20px', marginRight: '8px'}}/> Paystack
+            <div className="provider-selection" style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Payment Method:</label>
+              <div className="provider-options" style={{ display: 'flex', gap: '10px' }}>
+                <label className={`provider-card ${paymentMethod === 'card' ? 'selected' : ''}`} style={{ flex: 1, padding: '15px', textAlign: 'center', cursor: 'pointer', border: paymentMethod === 'card' ? '2px solid #800020' : '1px solid #cbd5e1', borderRadius: '8px' }}>
+                  <input type="radio" name="paymentMethod" value="card" checked={paymentMethod === 'card'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ display: 'none' }} />
+                  💳 Card Payment
                 </label>
-                <label className={`provider-card ${provider === 'flutterwave' ? 'selected' : ''}`}>
-                  <input type="radio" value="flutterwave" checked={provider === 'flutterwave'} onChange={(e) => setProvider(e.target.value)} />
-                  <img src="https://flutterwave.com/favicon.ico" alt="Flutterwave" style={{width: '20px', marginRight: '8px'}}/> Flutterwave
+                <label className={`provider-card ${paymentMethod === 'bank' ? 'selected' : ''}`} style={{ flex: 1, padding: '15px', textAlign: 'center', cursor: 'pointer', border: paymentMethod === 'bank' ? '2px solid #800020' : '1px solid #cbd5e1', borderRadius: '8px' }}>
+                  <input type="radio" name="paymentMethod" value="bank" checked={paymentMethod === 'bank'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ display: 'none' }} />
+                  🏦 Bank Transfer
                 </label>
               </div>
             </div>
-            <button className="btn btn-primary full-width" onClick={handlePayNow} disabled={loading}>
-              {loading ? 'Processing...' : 'Pay Online Now'}
-            </button>
-            
-            <div className="divider"><span>OR</span></div>
 
-            <div className="manual-payment">
-              <h3>Manual Bank Transfer</h3>
-              <p className="bank-details">
-                <strong>Bank Name:</strong> Sterling Bank<br />
-                <strong>Account Name:</strong> palm merit global limited<br />
-                <strong>Account Number:</strong> 0145238769<br />
-                <strong>Account Type:</strong> Business
-              </p>
-              
-              <div className="upload-section">
-                <label htmlFor="receipt-upload" className="upload-label">
-                  <FaUpload /> {receiptUploaded ? 'Receipt Uploaded' : 'Upload Payment Receipt'}
-                </label>
-                <input 
-                  type="file" 
-                  id="receipt-upload" 
-                  accept="image/*,.pdf" 
-                  onChange={handleReceiptUpload}
-                  style={{ display: 'none' }}
-                />
+            {paymentMethod === 'card' ? (
+              <button className="btn btn-primary full-width" onClick={handlePayNow} disabled={loading}>
+                {loading ? 'Processing...' : 'Pay Online Now'}
+              </button>
+            ) : (
+              <div className="manual-payment" style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: '#1e293b' }}>Manual Bank Transfer</h3>
+                <div style={{ textAlign: 'left', marginBottom: '20px', color: '#475569', fontSize: '0.95rem', background: '#fff', padding: '15px', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
+                  <strong style={{color: '#0f172a'}}>Bank Name:</strong> Sterling Bank<br />
+                  <strong style={{color: '#0f172a'}}>Account Name:</strong> palm merit global limited<br />
+                  <strong style={{color: '#0f172a'}}>Account Number:</strong> 0145238769<br />
+                  <strong style={{color: '#0f172a'}}>Account Type:</strong> Business
+                </div>
+                
+                <div className="upload-section">
+                  <label htmlFor="receipt-upload" className="upload-label" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <FaUpload /> {receiptUploaded ? 'Receipt Uploaded' : 'Upload Payment Receipt'}
+                  </label>
+                  <input 
+                    type="file" 
+                    id="receipt-upload" 
+                    accept="image/*,.pdf" 
+                    onChange={handleReceiptUpload}
+                    style={{ display: 'none' }}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
           {error && <p className="error-message">{error}</p>}
         </div>
