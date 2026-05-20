@@ -30,6 +30,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { name: 'Ambassadors', path: '/admin/ambassadors', icon: <FaUserCircle /> },
     { name: 'Savings Plans', path: '/admin/plans', icon: <FaPiggyBank /> },
     { name: 'Referral Audits', path: '/admin/referrals', icon: <FaUserFriends /> },
+    { name: 'Security & Locks', path: '/admin/security', icon: <FaShieldAlt /> },
   ];
 
   return (

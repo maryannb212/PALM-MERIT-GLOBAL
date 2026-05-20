@@ -5,6 +5,8 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/DashboardLayout';
+import { AdminLockProvider } from './context/AdminLockContext';
+import AdminLockedRoute from './components/AdminLockedRoute';
 
 // Public Pages
 const HomePage = lazy(() => import('./pages/public/HomePage'));
@@ -49,6 +51,7 @@ const AdminAmbassadors = lazy(() => import('./pages/admin/AdminAmbassadors'));
 const AdminCashflow = lazy(() => import('./pages/admin/AdminCashflow'));
 const AdminPlans = lazy(() => import('./pages/admin/AdminPlans'));
 const AdminReferrals = lazy(() => import('./pages/admin/AdminReferrals'));
+const AdminSecurity = lazy(() => import('./pages/admin/AdminSecurity'));
 
 const LoadingSpinner = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
@@ -110,17 +113,18 @@ const AppLayout = () => {
             }>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="kyc-queue" element={<KYCQueue />} />
-              <Route path="members" element={<MembersPage />} />
-              <Route path="tickets" element={<SupportTicketsPage />} />
-              <Route path="payouts" element={<AdminPayouts />} />
-              <Route path="defaulters" element={<DefaultersPage />} />
-              <Route path="reconciliation" element={<ReconciliationPage />} />
-              <Route path="broadcast" element={<BroadcastPage />} />
-              <Route path="ambassadors" element={<AdminAmbassadors />} />
-              <Route path="cashflow" element={<AdminCashflow />} />
-              <Route path="plans" element={<AdminPlans />} />
-              <Route path="referrals" element={<AdminReferrals />} />
+              <Route path="security" element={<AdminSecurity />} />
+              <Route path="kyc-queue" element={<AdminLockedRoute pageName="kyc-queue" title="KYC Requests"><KYCQueue /></AdminLockedRoute>} />
+              <Route path="members" element={<AdminLockedRoute pageName="members" title="User Management"><MembersPage /></AdminLockedRoute>} />
+              <Route path="tickets" element={<AdminLockedRoute pageName="tickets" title="Support Tickets"><SupportTicketsPage /></AdminLockedRoute>} />
+              <Route path="payouts" element={<AdminLockedRoute pageName="payouts" title="Payout Management"><AdminPayouts /></AdminLockedRoute>} />
+              <Route path="defaulters" element={<AdminLockedRoute pageName="defaulters" title="Defaulters List"><DefaultersPage /></AdminLockedRoute>} />
+              <Route path="reconciliation" element={<AdminLockedRoute pageName="reconciliation" title="Financial Report"><ReconciliationPage /></AdminLockedRoute>} />
+              <Route path="broadcast" element={<AdminLockedRoute pageName="broadcast" title="Broadcast Notifications"><BroadcastPage /></AdminLockedRoute>} />
+              <Route path="ambassadors" element={<AdminLockedRoute pageName="ambassadors" title="Ambassadors"><AdminAmbassadors /></AdminLockedRoute>} />
+              <Route path="cashflow" element={<AdminLockedRoute pageName="cashflow" title="Cash Flow Statement"><AdminCashflow /></AdminLockedRoute>} />
+              <Route path="plans" element={<AdminLockedRoute pageName="plans" title="Savings Plans"><AdminPlans /></AdminLockedRoute>} />
+              <Route path="referrals" element={<AdminLockedRoute pageName="referrals" title="Referral Audits"><AdminReferrals /></AdminLockedRoute>} />
             </Route>
           </Routes>
         </Suspense>
@@ -134,7 +138,9 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppLayout />
+        <AdminLockProvider>
+          <AppLayout />
+        </AdminLockProvider>
       </AuthProvider>
     </BrowserRouter>
   );

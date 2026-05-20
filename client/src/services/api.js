@@ -138,4 +138,9 @@ export const addAmbassador = (data) => API.post('/ambassadors', data);
 export const updateAmbassador = (id, data) => API.put(`/ambassadors/${id}`, data);
 export const deleteAmbassador = (id) => API.delete(`/ambassadors/${id}`);
 
+// Admin Security & Page Locks
+export const getPageLocks = () => API.get('/admin/security/locks');
+export const updatePageLock = (data) => API.put('/admin/security/locks', data);
+export const verifyPageLock = (data) => API.post('/admin/security/verify', data);
+
 export default API;

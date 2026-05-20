@@ -20,6 +20,7 @@ import {
 import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
 import { ceoLogin } from '../controllers/adminAuthController.js';
+import { getPageLocks, updatePageLock, verifyPageLock } from '../controllers/adminSecurityController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -49,5 +50,10 @@ router.put('/withdrawals/:id/reject', rejectWithdrawal);
 router.get('/payouts', getPendingPayouts);
 router.post('/approve-payout', approvePayout);
 router.get('/referrals', getAdminReferralStats);
+
+// Security Locks
+router.get('/security/locks', getPageLocks);
+router.put('/security/locks', updatePageLock);
+router.post('/security/verify', verifyPageLock);
 
 export default router;
