@@ -92,7 +92,7 @@ export const subscribeToPlan = async (req, res) => {
       );
 
       // Create the plan
-      const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, preferredDay);
+      const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, preferredDay, client);
 
       // Set the initial current_amount of the savings plan to initialSavingsTotal
       await client.query(
