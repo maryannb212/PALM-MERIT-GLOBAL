@@ -129,73 +129,38 @@ const Wallet = () => {
         </div>
 
         {/* ─── Fund Wallet Section ─── */}
-        <div className="funding-account-section card mt-4" style={{ border: '1px solid rgba(128, 0, 32, 0.15)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)', overflow: 'hidden' }}>
-          <div className="card-header" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '10px', padding: '20px' }}>
+        <div className="funding-account-section card mt-4" style={{ border: '1px solid rgba(128, 0, 32, 0.15)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)' }}>
+          <div className="card-header" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '1.4rem' }}>💳</span>
             <div style={{ textAlign: 'left' }}>
               <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>Instant Wallet Funding</h3>
               <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>Secure online deposits via Card, Transfer, USSD, or Bank App</p>
             </div>
           </div>
-          <div className="card-body" style={{ padding: '0', textAlign: 'center' }}>
-            {user?.virtual_account_number ? (
-              <div style={{ padding: '30px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                <p style={{ margin: '0 0 15px 0', fontSize: '0.95rem', color: 'var(--color-primary)', fontWeight: 'bold' }}>
-                  Your Dedicated Funding Account
-                </p>
-                <p style={{ margin: '0 0 20px 0', fontSize: '0.85rem', color: '#64748b' }}>
-                  Transfer money directly to this bank account from your bank app. Your Palm Merit wallet will be credited automatically!
-                </p>
-                <div style={{ display: 'inline-block', textAlign: 'left', background: '#fff', padding: '20px', borderRadius: '12px', border: '1px dashed #cbd5e1', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ marginBottom: '10px' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Bank Name</span>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#0f172a' }}>{user.virtual_bank_name}</div>
-                  </div>
-                  <div style={{ marginBottom: '10px' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Account Number</span>
-                    <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--color-primary)', letterSpacing: '2px' }}>{user.virtual_account_number}</div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Account Name</span>
-                    <div style={{ fontSize: '1rem', fontWeight: '600', color: '#334155' }}>{user.virtual_account_name}</div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div style={{ padding: '20px', background: '#fff3cd', borderBottom: '1px solid #ffeeba' }}>
-                <p style={{ margin: '0 0 10px 0', color: '#856404', fontWeight: 'bold' }}>Want a Dedicated Funding Account?</p>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: '#856404' }}>
-                  Complete your KYC verification to instantly generate your own personalized bank account number for automatic wallet top-ups.
-                </p>
-                <Link to="/dashboard/kyc" className="btn btn-sm btn-warning" style={{ marginTop: '10px', display: 'inline-block', color: '#000', fontWeight: 'bold' }}>Verify KYC Now</Link>
-              </div>
-            )}
-            
-            <div style={{ padding: '25px', background: '#fff' }}>
-              <p style={{ margin: '0 0 20px 0', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
-                Or use our payment gateway for instant Card, USSD, or other funding methods.
-              </p>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => setIsModalOpen(true)}
-                style={{ 
-                  padding: '12px 30px', 
-                  fontSize: '1rem', 
-                  fontWeight: 'bold', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '1px', 
-                  boxShadow: '0 4px 15px rgba(128, 0, 32, 0.25)',
-                  background: 'linear-gradient(135deg, #800020, #a30029)',
-                  border: 'none',
-                  color: 'white',
-                  cursor: 'pointer',
-                  borderRadius: '8px',
-                  transition: 'all 0.3s ease'
-                }}
-              >
-                Other Deposit Methods
-              </button>
-            </div>
+          <div className="card-body" style={{ padding: '30px', textAlign: 'center' }}>
+            <p style={{ margin: '0 0 25px 0', fontSize: '0.95rem', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+              Fund your wallet instantly using secure and integrated online channels. Deposits are automatically verified and credited to your available balance in real time.
+            </p>
+            <button 
+              className="btn btn-primary" 
+              onClick={() => setIsModalOpen(true)}
+              style={{ 
+                padding: '12px 30px', 
+                fontSize: '1rem', 
+                fontWeight: 'bold', 
+                textTransform: 'uppercase', 
+                letterSpacing: '1px', 
+                boxShadow: '0 4px 15px rgba(128, 0, 32, 0.25)',
+                background: 'linear-gradient(135deg, #800020, #a30029)',
+                border: 'none',
+                color: 'white',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              Deposit Funds Now
+            </button>
           </div>
         </div>
 
