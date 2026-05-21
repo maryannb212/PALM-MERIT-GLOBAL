@@ -143,8 +143,8 @@ const AdminPayouts = () => {
                       </div>
                     </td>
                     <td>
-                      <div className="value-amount">{formatCurrency(item.amount)}</div>
-                      <div className={`payout-type-tag ${item.payout_type}`}>{item.payout_type.toUpperCase()}</div>
+                      <div className="value-amount">{formatCurrency(item.amount || 0)}</div>
+                      {item.payout_type && <div className={`payout-type-tag ${item.payout_type}`}>{item.payout_type.toUpperCase()}</div>}
                     </td>
                     <td>
                       <div className="logistics-info">
