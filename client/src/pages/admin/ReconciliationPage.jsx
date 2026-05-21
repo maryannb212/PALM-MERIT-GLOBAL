@@ -230,7 +230,12 @@ const ReconciliationPage = () => {
                       <td className="text-right">
                         <div className="action-buttons">
                           {tx.receipt_url && (
-                            <button className="btn-icon btn-view" onClick={() => window.open(`${window.location.origin.replace('3000', '5000')}${tx.receipt_url}`, '_blank')}>
+                            <button className="btn-icon btn-view" onClick={() => {
+                              const url = tx.receipt_url.startsWith('http') 
+                                ? tx.receipt_url 
+                                : `${import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin.replace('3000', '5000')}${tx.receipt_url}`;
+                              window.open(url, '_blank');
+                            }}>
                               <FaEye />
                             </button>
                           )}
