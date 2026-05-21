@@ -133,9 +133,9 @@ const AdminSecurity = () => {
               
               return (
                 <div key={page.id} style={{
-                  border: '1px solid rgba(255,255,255,0.05)',
+                  border: '1px solid #e2e8f0',
                   borderRadius: '12px',
-                  background: 'rgba(255,255,255,0.02)',
+                  background: '#f8fafc',
                   padding: '20px',
                   display: 'flex',
                   alignItems: 'center',
@@ -143,7 +143,7 @@ const AdminSecurity = () => {
                   flexWrap: 'wrap'
                 }}>
                   <div style={{ flex: '1', minWidth: '200px' }}>
-                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#fff', fontSize: '1.1rem', margin: '0 0 5px 0' }}>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1e293b', fontSize: '1.1rem', margin: '0 0 5px 0' }}>
                       <FaLock color={isLocked ? '#10b981' : '#64748b'} /> {page.title}
                     </h3>
                     <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>
@@ -160,7 +160,7 @@ const AdminSecurity = () => {
                         className="refined-input"
                         value={form.username}
                         onChange={(e) => handleInputChange(page.id, 'username', e.target.value)}
-                        style={{ height: '38px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', paddingLeft: '14px' }}
+                        style={{ height: '38px', color: '#1e293b' }}
                       />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -171,7 +171,7 @@ const AdminSecurity = () => {
                         className="refined-input"
                         value={form.password}
                         onChange={(e) => handleInputChange(page.id, 'password', e.target.value)}
-                        style={{ height: '38px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', paddingLeft: '14px' }}
+                        style={{ height: '38px', color: '#1e293b' }}
                       />
                     </div>
                   </div>
