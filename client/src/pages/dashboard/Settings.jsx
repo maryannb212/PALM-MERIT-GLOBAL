@@ -6,7 +6,7 @@ import { FaUser, FaLock, FaBell, FaCamera, FaTrash } from 'react-icons/fa';
 import './Dashboard.css';
 
 const Settings = () => {
-  const { user, updateUser, refreshProfile } = useAuth();
+  const { user, updateUser } = useAuth();
   const fileInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
@@ -41,7 +41,6 @@ const Settings = () => {
       const formData = new FormData();
       formData.append('profileImage', file);
       const { data } = await uploadProfileImage(formData);
-      // Update user context with the new image URL from the server
       updateUser({ profileImage: data.profileImage });
       setMessage('Profile picture updated successfully!');
     } catch (err) {
@@ -49,7 +48,6 @@ const Settings = () => {
       setMessage('Failed to upload image. Please try again.');
     } finally {
       setImageLoading(false);
-      // Reset file input so the same file can be re-selected
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -102,257 +100,315 @@ const Settings = () => {
 
   const currentImage = user?.profileImage || null;
 
+  const tabStyle = (isActive) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 20px',
+    border: 'none',
+    borderBottom: isActive ? '3px solid var(--color-primary)' : '3px solid transparent',
+    background: 'none',
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    fontWeight: isActive ? '700' : '500',
+    color: isActive ? 'var(--color-primary)' : '#64748b',
+    transition: 'all 0.2s',
+    whiteSpace: 'nowrap'
+  });
+
   return (
     <>
-        <header className="dashboard-header">
-          <h2>Account Settings</h2>
-        </header>
+      <header className="dashboard-header">
+        <h2>Account Settings</h2>
+      </header>
 
-        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-          {/* Sidebar Nav */}
-          <aside style={{
-            flex: '0 0 220px',
-            background: 'white',
-            borderRadius: '16px',
-            padding: '12px',
-            border: '1px solid #edf2f7',
-            alignSelf: 'flex-start'
-          }}>
-            <button 
-              onClick={() => setActiveTab('profile')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-                padding: '12px 16px', border: 'none', borderRadius: '10px', cursor: 'pointer',
-                fontSize: '0.9rem', fontWeight: activeTab === 'profile' ? '700' : '500',
-                background: activeTab === 'profile' ? 'var(--color-primary)' : 'transparent',
-                color: activeTab === 'profile' ? 'white' : '#475569',
-                marginBottom: '4px', transition: 'all 0.2s'
-              }}
-            >
-              <FaUser /> Profile Details
-            </button>
-            <button 
-              onClick={() => setActiveTab('security')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-                padding: '12px 16px', border: 'none', borderRadius: '10px', cursor: 'pointer',
-                fontSize: '0.9rem', fontWeight: activeTab === 'security' ? '700' : '500',
-                background: activeTab === 'security' ? 'var(--color-primary)' : 'transparent',
-                color: activeTab === 'security' ? 'white' : '#475569',
-                marginBottom: '4px', transition: 'all 0.2s'
-              }}
-            >
-              <FaLock /> Security & Password
-            </button>
-            <button 
-              onClick={() => setActiveTab('notifications')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-                padding: '12px 16px', border: 'none', borderRadius: '10px', cursor: 'pointer',
-                fontSize: '0.9rem', fontWeight: activeTab === 'notifications' ? '700' : '500',
-                background: activeTab === 'notifications' ? 'var(--color-primary)' : 'transparent',
-                color: activeTab === 'notifications' ? 'white' : '#475569',
-                transition: 'all 0.2s'
-              }}
-            >
-              <FaBell /> Notifications
-            </button>
-          </aside>
+      {/* Tab Navigation */}
+      <div style={{
+        background: 'white',
+        borderRadius: '12px 12px 0 0',
+        borderBottom: '1px solid #edf2f7',
+        display: 'flex',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch'
+      }}>
+        <button style={tabStyle(activeTab === 'profile')} onClick={() => setActiveTab('profile')}>
+          <FaUser /> Profile Details
+        </button>
+        <button style={tabStyle(activeTab === 'security')} onClick={() => setActiveTab('security')}>
+          <FaLock /> Security
+        </button>
+        <button style={tabStyle(activeTab === 'notifications')} onClick={() => setActiveTab('notifications')}>
+          <FaBell /> Notifications
+        </button>
+      </div>
 
-          {/* Main Content */}
-          <div style={{
-            flex: '1 1 400px',
-            background: 'white',
-            borderRadius: '16px',
-            padding: '30px',
-            border: '1px solid #edf2f7'
-          }}>
-            {activeTab === 'profile' && (
-              <div>
-                <h3 style={{ marginTop: 0, marginBottom: '24px', fontSize: '1.2rem', color: '#1e293b' }}>Edit Profile</h3>
-                
-                {/* Profile Image Upload */}
+      {/* Content Area */}
+      <div style={{
+        background: 'white',
+        borderRadius: '0 0 12px 12px',
+        padding: '30px',
+        border: '1px solid #edf2f7',
+        borderTop: 'none'
+      }}>
+
+        {/* ─── Profile Tab ─── */}
+        {activeTab === 'profile' && (
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: '24px', fontSize: '1.2rem', color: '#1e293b' }}>
+              Edit Profile
+            </h3>
+            
+            {/* Profile Image Upload */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '20px',
+              padding: '20px',
+              background: '#f8fafc',
+              borderRadius: '12px',
+              border: '1px solid #edf2f7',
+              marginBottom: '28px',
+              flexWrap: 'wrap'
+            }}>
+              {/* Avatar Circle */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: '20px',
-                  padding: '20px', background: '#f8fafc', borderRadius: '12px',
-                  border: '1px solid #edf2f7', marginBottom: '28px', flexWrap: 'wrap'
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  background: 'var(--color-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '3px solid #edf2f7'
                 }}>
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <div style={{
-                      width: '100px', height: '100px', borderRadius: '50%',
-                      overflow: 'hidden', background: 'var(--color-primary)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: '3px solid #edf2f7'
-                    }}>
-                      {currentImage ? (
-                        <img 
-                          src={currentImage} 
-                          alt="Profile" 
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
-                        />
-                      ) : (
-                        <span style={{ fontSize: '2.2rem', color: 'white', fontWeight: '800' }}>
-                          {user?.firstName?.charAt(0)?.toUpperCase() || '?'}
-                        </span>
-                      )}
-                    </div>
-                    <button 
-                      onClick={() => fileInputRef.current.click()}
-                      disabled={imageLoading}
+                  {currentImage ? (
+                    <img 
+                      src={currentImage} 
+                      alt="Profile" 
                       style={{
-                        position: 'absolute', bottom: '0', right: '0',
-                        width: '32px', height: '32px', borderRadius: '50%',
-                        background: 'var(--color-primary)', color: 'white', border: '2px solid white',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', fontSize: '0.8rem'
-                      }}
-                    >
-                      <FaCamera />
-                    </button>
-                  </div>
-                  <div style={{ flex: 1, minWidth: '150px' }}>
-                    <p style={{ margin: '0 0 4px 0', fontWeight: '700', color: '#1e293b' }}>Profile Picture</p>
-                    <p style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#94a3b8' }}>
-                      JPG, GIF or PNG. Max size 2MB
-                    </p>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleImageChange} 
-                      style={{ display: 'none' }} 
-                      accept="image/*"
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block'
+                      }} 
                     />
-                    {imageLoading && (
-                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: '600' }}>
-                        Uploading...
-                      </p>
-                    )}
-                    {currentImage && !imageLoading && (
-                      <button 
-                        onClick={handleRemoveImage}
-                        style={{
-                          background: 'none', border: 'none', color: '#ef4444',
-                          cursor: 'pointer', display: 'flex', alignItems: 'center',
-                          gap: '5px', fontSize: '0.85rem', padding: 0, fontWeight: '600'
-                        }}
-                      >
-                        <FaTrash /> Remove Photo
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <form onSubmit={handleProfileUpdate}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                    <div className="form-group">
-                      <label>First Name</label>
-                      <input 
-                        type="text" 
-                        value={profileData.firstName} 
-                        onChange={(e) => setProfileData({...profileData, firstName: e.target.value})}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Last Name</label>
-                      <input 
-                        type="text" 
-                        value={profileData.lastName} 
-                        onChange={(e) => setProfileData({...profileData, lastName: e.target.value})}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Email Address</label>
-                      <input type="email" value={profileData.email} disabled style={{ opacity: 0.6 }} />
-                      <small style={{ color: '#94a3b8', fontSize: '0.78rem' }}>Email cannot be changed.</small>
-                    </div>
-                    <div className="form-group">
-                      <label>Phone Number</label>
-                      <input 
-                        type="tel" 
-                        value={profileData.phone} 
-                        onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                      />
-                    </div>
-                  </div>
-                  <button type="submit" className="btn btn-primary" disabled={loading}>
-                    {loading ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {activeTab === 'security' && (
-              <form onSubmit={handlePasswordUpdate}>
-                <h3 style={{ marginTop: 0, marginBottom: '24px', fontSize: '1.2rem', color: '#1e293b' }}>Change Password</h3>
-                <div style={{ maxWidth: '400px' }}>
-                  <div className="form-group" style={{ marginBottom: '16px' }}>
-                    <label>Current Password</label>
-                    <input 
-                      type="password" 
-                      value={passwordData.currentPassword}
-                      onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: '16px' }}>
-                    <label>New Password</label>
-                    <input 
-                      type="password" 
-                      value={passwordData.newPassword}
-                      onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: '24px' }}>
-                    <label>Confirm New Password</label>
-                    <input 
-                      type="password" 
-                      value={passwordData.confirmPassword}
-                      onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
-                      required
-                    />
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Updating Password...' : 'Update Password'}
-                </button>
-              </form>
-            )}
-
-            {activeTab === 'notifications' && (
-              <div>
-                <h3 style={{ marginTop: 0, marginBottom: '24px', fontSize: '1.2rem', color: '#1e293b' }}>Notification Preferences</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {[
-                    { label: 'Email Notifications', defaultOn: true },
-                    { label: 'Transaction Alerts', defaultOn: true },
-                    { label: 'Marketing Updates', defaultOn: false }
-                  ].map((item) => (
-                    <label key={item.label} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '14px 18px', background: '#f8fafc', borderRadius: '10px',
-                      border: '1px solid #edf2f7', cursor: 'pointer'
+                  ) : (
+                    <span style={{
+                      fontSize: '2.2rem',
+                      color: 'white',
+                      fontWeight: '800'
                     }}>
-                      <span style={{ fontSize: '0.92rem', fontWeight: '500', color: '#334155' }}>{item.label}</span>
-                      <input type="checkbox" defaultChecked={item.defaultOn} style={{ width: '18px', height: '18px', accentColor: 'var(--color-primary)' }} />
-                    </label>
-                  ))}
+                      {user?.firstName?.charAt(0)?.toUpperCase() || '?'}
+                    </span>
+                  )}
+                </div>
+                {/* Camera button overlay */}
+                <button 
+                  onClick={() => fileInputRef.current.click()}
+                  disabled={imageLoading}
+                  style={{
+                    position: 'absolute',
+                    bottom: '2px',
+                    right: '2px',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    background: 'var(--color-primary)',
+                    color: 'white',
+                    border: '2px solid white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    padding: 0
+                  }}
+                >
+                  <FaCamera />
+                </button>
+              </div>
+
+              {/* Upload Info */}
+              <div style={{ minWidth: '150px' }}>
+                <p style={{ margin: '0 0 4px 0', fontWeight: '700', color: '#1e293b', fontSize: '0.95rem' }}>
+                  Profile Picture
+                </p>
+                <p style={{ margin: '0 0 10px 0', fontSize: '0.82rem', color: '#94a3b8' }}>
+                  JPG, GIF or PNG. Max size 2MB
+                </p>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleImageChange} 
+                  style={{ display: 'none' }} 
+                  accept="image/*"
+                />
+                {imageLoading && (
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-primary)', fontWeight: '600' }}>
+                    ⏳ Uploading...
+                  </p>
+                )}
+                {currentImage && !imageLoading && (
+                  <button 
+                    onClick={handleRemoveImage}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '0.85rem',
+                      padding: 0,
+                      fontWeight: '600'
+                    }}
+                  >
+                    <FaTrash /> Remove Photo
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Profile Form */}
+            <form onSubmit={handleProfileUpdate}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '18px',
+                marginBottom: '24px'
+              }}>
+                <div className="form-group">
+                  <label>First Name</label>
+                  <input 
+                    type="text" 
+                    value={profileData.firstName} 
+                    onChange={(e) => setProfileData({...profileData, firstName: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Last Name</label>
+                  <input 
+                    type="text" 
+                    value={profileData.lastName} 
+                    onChange={(e) => setProfileData({...profileData, lastName: e.target.value})}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Email Address</label>
+                  <input type="email" value={profileData.email} disabled style={{ opacity: 0.6 }} />
+                  <small style={{ color: '#94a3b8', fontSize: '0.78rem' }}>Email cannot be changed.</small>
+                </div>
+                <div className="form-group">
+                  <label>Phone Number</label>
+                  <input 
+                    type="tel" 
+                    value={profileData.phone} 
+                    onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
+                  />
                 </div>
               </div>
-            )}
-
-            {message && (
-              <p style={{
-                marginTop: '20px', padding: '12px 16px', borderRadius: '8px',
-                fontSize: '0.9rem', fontWeight: '600',
-                background: message.includes('success') || message.includes('updated') || message.includes('removed') ? '#d1fae5' : '#fee2e2',
-                color: message.includes('success') || message.includes('updated') || message.includes('removed') ? '#065f46' : '#991b1b'
-              }}>
-                {message}
-              </p>
-            )}
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </form>
           </div>
-        </div>
+        )}
+
+        {/* ─── Security Tab ─── */}
+        {activeTab === 'security' && (
+          <form onSubmit={handlePasswordUpdate}>
+            <h3 style={{ marginTop: 0, marginBottom: '24px', fontSize: '1.2rem', color: '#1e293b' }}>
+              Change Password
+            </h3>
+            <div style={{ maxWidth: '420px' }}>
+              <div className="form-group" style={{ marginBottom: '18px' }}>
+                <label>Current Password</label>
+                <input 
+                  type="password" 
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: '18px' }}>
+                <label>New Password</label>
+                <input 
+                  type="password" 
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                  required
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label>Confirm New Password</label>
+                <input 
+                  type="password" 
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                  required
+                />
+              </div>
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
+        )}
+
+        {/* ─── Notifications Tab ─── */}
+        {activeTab === 'notifications' && (
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: '24px', fontSize: '1.2rem', color: '#1e293b' }}>
+              Notification Preferences
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '480px' }}>
+              {[
+                { label: 'Email Notifications', defaultOn: true },
+                { label: 'Transaction Alerts', defaultOn: true },
+                { label: 'Marketing Updates', defaultOn: false }
+              ].map((item) => (
+                <label key={item.label} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '14px 18px',
+                  background: '#f8fafc',
+                  borderRadius: '10px',
+                  border: '1px solid #edf2f7',
+                  cursor: 'pointer'
+                }}>
+                  <span style={{ fontSize: '0.92rem', fontWeight: '500', color: '#334155' }}>
+                    {item.label}
+                  </span>
+                  <input 
+                    type="checkbox" 
+                    defaultChecked={item.defaultOn} 
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--color-primary)' }} 
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Status Message */}
+        {message && (
+          <p style={{
+            marginTop: '20px',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            fontSize: '0.9rem',
+            fontWeight: '600',
+            background: message.includes('success') || message.includes('updated') || message.includes('removed') ? '#d1fae5' : '#fee2e2',
+            color: message.includes('success') || message.includes('updated') || message.includes('removed') ? '#065f46' : '#991b1b'
+          }}>
+            {message}
+          </p>
+        )}
+      </div>
     </>
   );
 };
