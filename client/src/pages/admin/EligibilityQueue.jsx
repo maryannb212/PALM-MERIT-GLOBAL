@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API from '../../services/api';
 import { FaUserCheck, FaSpinner, FaTimes, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
-import './AdminDashboard.css'; // Reusing standard admin styles
+import './Admin.css'; // Reusing standard admin styles
 
 const EligibilityQueue = () => {
   const [plans, setPlans] = useState([]);

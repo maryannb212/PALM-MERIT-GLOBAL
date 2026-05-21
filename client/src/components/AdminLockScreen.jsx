@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FaLock, FaShieldAlt } from 'react-icons/fa';
-import { verifyPageLock } from '../../services/api';
-import { useAdminLock } from '../../context/AdminLockContext';
+import { verifyPageLock } from '../services/api';
+import { useAdminLock } from '../context/AdminLockContext';
 
 const AdminLockScreen = ({ pageName, title }) => {
   const { unlockPage } = useAdminLock();
