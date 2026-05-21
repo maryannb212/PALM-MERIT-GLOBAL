@@ -30,7 +30,7 @@ const Transactions = () => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
   };
 
-  const walletBalance = parseFloat(user?.wallet_balance || 0);
+  const walletBalance = parseFloat(user?.walletBalance || user?.wallet_balance || 0);
 
   const totalCredit = transactions
     .filter(t => t.type === 'deposit' && t.status === 'completed')

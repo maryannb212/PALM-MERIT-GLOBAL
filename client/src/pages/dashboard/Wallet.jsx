@@ -83,7 +83,7 @@ const Wallet = () => {
 
   const availableBalance = parseFloat(user?.available_balance || 0);
   const heldBalance = parseFloat(user?.held_balance || 0);
-  const walletBalance = parseFloat(user?.wallet_balance || 0);
+  const walletBalance = parseFloat(user?.walletBalance || user?.wallet_balance || 0);
 
   const totalCredit = transactions
     .filter(t => (t.type === 'deposit' || t.type === 'wallet_topup') && t.status === 'completed')

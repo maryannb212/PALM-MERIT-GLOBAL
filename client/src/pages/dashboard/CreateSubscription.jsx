@@ -228,7 +228,7 @@ const CreateSubscription = () => {
 
               <div className="wallet-balance-box">
                 <div className="wb-info">
-                  <h4>Wallet Balance: {formatCurrency(user?.wallet_balance || 0)}</h4>
+                  <h4>Wallet Balance: {formatCurrency(user?.walletBalance || user?.wallet_balance || 0)}</h4>
                   <p>Deduct savings directly from your wallet balance. <a href="/dashboard/wallet">Top up wallet.</a></p>
                 </div>
               </div>
