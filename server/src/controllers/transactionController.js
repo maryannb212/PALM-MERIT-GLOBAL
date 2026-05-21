@@ -539,23 +539,19 @@ export const uploadReceipt = async (req, res) => {
     const userId = req.user.id;
     const amount = req.body.amount ? parseFloat(req.body.amount) : 0;
     const type = req.body.type || 'deposit';
-    
+
     if (!req.file) {
       return res.status(400).json({ message: 'Please upload a payment receipt' });
     }
 
-    const reference = \`PM-MAN-\${uuidv4().substring(0, 8).toUpperCase()}\`;
-    
-    // In production (Cloudinary), 'path' is the full URL.
-    const receiptUrl = process.env.NODE_ENV === 'production' 
-      ? req.file.path 
-      : \`/uploads/\${req.file.filename}\`;
+    const reference = 'PM-MAN-' + uuidv4().substring(0, 8).toUpperCase();
 
-    const text = \`
-      INSERT INTO transactions (user_id, type, amount, reference, status, receipt_url)
-      VALUES ($1, $2, $3, $4, 'pending', $5)
-      RETURNING *;
-    \`;
+    // In production (Cloudinary), 'path' is the full URL.
+    const receiptUrl = process.env.NODE_ENV === 'production'
+      ? req.file.path
+      : '/uploads/' + req.file.filename;
+
+    const text = 'INSERT INTO transactions (user_id, type, amount, reference, status, receipt_url) VALUES ($1, $2, $3, $4, \'pending\', $5) RETURNING *';
     const values = [userId, type, amount, reference, receiptUrl];
     const { rows } = await query(text, values);
 
