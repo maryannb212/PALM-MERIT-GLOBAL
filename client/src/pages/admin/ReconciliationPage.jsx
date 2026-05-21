@@ -41,11 +41,23 @@ const ReconciliationPage = () => {
     }
   };
 
-  const handleApprove = async (id) => {
-    if (!window.confirm('Confirm manual verification of this payment?')) return;
-    setProcessingId(id);
+  const handleApprove = async (tx) => {
+    const inputAmount = window.prompt(
+      `Confirm manual verification of this payment?\n\nEnter the confirmed amount to credit the user (NGN):`,
+      tx.amount || 0
+    );
+    
+    if (inputAmount === null) return; // Admin cancelled
+    
+    const amount = parseFloat(inputAmount);
+    if (isNaN(amount) || amount < 0) {
+      alert("Invalid amount entered.");
+      return;
+    }
+
+    setProcessingId(tx.id);
     try {
-      await approveManualPayment(id);
+      await approveManualPayment(tx.id, { amount });
       fetchData();
     } catch (error) {
       alert('Error approving payment');
@@ -222,7 +234,7 @@ const ReconciliationPage = () => {
                               <FaEye />
                             </button>
                           )}
-                          <button className="btn-primary btn-sm" onClick={() => handleApprove(tx.id)} disabled={processingId === tx.id}>
+                          <button className="btn-primary btn-sm" onClick={() => handleApprove(tx)} disabled={processingId === tx.id}>
                             Approve
                           </button>
                         </div>

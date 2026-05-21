@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { uploadMembershipReceipt, getMyTransactions } from '../../services/api';
+import { uploadReceipt, getMyTransactions } from '../../services/api';
 import './Dashboard.css';
 import { FaCloudUploadAlt, FaFileAlt, FaCheckCircle, FaTrashAlt, FaClock, FaTimesCircle } from 'react-icons/fa';
 
@@ -9,6 +9,8 @@ const UploadReceipt = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [intendedAmount, setIntendedAmount] = useState('');
+  const [paymentType, setPaymentType] = useState('deposit');
   const fileInputRef = useRef(null);
 
   React.useEffect(() => {
@@ -67,9 +69,11 @@ const UploadReceipt = () => {
     try {
       const formData = new FormData();
       formData.append('receipt', file);
+      if (intendedAmount) formData.append('amount', intendedAmount);
+      formData.append('type', paymentType);
       
       setUploadProgress(50);
-      await uploadMembershipReceipt(formData);
+      await uploadReceipt(formData);
       setUploadProgress(100);
       
       alert('Receipt uploaded successfully! Admin will verify it shortly.');
@@ -120,6 +124,32 @@ const UploadReceipt = () => {
               <p style={{ margin: '0', fontSize: '0.9rem', color: '#475569' }}><strong>Account Type:</strong> Business</p>
             </div>
             
+            <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: '#475569' }}>Payment Type</label>
+                <select 
+                  className="refined-input" 
+                  value={paymentType}
+                  onChange={(e) => setPaymentType(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <option value="deposit">Savings Deposit</option>
+                  <option value="membership">Membership Fee</option>
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold', color: '#475569' }}>Intended Amount (NGN)</label>
+                <input 
+                  type="number" 
+                  className="refined-input" 
+                  placeholder="e.g. 5000"
+                  value={intendedAmount}
+                  onChange={(e) => setIntendedAmount(e.target.value)}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+
             <div  
               className={`drop-zone ${isDragging ? 'drag-active' : ''} ${uploading ? 'uploading' : ''}`}
               onDragOver={handleDragOver}

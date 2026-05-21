@@ -84,6 +84,9 @@ export const initializeDeposit = initializeTransaction; // alias
 export const verifyDeposit = verifyTransaction; // alias
 export const requestWithdrawal = (data) => API.post('/transactions/withdraw', data);
 export const getMyTransactions = () => API.get('/transactions/my-transactions');
+export const uploadReceipt = (formData) => API.post('/transactions/upload-receipt', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 
 // Profile endpoint
 export const getProfile = () => API.get('/auth/profile');
@@ -134,7 +137,7 @@ export const getPendingWithdrawals = () => API.get('/admin/withdrawals/pending')
 export const approveWithdrawal = (id) => API.put(`/admin/withdrawals/${id}/approve`);
 export const rejectWithdrawal = (id, data) => API.put(`/admin/withdrawals/${id}/reject`, data);
 export const broadcastNotification = (data) => API.post('/admin/notifications/broadcast', data);
-export const approveManualPayment = (transactionId) => API.post(`/admin/approve-payment/${transactionId}`);
+export const approveManualPayment = (transactionId, data) => API.post(`/admin/approve-payment/${transactionId}`, data);
 export const getCashflow = () => API.get('/admin/cashflow');
 
 // Ambassador endpoints

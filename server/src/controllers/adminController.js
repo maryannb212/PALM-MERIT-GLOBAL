@@ -356,6 +356,7 @@ export const getReconciliationStats = async (req, res) => {
 export const approveManualPayment = async (req, res) => {
   try {
     const { transactionId } = req.params;
+    const { amount } = req.body;
     
     const transactionSql = `SELECT * FROM transactions WHERE id = $1 AND status = 'pending'`;
     const transResult = await query(transactionSql, [transactionId]);
@@ -365,6 +366,13 @@ export const approveManualPayment = async (req, res) => {
     }
     
     const transaction = transResult.rows[0];
+    
+    // If admin provided a specific amount, update the transaction before processing
+    if (amount !== undefined && amount !== null && !isNaN(parseFloat(amount))) {
+      const updateAmtSql = `UPDATE transactions SET amount = $1 WHERE id = $2`;
+      await query(updateAmtSql, [parseFloat(amount), transactionId]);
+      transaction.amount = parseFloat(amount);
+    }
     
     // Route through atomic payment processor
     const { isDuplicate } = await processCompletedPayment(transaction.reference);
