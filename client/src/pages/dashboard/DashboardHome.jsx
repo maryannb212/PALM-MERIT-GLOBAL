@@ -274,33 +274,64 @@ const DashboardHome = () => {
                 };
 
                 return (
-                  <div className="package-progress-card" key={plan.id}>
-                    <div className="pkg-header">
-                      <h4>{plan.plan_name} Programme {plan.number_of_accounts > 1 && <span className="text-muted" style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>({plan.number_of_accounts} accounts)</span>}</h4>
-                      <div className="pkg-actions">
-                        <span className="badge badge-success">Active</span>
+                  <div className="package-progress-card" key={plan.id} style={{ border: '1px solid #e2e8f0', boxShadow: '0 8px 25px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+                    <div className="pkg-header" style={{ background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', padding: '20px', borderBottom: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <h4 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a' }}>
+                          {plan.plan_name} Programme 
+                          {plan.number_of_accounts > 1 && <span style={{ marginLeft: '10px', fontSize: '0.85rem', background: '#e2e8f0', padding: '3px 8px', borderRadius: '20px', color: '#475569' }}>{plan.number_of_accounts} Accounts</span>}
+                        </h4>
+                        <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Schedule: {plan.preferred_day || (plan.plan_name === 'ISUSU' ? 'Daily' : 'Friday')}</span>
+                      </div>
+                      <div className="pkg-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span className="badge badge-success" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>Active</span>
                         <button
                           className="btn btn-sm btn-primary"
                           onClick={() => handleOpenDeposit(plan)}
-                          style={{ marginLeft: '10px' }}
+                          style={{ padding: '8px 16px', boxShadow: '0 4px 10px rgba(128,0,32,0.2)' }}
                         >
                           Add Funds
                         </button>
                       </div>
                     </div>
-                    <div className="pkg-details" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
-                      <p style={{ margin: 0 }}><strong>Target Savings:</strong> {formatCurrency(individualTarget)}</p>
-                      <p style={{ margin: 0 }}><strong>{plan.plan_name === 'ISUSU' ? 'Daily Savings:' : 'Weekly Savings:'}</strong> {getWeeklySavingsAmount(plan.plan_name)}</p>
-                      <p style={{ margin: 0 }}><strong>Schedule:</strong> {plan.preferred_day || (plan.plan_name === 'ISUSU' ? 'Daily' : 'Friday')}</p>
-                      <p style={{ margin: 0 }}><strong>Remaining Balance:</strong> {formatCurrency(individualRemaining)}</p>
-                    </div>
-                    <div className="progress-wrapper" style={{ marginTop: '15px' }}>
-                      <div className="progress-info">
-                        <span>{formatCurrency(individualSaved)} saved of {formatCurrency(individualTarget)} target</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <div className="progress-bar">
-                        <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+
+                    <div style={{ padding: '20px' }}>
+                      <div className="accounts-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                        {Array.from({ length: plan.number_of_accounts || 1 }).map((_, idx) => (
+                          <div key={idx} className="account-sub-card" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px', transition: 'transform 0.2s ease, box-shadow 0.2s ease', cursor: 'default' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(0,0,0,0.05)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px' }}>
+                              <h5 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ background: 'rgba(128,0,32,0.1)', color: 'var(--color-primary)', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', fontSize: '0.8rem' }}>{idx + 1}</span>
+                                Account
+                              </h5>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold' }}>{progress}%</span>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                <span style={{ color: '#64748b' }}>Target Savings</span>
+                                <strong style={{ color: '#0f172a' }}>{formatCurrency(individualTarget)}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                <span style={{ color: '#64748b' }}>{plan.plan_name === 'ISUSU' ? 'Daily Savings' : 'Weekly Savings'}</span>
+                                <strong style={{ color: '#0f172a' }}>{getWeeklySavingsAmount(plan.plan_name)}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                <span style={{ color: '#64748b' }}>Remaining Balance</span>
+                                <strong style={{ color: '#ff781f' }}>{formatCurrency(individualRemaining)}</strong>
+                              </div>
+                            </div>
+
+                            <div className="progress-wrapper" style={{ marginTop: '20px' }}>
+                              <div className="progress-info" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '8px', color: '#475569' }}>
+                                <span><strong>{formatCurrency(individualSaved)}</strong> saved of <strong>{formatCurrency(individualTarget)}</strong></span>
+                              </div>
+                              <div className="progress-bar" style={{ height: '8px', background: '#f1f5f9', borderRadius: '10px', overflow: 'hidden' }}>
+                                <div className="progress-fill" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #800020, #e60039)', height: '100%', borderRadius: '10px' }}></div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
