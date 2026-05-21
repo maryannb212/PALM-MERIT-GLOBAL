@@ -66,7 +66,7 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      <div className="stats-grid">
+      <div className="stats-grid stats-grid-financial">
         <div className="stat-card" onClick={() => navigate('/admin/members')}>
           <div className="stat-icon-wrapper"><FaUsers /></div>
           <div className="stat-info">
@@ -108,12 +108,12 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      <div className="dashboard-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '25px', marginTop: '30px' }}>
+      <div className="admin-grid-single" style={{ marginTop: '30px' }}>
         <div className="dashboard-section" style={{ marginTop: 0 }}>
           <div className="section-header">
             <h3>Quick Management Actions</h3>
           </div>
-          <div className="admin-actions-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+          <div className="admin-actions-grid">
             <div className="admin-action-card" onClick={() => navigate('/admin/kyc-queue')}>
               <div className="action-icon"><FaUserCheck /></div>
               <div className="action-content">
