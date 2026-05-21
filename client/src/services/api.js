@@ -119,6 +119,11 @@ export const resolveBank = (account, bank) => API.get(`/bank-details/resolve?acc
 export const createTicket = (data) => API.post('/tickets', data);
 export const getMyTickets = () => API.get('/tickets');
 
+// Notification endpoints
+export const getMyNotifications = () => API.get('/notifications');
+export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);
+export const markAllNotificationsRead = () => API.put('/notifications/read-all');
+
 // Admin endpoints
 export const adminLogin = (credentials) => API.post('/admin/login', credentials);
 export const getAdminStats = () => API.get('/admin/stats');

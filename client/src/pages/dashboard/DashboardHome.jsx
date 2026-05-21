@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyPlans } from '../../services/api';
+import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import MembershipPaywall from '../../components/MembershipPaywall';
-import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -18,6 +18,8 @@ const DashboardHome = () => {
   const [hideBalances, setHideBalances] = useState(true);
   const [error, setError] = useState(null);
   const [birthdayDismissed, setBirthdayDismissed] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [showAllNotifs, setShowAllNotifs] = useState(false);
 
   // Birthday check
   const isBirthday = user?.dob && (() => {
@@ -80,33 +82,7 @@ const DashboardHome = () => {
 
   const oldestPlanDate = oldestPlan ? new Date(oldestPlan.created_at) : null;
 
-  const renderKycGraceStatus = () => {
-    if (user?.kycStatus === 'verified') {
-      return (
-        <div className="kyc-warning-banner" style={{ background: 'rgba(46, 204, 113, 0.1)', borderLeft: '4px solid #2ecc71' }}>
-          <p style={{ color: '#2ecc71', margin: 0 }}>✅ <strong>KYC Verified</strong>. Your identity has been successfully verified by our compliance team.</p>
-        </div>
-      );
-    }
 
-    if (user?.kycStatus === 'pending') {
-      return (
-        <div className="kyc-warning-banner pending" style={{ borderLeft: '4px solid #f1c40f' }}>
-          <p style={{ margin: 0 }}>⏳ Your KYC verification is <strong>in progress</strong>. You will be notified once our team reviews your details.</p>
-          <span className="badge badge-warning" style={{ marginLeft: '10px' }}>Pending Approval</span>
-        </div>
-      );
-    }
-
-    return (
-      <div className="kyc-warning-banner" style={{ background: 'rgba(52, 152, 219, 0.1)', borderLeft: '4px solid #3498db', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-        <p style={{ color: '#2980b9', margin: 0 }}>
-          🌱 <strong>KYC is Optional!</strong> You can save, fund, and run programs freely without completing KYC.
-        </p>
-        <Link to="/dashboard/kyc" className="btn btn-sm btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>Verify Now (Optional)</Link>
-      </div>
-    );
-  };
 
   const handleLogout = () => {
     logout();
@@ -170,10 +146,69 @@ const DashboardHome = () => {
         )}
 
 
-
-        {/* ─── KYC Banners ─── */}
-        {renderKycGraceStatus()}
-
+        {/* ─── Notifications Feed ─── */}
+        {notifications.length > 0 && (
+          <div className="dashboard-section" style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
+                <FaBell style={{ color: 'var(--color-primary)' }} />
+                Notifications
+                {notifications.filter(n => !n.is_read).length > 0 && (
+                  <span style={{ background: '#e74c3c', color: '#fff', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '20px', fontWeight: 'bold' }}>
+                    {notifications.filter(n => !n.is_read).length} new
+                  </span>
+                )}
+              </h3>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                {notifications.some(n => !n.is_read) && (
+                  <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: '600' }}>
+                    <FaCheckDouble /> Mark all read
+                  </button>
+                )}
+                <button onClick={() => setShowAllNotifs(!showAllNotifs)} style={{ background: 'none', border: '1px solid #cbd5e1', padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem', color: '#475569' }}>
+                  {showAllNotifs ? 'Show Recent' : `View All (${notifications.length})`}
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {(showAllNotifs ? notifications : notifications.slice(0, 5)).map(notif => {
+                const typeStyles = {
+                  SYSTEM: { icon: '📢', bg: '#eef2ff', border: '#c7d2fe', color: '#4338ca' },
+                  PAYMENT: { icon: '💳', bg: '#ecfdf5', border: '#a7f3d0', color: '#065f46' },
+                  PROMO: { icon: '✨', bg: '#fefce8', border: '#fde68a', color: '#92400e' },
+                  ALERT: { icon: '⚠️', bg: '#fef2f2', border: '#fecaca', color: '#991b1b' },
+                };
+                const style = typeStyles[notif.type] || typeStyles.SYSTEM;
+                return (
+                  <div key={notif.id} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '12px',
+                    padding: '14px 16px', borderRadius: '10px',
+                    background: notif.is_read ? '#f8fafc' : style.bg,
+                    border: `1px solid ${notif.is_read ? '#e2e8f0' : style.border}`,
+                    opacity: notif.is_read ? 0.75 : 1,
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <span style={{ fontSize: '1.3rem', marginTop: '2px' }}>{style.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                        <strong style={{ color: notif.is_read ? '#64748b' : style.color, fontSize: '0.95rem' }}>{notif.title}</strong>
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                          {new Date(notif.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
+                        </span>
+                      </div>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: notif.is_read ? '#94a3b8' : '#475569', lineHeight: '1.5' }}>{notif.message}</p>
+                    </div>
+                    {!notif.is_read && (
+                      <button onClick={() => handleMarkRead(notif.id)} title="Mark as read" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '0.9rem', padding: '4px', marginTop: '2px', flexShrink: 0 }}>
+                        <FaTimes />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
 
         {/* ─── Unified Stats Row ─── */}
