@@ -3,6 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import './Auth.css';
+import { auth } from '../../config/firebaseConfig';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
 const RegisterPage = () => {
   const [step, setStep] = useState(1);
@@ -11,6 +13,9 @@ const RegisterPage = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [verificationId, setVerificationId] = useState('');
+  const [otp, setOtp] = useState('');
 
   const [formData, setFormData] = useState({
     surname: '', middleName: '', firstName: '', dob: '', phone: '',
@@ -60,7 +65,18 @@ const RegisterPage = () => {
     setError('');
   };
 
-  const handleSubmit = async (e) => {
+  const setupRecaptcha = () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+        'callback': () => {
+          // reCAPTCHA solved
+        }
+      });
+    }
+  };
+
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match!");
@@ -71,6 +87,37 @@ const RegisterPage = () => {
     setError('');
 
     try {
+      setupRecaptcha();
+      const appVerifier = window.recaptchaVerifier;
+      
+      let formattedPhone = formData.phone;
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '+234' + formattedPhone.substring(1);
+      } else if (!formattedPhone.startsWith('+')) {
+        formattedPhone = '+234' + formattedPhone;
+      }
+
+      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      window.confirmationResult = confirmationResult;
+      setVerificationId(confirmationResult.verificationId);
+      setStep(4);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to send verification code. ' + (err.message || ''));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const result = await window.confirmationResult.confirm(otp);
+      const firebaseToken = await result.user.getIdToken();
+
       await register({
         firstName: formData.firstName,
         lastName: formData.surname,
@@ -78,10 +125,12 @@ const RegisterPage = () => {
         password: formData.password,
         phone: formData.phone,
         referredByCode: formData.referredByCode,
+        firebaseToken
       });
       navigate('/dashboard');
     } catch (err) {
-      const message = err.response?.data?.message || 'Registration failed. Please try again.';
+      console.error(err);
+      const message = err.response?.data?.message || err.message || 'Verification failed. Please check the code and try again.';
       setError(message);
     } finally {
       setIsLoading(false);
@@ -104,6 +153,8 @@ const RegisterPage = () => {
             <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>2</div>
             <div className={`progress-line ${step >= 3 ? 'active' : ''}`}></div>
             <div className={`progress-step ${step >= 3 ? 'active' : ''}`}>3</div>
+            <div className={`progress-line ${step >= 4 ? 'active' : ''}`}></div>
+            <div className={`progress-step ${step >= 4 ? 'active' : ''}`}>4</div>
           </div>
 
           {error && (
@@ -112,7 +163,9 @@ const RegisterPage = () => {
             </div>
           )}
 
-          <form onSubmit={step === 3 ? handleSubmit : (e) => { e.preventDefault(); nextStep(); }} className="auth-form">
+          <div id="recaptcha-container"></div>
+
+          <form onSubmit={step === 3 ? handleSendOTP : step === 4 ? handleVerifyOTP : (e) => { e.preventDefault(); nextStep(); }} className="auth-form">
             
             {step === 1 && (
               <div className="form-section fade-in">
@@ -270,7 +323,33 @@ const RegisterPage = () => {
                 <div className="form-actions mt-4">
                   <Button type="button" variant="outline" onClick={prevStep}>Back</Button>
                   <Button type="submit" variant="accent" disabled={isLoading}>
-                    {isLoading ? 'Creating Account...' : 'Complete Registration'}
+                    {isLoading ? 'Sending Code...' : 'Next: Verify Phone'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="form-section fade-in">
+                <h3>Verify Phone Number</h3>
+                <p>We've sent a 6-digit verification code to <strong>{formData.phone}</strong>.</p>
+                <div className="form-group full-width mt-3">
+                  <label>Verification Code</label>
+                  <input 
+                    type="text" 
+                    value={otp} 
+                    onChange={(e) => { setOtp(e.target.value); setError(''); }} 
+                    placeholder="Enter 6-digit code" 
+                    required 
+                    maxLength="6"
+                    autoComplete="one-time-code"
+                  />
+                </div>
+                
+                <div className="form-actions mt-4">
+                  <Button type="button" variant="outline" onClick={prevStep}>Back</Button>
+                  <Button type="submit" variant="accent" disabled={isLoading}>
+                    {isLoading ? 'Verifying...' : 'Verify & Create Account'}
                   </Button>
                 </div>
               </div>

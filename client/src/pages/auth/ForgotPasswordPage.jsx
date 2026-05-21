@@ -1,25 +1,75 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { forgotPassword } from '../../services/api';
+import { Link, useNavigate } from 'react-router-dom';
+import { auth } from '../../config/firebaseConfig';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import './Auth.css';
 
 const ForgotPasswordPage = () => {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [step, setStep] = useState(1);
+  const [otp, setOtp] = useState('');
+  const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const setupRecaptcha = () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+        'callback': () => {
+          // reCAPTCHA solved
+        }
+      });
+    }
+  };
+
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage({ type: '', text: '' });
 
     try {
-      const { data } = await forgotPassword({ phone });
-      setMessage({ type: 'success', text: data.message });
+      setupRecaptcha();
+      const appVerifier = window.recaptchaVerifier;
+      
+      let formattedPhone = phone;
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '+234' + formattedPhone.substring(1);
+      } else if (!formattedPhone.startsWith('+')) {
+        formattedPhone = '+234' + formattedPhone;
+      }
+
+      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      window.confirmationResult = confirmationResult;
+      setMessage({ type: 'success', text: 'OTP sent successfully!' });
+      setStep(2);
     } catch (err) {
+      console.error(err);
       setMessage({ 
         type: 'error', 
-        text: err.response?.data?.message || 'Something went wrong. Please try again.' 
+        text: err.message || 'Something went wrong. Please try again.' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const result = await window.confirmationResult.confirm(otp);
+      const firebaseToken = await result.user.getIdToken();
+      
+      // Navigate to reset password page with the token
+      navigate(`/reset-password?token=${firebaseToken}`);
+    } catch (err) {
+      console.error(err);
+      setMessage({ 
+        type: 'error', 
+        text: 'Invalid or expired OTP. Please try again.' 
       });
     } finally {
       setLoading(false);
@@ -40,23 +90,46 @@ const ForgotPasswordPage = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="phone">Phone Number</label>
-            <input
-              type="tel"
-              id="phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="e.g. 08012345678"
-              required
-            />
-          </div>
+        <div id="recaptcha-container"></div>
 
-          <button type="submit" className="btn btn-primary full-width" disabled={loading}>
-            {loading ? 'Sending OTP...' : 'Send Reset OTP'}
-          </button>
-        </form>
+        {step === 1 ? (
+          <form onSubmit={handleSendOTP} className="auth-form">
+            <div className="form-group">
+              <label htmlFor="phone">Phone Number</label>
+              <input
+                type="tel"
+                id="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. 08012345678"
+                required
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary full-width" disabled={loading}>
+              {loading ? 'Sending OTP...' : 'Send Reset OTP'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOTP} className="auth-form">
+            <div className="form-group">
+              <label htmlFor="otp">Verification Code</label>
+              <input
+                type="text"
+                id="otp"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="Enter 6-digit code"
+                required
+                maxLength="6"
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary full-width" disabled={loading}>
+              {loading ? 'Verifying...' : 'Verify OTP'}
+            </button>
+          </form>
+        )}
 
         <div className="auth-footer">
           <p>Remembered your password? <Link to="/login">Back to Login</Link></p>

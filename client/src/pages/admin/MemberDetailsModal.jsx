@@ -124,7 +124,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                   <h3 style={{ color: '#d4af37', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.05rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '10px', marginBottom: '15px' }}>
                     <FaUser size={16} /> Account Registration
                   </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#64748b' }}>Full Name:</span>
                       <strong style={{ color: 'white' }}>{details.first_name} {details.last_name}</strong>
@@ -162,7 +162,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     <FaRegAddressCard size={16} /> KYC Verification Record
                   </h3>
                   {details.kyc ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Legal Middle Name:</span>
                         <strong style={{ color: 'white' }}>{details.kyc.middle_name || 'None'}</strong>

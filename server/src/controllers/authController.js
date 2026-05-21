@@ -8,6 +8,7 @@ import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/ot
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../utils/emailService.js';
 import { createPaystackVirtualAccount } from '../services/virtualAccountService.js';
 import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
+import admin from '../config/firebaseAdmin.js';
 
 dotenv.config();
 
@@ -32,13 +33,35 @@ const generateRefreshToken = async (userId) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, referredByCode } = req.body;
+    const { firstName, lastName, email, password, phone, referredByCode, firebaseToken } = req.body;
 
-    if (!firstName || !lastName || !phone || !password) {
-      return res.status(400).json({ message: 'Please provide all required fields including phone number' });
+    if (!firstName || !lastName || !phone || !password || !firebaseToken) {
+      return res.status(400).json({ message: 'Please provide all required fields including phone verification' });
     }
 
-    const normalizedPhone = phone.trim();
+    // Verify Firebase token
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(firebaseToken);
+    } catch (err) {
+      return res.status(400).json({ message: 'Invalid or expired phone verification token.' });
+    }
+
+    const verifiedPhone = decodedToken.phone_number;
+    
+    // Normalize phone numbers for comparison (e.g. converting 080... to +23480...)
+    // Or just trust the verified phone from Firebase
+    let normalizedPhone = phone.trim();
+    if (normalizedPhone.startsWith('0')) {
+      normalizedPhone = '+234' + normalizedPhone.substring(1);
+    } else if (!normalizedPhone.startsWith('+')) {
+      normalizedPhone = '+234' + normalizedPhone;
+    }
+
+    if (verifiedPhone !== normalizedPhone) {
+      return res.status(400).json({ message: 'Verified phone number does not match provided phone number' });
+    }
+
     const normalizedEmail = (email && email.trim() !== '') ? email.trim().toLowerCase() : null;
 
     // Check storage existence and validate referred code in a single parallel round-trip
@@ -319,38 +342,66 @@ export const forgotPassword = async (req, res) => {
 
 export const resetPassword = async (req, res) => {
   try {
-    const { phone, code, password } = req.body;
+    const { token, password } = req.body;
     
-    if (!phone || !code || !password) {
-      return res.status(400).json({ message: 'Phone, OTP code, and new password are required' });
+    if (!token || !password) {
+      return res.status(400).json({ message: 'Reset token and new password are required' });
     }
 
-    const user = await findUserByPhone(phone);
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(token);
+    } catch (err) {
+      return res.status(400).json({ message: 'Invalid or expired reset token.' });
+    }
+
+    const phone = decodedToken.phone_number;
+    
+    if (!phone) {
+      return res.status(400).json({ message: 'Invalid reset token payload' });
+    }
+
+    const user = await findUserByPhone(phone); // Assuming phone is stored in E.164 format (+234...)
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      // It's possible the user stored their phone as 080... instead of +234...
+      // Let's try to convert +23480... to 080... and find again
+      let localPhone = phone;
+      if (phone.startsWith('+234')) {
+        localPhone = '0' + phone.substring(4);
+      }
+      const userAlt = await findUserByPhone(localPhone);
+      
+      if (!userAlt) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Found with local phone
+      await processPasswordReset(userAlt.id, password, res);
+      return;
     }
 
-    const isValid = await checkOTP(user.id, code, 'reset');
-    
-    if (!isValid) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
-    }
+    await processPasswordReset(user.id, password, res);
 
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    await query(
-      'UPDATE users SET password_hash = $1 WHERE id = $2',
-      [passwordHash, user.id]
-    );
-
-    res.json({ message: 'Password reset successful. You can now login with your new password.' });
   } catch (error) {
     console.error('Error in resetPassword:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+const processPasswordReset = async (userId, password, res) => {
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(password, salt);
+
+  await query(
+    'UPDATE users SET password_hash = $1 WHERE id = $2',
+    [passwordHash, userId]
+  );
+
+  res.json({ message: 'Password reset successful. You can now login with your new password.' });
+};
+
+
 
 export const getUserProfile = async (req, res) => {
   try {

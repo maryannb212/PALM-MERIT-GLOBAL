@@ -114,7 +114,7 @@ const AppLayout = () => {
             }>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="security" element={<AdminSecurity />} />
+              <Route path="security" element={<AdminLockedRoute pageName="security" title="Security & Locks"><AdminSecurity /></AdminLockedRoute>} />
               <Route path="kyc-queue" element={<AdminLockedRoute pageName="kyc-queue" title="KYC Requests"><KYCQueue /></AdminLockedRoute>} />
               <Route path="members" element={<AdminLockedRoute pageName="members" title="User Management"><MembersPage /></AdminLockedRoute>} />
               <Route path="tickets" element={<AdminLockedRoute pageName="tickets" title="Support Tickets"><SupportTicketsPage /></AdminLockedRoute>} />
