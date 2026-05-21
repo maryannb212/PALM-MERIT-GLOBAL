@@ -160,7 +160,7 @@ const AdminSecurity = () => {
                         className="refined-input"
                         value={form.username}
                         onChange={(e) => handleInputChange(page.id, 'username', e.target.value)}
-                        style={{ height: '38px' }}
+                        style={{ height: '38px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', paddingLeft: '14px' }}
                       />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -171,7 +171,7 @@ const AdminSecurity = () => {
                         className="refined-input"
                         value={form.password}
                         onChange={(e) => handleInputChange(page.id, 'password', e.target.value)}
-                        style={{ height: '38px' }}
+                        style={{ height: '38px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', paddingLeft: '14px' }}
                       />
                     </div>
                   </div>
