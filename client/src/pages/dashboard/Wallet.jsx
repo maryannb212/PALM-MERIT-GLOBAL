@@ -33,10 +33,7 @@ const Wallet = () => {
     return new Date(p.created_at) < new Date(oldest.created_at) ? p : oldest;
   }, null);
 
-  const oldestPlanDate = oldestPlan ? new Date(oldestPlan.created_at) : null;
-  const ninetyDaysInMs = 90 * 24 * 60 * 60 * 1000;
-  const elapsedMs = oldestPlanDate ? (new Date() - oldestPlanDate) : 0;
-  const isKycCompulsory = oldestPlanDate && (elapsedMs > ninetyDaysInMs);
+
 
   const isClearanceDue = plans.some(p => 
     ['matured', 'pending_clearance'].includes(p.status) && p.clearance_required

@@ -28,23 +28,10 @@ export const requestWithdrawal = async (req, res) => {
     const { rows: userRows } = await client.query(userSql, [userId]);
     const user = userRows[0];
 
-    // 1.5 Fetch user's oldest savings plan to evaluate grace period
+    // 1.5 Fetch user's oldest savings plan to evaluate grace period (removed compulsory KYC check)
     const oldestPlanSql = `SELECT created_at FROM savings_plans WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1;`;
     const { rows: planRows } = await client.query(oldestPlanSql, [userId]);
-    
-    let isKycCompulsory = false;
-    if (planRows.length > 0) {
-      const oldestPlanDate = new Date(planRows[0].created_at);
-      const ninetyDaysInMs = 90 * 24 * 60 * 60 * 1000;
-      if (new Date() - oldestPlanDate > ninetyDaysInMs) {
-        isKycCompulsory = true;
-      }
-    }
-
-    if (isKycCompulsory && user.kyc_status !== 'verified') {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ message: 'KYC verification is now compulsory (90 days have elapsed since starting your first savings program).' });
-    }
+    // KYC is fully optional, so we do not block withdrawals based on kyc_status
 
     if (parseFloat(user.available_balance) < parseFloat(amount)) {
       await client.query('ROLLBACK');
