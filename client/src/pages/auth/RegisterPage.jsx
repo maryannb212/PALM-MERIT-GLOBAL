@@ -66,14 +66,19 @@ const RegisterPage = () => {
   };
 
   const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'invisible',
-        'callback': () => {
-          // reCAPTCHA solved
-        }
-      });
+    // Always clear and recreate to avoid stale verifier state
+    if (window.recaptchaVerifier) {
+      try { window.recaptchaVerifier.clear(); } catch (_) {}
+      window.recaptchaVerifier = null;
     }
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      'size': 'invisible',
+      'callback': () => {},
+      'expired-callback': () => {
+        window.recaptchaVerifier = null;
+      }
+    });
+    return window.recaptchaVerifier;
   };
 
   const handleSendOTP = async (e) => {
@@ -87,10 +92,9 @@ const RegisterPage = () => {
     setError('');
 
     try {
-      setupRecaptcha();
-      const appVerifier = window.recaptchaVerifier;
-      
-      let formattedPhone = formData.phone;
+      const appVerifier = setupRecaptcha();
+
+      let formattedPhone = formData.phone.trim();
       if (formattedPhone.startsWith('0')) {
         formattedPhone = '+234' + formattedPhone.substring(1);
       } else if (!formattedPhone.startsWith('+')) {
@@ -102,8 +106,18 @@ const RegisterPage = () => {
       setVerificationId(confirmationResult.verificationId);
       setStep(4);
     } catch (err) {
-      console.error(err);
-      setError('Failed to send verification code. ' + (err.message || ''));
+      console.error('Firebase OTP Error:', err);
+      // Clear broken verifier so next attempt creates a fresh one
+      if (window.recaptchaVerifier) {
+        try { window.recaptchaVerifier.clear(); } catch (_) {}
+        window.recaptchaVerifier = null;
+      }
+      const msg = err.code === 'auth/invalid-phone-number'
+        ? 'Invalid phone number. Please enter a valid Nigerian number.'
+        : err.code === 'auth/too-many-requests'
+        ? 'Too many attempts. Please wait a few minutes and try again.'
+        : 'Failed to send verification code. Please try again.';
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
