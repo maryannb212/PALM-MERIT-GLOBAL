@@ -414,74 +414,113 @@ export const paystackWebhook = async (req, res) => {
 export const flutterwaveWebhook = async (req, res) => {
   const secret = getFlutterwaveSecret();
   const signature = req.headers['verif-hash'];
-
-  // 1. Signature Verification
-  if (!isMockMode() && process.env.FLUTTERWAVE_WEBHOOK_HASH) {
-    if (signature !== process.env.FLUTTERWAVE_WEBHOOK_HASH) {
-      return res.status(401).send('Unauthorized');
-    }
-  }
-
   const payload = req.body;
   const reference = payload.tx_ref || payload.data?.tx_ref;
   const transactionId = payload.id || payload.data?.id;
 
+  console.log('[Flutterwave Webhook] Received webhook call:', {
+    headers: req.headers,
+    signature,
+    webhook_hash_env: process.env.FLUTTERWAVE_WEBHOOK_HASH,
+    reference,
+    transactionId,
+    status: payload.status || payload.data?.status
+  });
+
+  let signatureOk = true;
+  if (!isMockMode() && process.env.FLUTTERWAVE_WEBHOOK_HASH) {
+    if (signature !== process.env.FLUTTERWAVE_WEBHOOK_HASH) {
+      console.warn(`[Flutterwave Webhook] Signature mismatch: verif-hash: "${signature}", expected: "${process.env.FLUTTERWAVE_WEBHOOK_HASH}"`);
+      signatureOk = false;
+      await logWebhookEvent({
+        source: 'flutterwave',
+        reference,
+        eventType: payload.event || 'webhook',
+        payload,
+        signatureOk: false,
+        status: 'rejected',
+        note: `Signature mismatch. verif-hash: ${signature}`
+      });
+      return res.status(401).send('Unauthorized');
+    }
+  }
+
   if (payload.status !== 'successful' && payload.data?.status !== 'successful') {
+    await logWebhookEvent({
+      source: 'flutterwave',
+      reference,
+      eventType: payload.event || 'webhook',
+      payload,
+      signatureOk,
+      status: 'rejected',
+      note: 'Transaction status is not successful'
+    });
     return res.status(200).send('Transaction not successful');
   }
 
-    try {
-      // 2. Re-verify with Flutterwave API
-      let verifiedAmount = payload.amount || payload.data?.amount; // Default to payload amount if mock
-      let gatewayRef = transactionId;
+  try {
+    // 2. Re-verify with Flutterwave API
+    let verifiedAmount = payload.amount || payload.data?.amount; // Default to payload amount if mock
+    let gatewayRef = transactionId;
 
-      if (!isMockMode()) {
-        const verified = await verifyWithFlutterwave(transactionId, secret);
-        verifiedAmount = verified.amount;
-        gatewayRef = verified.gatewayRef;
-      }
+    if (!isMockMode()) {
+      const verified = await verifyWithFlutterwave(transactionId, secret);
+      verifiedAmount = verified.amount;
+      gatewayRef = verified.gatewayRef;
+    }
 
-      // 3. Check if transaction exists, if not and it's a VA transfer, create it
-      const { rows: existingTx } = await query('SELECT * FROM transactions WHERE reference = $1', [reference]);
-      
-      if (existingTx.length === 0) {
-        if (reference && reference.startsWith('VA-')) {
-          // It's a direct transfer to a virtual account
-          const parts = reference.split('-');
-          const userId = parts[1]; // VA-${userId}-${Date.now()}
-          
-          if (userId) {
-            await createTransaction(
-              userId,
+    // 3. Check if transaction exists, if not and it's a VA transfer, create it
+    const { rows: existingTx } = await query('SELECT * FROM transactions WHERE reference = $1', [reference]);
+    
+    if (existingTx.length === 0) {
+      if (reference && reference.startsWith('VA-')) {
+        // It's a direct transfer to a virtual account
+        const parts = reference.split('-');
+        const userId = parts[1]; // VA-${userId}-${Date.now()}
+        
+        if (userId) {
+          await createTransaction(
+            userId,
+            null,
+            'wallet_topup',
+            verifiedAmount,
+            reference,
+            'flutterwave'
+          );
+          console.log(`[Flutterwave Webhook] Created pending VA transaction for user ${userId}`);
+        }
+      } else {
+        // Try to find user by email if it's a virtual account payment without VA- ref
+        const email = payload.customer?.email || payload.data?.customer?.email;
+        if (email) {
+          const { rows: userRows } = await query('SELECT id FROM users WHERE email = $1', [email]);
+          if (userRows.length > 0) {
+             await createTransaction(
+              userRows[0].id,
               null,
               'wallet_topup',
               verifiedAmount,
               reference,
               'flutterwave'
             );
-            console.log(`[Flutterwave Webhook] Created pending VA transaction for user ${userId}`);
-          }
-        } else {
-          // Try to find user by email if it's a virtual account payment without VA- ref
-          const email = payload.customer?.email || payload.data?.customer?.email;
-          if (email) {
-            const { rows: userRows } = await query('SELECT id FROM users WHERE email = $1', [email]);
-            if (userRows.length > 0) {
-               await createTransaction(
-                userRows[0].id,
-                null,
-                'wallet_topup',
-                verifiedAmount,
-                reference,
-                'flutterwave'
-              );
-            }
           }
         }
       }
+    }
 
-      // 4. Process
+    // 4. Process
     const { isDuplicate, transaction } = await processCompletedPayment(reference, verifiedAmount, gatewayRef, 'flutterwave');
+
+    const logStatus = isDuplicate ? 'duplicate' : 'processed';
+    await logWebhookEvent({
+      source: 'flutterwave',
+      reference,
+      eventType: payload.event || 'charge.completed',
+      payload,
+      signatureOk,
+      status: logStatus,
+      note: isDuplicate ? 'Duplicate payment' : `Credited ₦${verifiedAmount} via Flutterwave`
+    });
 
     if (!isDuplicate) {
       createNotification(transaction.user_id, 'PAYMENT', 'Payment Successful', `Your Flutterwave payment of ₦${Number(transaction.amount).toLocaleString()} was successful.`).catch(() => {});
@@ -490,6 +529,15 @@ export const flutterwaveWebhook = async (req, res) => {
     return res.status(200).send('Webhook processed');
   } catch (error) {
     console.error('[Flutterwave Webhook] Error:', error.message);
+    await logWebhookEvent({
+      source: 'flutterwave',
+      reference,
+      eventType: payload.event || 'charge.completed',
+      payload,
+      signatureOk,
+      status: 'error',
+      note: `Error processing webhook: ${error.message}`
+    });
     return res.status(200).send('Error logged');
   }
 };
