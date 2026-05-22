@@ -13,17 +13,13 @@ export const createVirtualAccount = async (userId) => {
     const user = rows[0];
 
     if (!user) throw new Error('User not found');
-    if (user.virtual_account_number) return user;
-
-    const kycResult = await query('SELECT bvn FROM kyc_details WHERE user_id = $1', [userId]);
-    const bvn = kycResult.rows[0]?.bvn;
+    if (user.virtual_account_number && user.virtual_provider !== 'system_fallback') return user;
 
     let account;
     try {
       const response = await axios.post('https://api.flutterwave.com/v3/virtual-account-numbers', {
         email: user.email,
         is_permanent: true,
-        bvn: bvn, // Required for permanent NUBANs on Flutterwave
         tx_ref: `VA-${userId}-${Date.now()}`,
         firstname: user.first_name,
         lastname: user.last_name,

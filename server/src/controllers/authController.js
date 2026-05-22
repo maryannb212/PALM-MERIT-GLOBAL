@@ -546,10 +546,10 @@ export const generateVirtualAccount = async (req, res) => {
     const userId = req.user.id;
     
     // First verify if the user already has one
-    const { rows } = await query('SELECT virtual_account_number, virtual_bank_name, virtual_account_name FROM users WHERE id = $1', [userId]);
+    const { rows } = await query('SELECT virtual_account_number, virtual_bank_name, virtual_account_name, virtual_provider FROM users WHERE id = $1', [userId]);
     const user = rows[0];
     
-    if (user?.virtual_account_number) {
+    if (user?.virtual_account_number && user.virtual_provider !== 'system_fallback') {
       return res.json({
         message: 'Virtual account already exists',
         virtual_account_number: user.virtual_account_number,
