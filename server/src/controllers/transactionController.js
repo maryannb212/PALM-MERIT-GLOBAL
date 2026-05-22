@@ -430,18 +430,57 @@ export const flutterwaveWebhook = async (req, res) => {
     return res.status(200).send('Transaction not successful');
   }
 
-  try {
-    // 2. Re-verify with Flutterwave API
-    let verifiedAmount = null;
-    let gatewayRef = null;
+    try {
+      // 2. Re-verify with Flutterwave API
+      let verifiedAmount = payload.amount || payload.data?.amount; // Default to payload amount if mock
+      let gatewayRef = transactionId;
 
-    if (!isMockMode()) {
-      const verified = await verifyWithFlutterwave(transactionId, secret);
-      verifiedAmount = verified.amount;
-      gatewayRef = verified.gatewayRef;
-    }
+      if (!isMockMode()) {
+        const verified = await verifyWithFlutterwave(transactionId, secret);
+        verifiedAmount = verified.amount;
+        gatewayRef = verified.gatewayRef;
+      }
 
-    // 3. Process
+      // 3. Check if transaction exists, if not and it's a VA transfer, create it
+      const { rows: existingTx } = await query('SELECT * FROM transactions WHERE reference = $1', [reference]);
+      
+      if (existingTx.length === 0) {
+        if (reference && reference.startsWith('VA-')) {
+          // It's a direct transfer to a virtual account
+          const parts = reference.split('-');
+          const userId = parts[1]; // VA-${userId}-${Date.now()}
+          
+          if (userId) {
+            await createTransaction(
+              userId,
+              null,
+              'wallet_topup',
+              verifiedAmount,
+              reference,
+              'flutterwave'
+            );
+            console.log(`[Flutterwave Webhook] Created pending VA transaction for user ${userId}`);
+          }
+        } else {
+          // Try to find user by email if it's a virtual account payment without VA- ref
+          const email = payload.customer?.email || payload.data?.customer?.email;
+          if (email) {
+            const { rows: userRows } = await query('SELECT id FROM users WHERE email = $1', [email]);
+            if (userRows.length > 0) {
+               await createTransaction(
+                userRows[0].id,
+                null,
+                'wallet_topup',
+                verifiedAmount,
+                reference,
+                'flutterwave'
+              );
+            }
+          }
+        }
+      }
+
+      // 4. Process
     const { isDuplicate, transaction } = await processCompletedPayment(reference, verifiedAmount, gatewayRef, 'flutterwave');
 
     if (!isDuplicate) {

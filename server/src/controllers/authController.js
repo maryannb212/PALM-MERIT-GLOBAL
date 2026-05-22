@@ -6,7 +6,7 @@ import { query } from '../config/db.js';
 import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
 import { sendWelcomeEmail, sendPasswordResetEmail } from '../utils/emailService.js';
-import { createPaystackVirtualAccount } from '../services/virtualAccountService.js';
+import { createVirtualAccount } from '../services/virtualAccountService.js';
 import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
 import admin from '../config/firebaseAdmin.js';
 
@@ -434,7 +434,7 @@ export const getUserProfile = async (req, res) => {
     // If the user is verified but doesn't have a virtual account (because it failed previously)
     if (user.kyc_status === 'verified' && !user.virtual_account_number) {
       try {
-        const updatedAccount = await createPaystackVirtualAccount(userId);
+        const updatedAccount = await createVirtualAccount(userId);
         if (updatedAccount) {
           user.virtual_account_number = updatedAccount.virtual_account_number;
           user.virtual_account_name = updatedAccount.virtual_account_name;
@@ -538,5 +538,40 @@ export const removeProfileImage = async (req, res) => {
   } catch (error) {
     console.error('Error removing profile image:', error);
     res.status(500).json({ message: 'Server error removing profile image' });
+  }
+};
+
+export const generateVirtualAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // First verify if the user already has one
+    const { rows } = await query('SELECT virtual_account_number, virtual_bank_name, virtual_account_name FROM users WHERE id = $1', [userId]);
+    const user = rows[0];
+    
+    if (user?.virtual_account_number) {
+      return res.json({
+        message: 'Virtual account already exists',
+        virtual_account_number: user.virtual_account_number,
+        virtual_bank_name: user.virtual_bank_name,
+        virtual_account_name: user.virtual_account_name
+      });
+    }
+
+    const updatedAccount = await createVirtualAccount(userId);
+    
+    if (updatedAccount && updatedAccount.virtual_account_number) {
+      res.json({
+        message: 'Virtual account successfully generated',
+        virtual_account_number: updatedAccount.virtual_account_number,
+        virtual_bank_name: updatedAccount.virtual_bank_name,
+        virtual_account_name: updatedAccount.virtual_account_name
+      });
+    } else {
+      res.status(400).json({ message: 'Failed to generate virtual account' });
+    }
+  } catch (error) {
+    console.error('Error generating virtual account:', error.message);
+    res.status(500).json({ message: 'Server error while generating virtual account: ' + error.message });
   }
 };

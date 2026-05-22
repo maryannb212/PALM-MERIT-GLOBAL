@@ -1,5 +1,5 @@
 import { query, getClient } from '../config/db.js';
-import { createPaystackVirtualAccount } from '../services/virtualAccountService.js';
+import { createVirtualAccount } from '../services/virtualAccountService.js';
 
 export const submitKYC = async (req, res) => {
   try {
@@ -203,7 +203,7 @@ export const verifyUserKYC = async (req, res) => {
         }
 
         try {
-          await createPaystackVirtualAccount(userId);
+          await createVirtualAccount(userId);
           console.log(`Virtual account created for user ${userId}`);
         } catch (vaError) {
           console.error(`Failed to create virtual account for user ${userId}:`, vaError.message);

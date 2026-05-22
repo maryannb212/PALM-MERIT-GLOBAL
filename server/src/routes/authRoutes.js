@@ -10,7 +10,8 @@ import {
   getUserProfile,
   getMyReferrals,
   uploadProfileImage,
-  removeProfileImage
+  removeProfileImage,
+  generateVirtualAccount
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
@@ -37,5 +38,6 @@ router.get('/profile', protect, getUserProfile);
 router.get('/referrals', protect, getMyReferrals);
 router.put('/profile-image', protect, upload.single('profileImage'), uploadProfileImage);
 router.delete('/profile-image', protect, removeProfileImage);
+router.post('/generate-virtual-account', protect, generateVirtualAccount);
 
 export default router;
