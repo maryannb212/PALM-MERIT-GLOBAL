@@ -412,7 +412,7 @@ export const getUserProfile = async (req, res) => {
         u.id, u.first_name, u.last_name, u.email, u.role, u.phone,
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.available_balance, u.held_balance,
         u.profile_image, u.created_at,
-        u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name,
+        u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name, u.virtual_provider,
         u.referral_code, u.referral_unlock_date,
         b.account_name, b.account_number, b.bank_name, b.bank_code,
         k.dob, k.middle_name, k.address, k.gender, k.bvn, k.id_type, k.id_number
@@ -432,7 +432,7 @@ export const getUserProfile = async (req, res) => {
 
     // Retroactive Virtual Account Generation:
     // If the user is verified but doesn't have a virtual account (because it failed previously)
-    if (user.kyc_status === 'verified' && !user.virtual_account_number) {
+    if (user.kyc_status === 'verified' && (!user.virtual_account_number || user.virtual_provider === 'system_fallback')) {
       try {
         const updatedAccount = await createVirtualAccount(userId);
         if (updatedAccount) {
@@ -468,6 +468,7 @@ export const getUserProfile = async (req, res) => {
       virtual_account_number: user.virtual_account_number,
       virtual_bank_name: user.virtual_bank_name,
       virtual_account_name: user.virtual_account_name,
+      virtual_provider: user.virtual_provider,
       referralCode: user.referral_code,
       referralUnlockDate: user.referral_unlock_date,
       totalMembers: user.role === 'admin' ? totalMembers : null,
