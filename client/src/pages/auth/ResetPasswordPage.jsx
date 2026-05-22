@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { resetPassword } from '../../services/api';
 import './Auth.css';
 
 const ResetPasswordPage = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const token = searchParams.get('token');
+  
+  // Get token from navigation state first, then fall back to URL params
+  const token = location.state?.token || searchParams.get('token');
 
   const [formData, setFormData] = useState({
     password: '',

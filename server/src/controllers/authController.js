@@ -352,7 +352,8 @@ export const resetPassword = async (req, res) => {
     try {
       decodedToken = await admin.auth().verifyIdToken(token);
     } catch (err) {
-      return res.status(400).json({ message: 'Invalid or expired reset token.' });
+      console.error('Firebase token verification failed:', err.code, err.message);
+      return res.status(400).json({ message: 'Invalid or expired reset token. Please request a new OTP.' });
     }
 
     const phone = decodedToken.phone_number;

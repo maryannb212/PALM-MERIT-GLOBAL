@@ -63,8 +63,8 @@ const ForgotPasswordPage = () => {
       const result = await window.confirmationResult.confirm(otp);
       const firebaseToken = await result.user.getIdToken();
       
-      // Navigate to reset password page with the token
-      navigate(`/reset-password?token=${firebaseToken}`);
+      // Navigate to reset password page with the token via state (not URL to avoid truncation)
+      navigate('/reset-password', { state: { token: firebaseToken } });
     } catch (err) {
       console.error(err);
       setMessage({ 
