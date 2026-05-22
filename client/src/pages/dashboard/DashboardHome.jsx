@@ -164,7 +164,7 @@ const DashboardHome = () => {
             <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#800020' }}>Your Dedicated Funding Account</h3>
           </div>
           
-          {user?.virtual_account_number ? (
+          {user?.virtual_account_number && user?.virtual_bank_name !== 'Palm Merit Finance' ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', background: '#f8f9fa', padding: '15px 20px', borderRadius: '10px', border: '1px solid #e9ecef' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#333', display: 'flex', alignItems: 'center', gap: '10px' }}>

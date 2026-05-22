@@ -160,7 +160,7 @@ const Wallet = () => {
           </div>
           <div className="card-body" style={{ padding: '30px', textAlign: 'center' }}>
             
-            {user?.virtual_account_number ? (
+            {user?.virtual_account_number && user?.virtual_bank_name !== 'Palm Merit Finance' ? (
               <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '12px', border: '1px solid #e9ecef', marginBottom: '25px', textAlign: 'center' }}>
                 <div style={{ fontSize: '1.8rem', fontWeight: 'bold', letterSpacing: '2px', color: '#800020', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
                   {user.virtual_account_number}
