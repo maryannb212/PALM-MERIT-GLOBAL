@@ -127,11 +127,7 @@ const DashboardHome = () => {
             <h2>👋 Welcome back, {user?.firstName} {user?.lastName}!</h2>
             <p>Empowering your financial future — {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
           </div>
-          <div className="welcome-actions" style={{ marginLeft: 'auto' }}>
-            <Link to="/dashboard/receipt" className="btn btn-burgundy-gold">
-               Verify Manual Transfer
-            </Link>
-          </div>
+
         </div>
 
         {/* ─── Birthday Banner ─── */}
