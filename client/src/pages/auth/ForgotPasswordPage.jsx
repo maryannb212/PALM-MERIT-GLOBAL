@@ -13,14 +13,16 @@ const ForgotPasswordPage = () => {
   const navigate = useNavigate();
 
   const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'invisible',
-        'callback': () => {
-          // reCAPTCHA solved
-        }
-      });
+    if (window.recaptchaVerifier) {
+      try { window.recaptchaVerifier.clear(); } catch (_) {}
+      window.recaptchaVerifier = null;
     }
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      'size': 'invisible',
+      'callback': () => {},
+      'expired-callback': () => { window.recaptchaVerifier = null; }
+    });
+    return window.recaptchaVerifier;
   };
 
   const handleSendOTP = async (e) => {
@@ -29,10 +31,9 @@ const ForgotPasswordPage = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      setupRecaptcha();
-      const appVerifier = window.recaptchaVerifier;
+      const appVerifier = setupRecaptcha();
       
-      let formattedPhone = phone;
+      let formattedPhone = phone.trim();
       if (formattedPhone.startsWith('0')) {
         formattedPhone = '+234' + formattedPhone.substring(1);
       } else if (!formattedPhone.startsWith('+')) {
@@ -41,14 +42,20 @@ const ForgotPasswordPage = () => {
 
       const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
       window.confirmationResult = confirmationResult;
-      setMessage({ type: 'success', text: 'OTP sent successfully!' });
+      setMessage({ type: 'success', text: 'OTP sent successfully! Check your phone.' });
       setStep(2);
     } catch (err) {
-      console.error(err);
-      setMessage({ 
-        type: 'error', 
-        text: err.message || 'Something went wrong. Please try again.' 
-      });
+      console.error('Firebase OTP error:', err);
+      if (window.recaptchaVerifier) {
+        try { window.recaptchaVerifier.clear(); } catch (_) {}
+        window.recaptchaVerifier = null;
+      }
+      const text = err.code === 'auth/too-many-requests'
+        ? 'Too many attempts. Please wait a few minutes and try again.'
+        : err.code === 'auth/invalid-phone-number'
+        ? 'Invalid phone number. Please use a valid Nigerian number.'
+        : 'Failed to send OTP. Please try again.';
+      setMessage({ type: 'error', text });
     } finally {
       setLoading(false);
     }
