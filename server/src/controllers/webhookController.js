@@ -1,105 +1,165 @@
 import crypto from 'crypto';
-import { query } from '../config/db.js';
+import { query, getClient } from '../config/db.js';
 import { processCompletedPayment, createTransaction } from '../models/transactionModel.js';
 import { logWebhookEvent } from '../utils/webhookLogger.js';
 import { createNotification } from '../models/notificationModel.js';
 
-/**
- * Dedicated Webhook for Virtual Account Payments
- * POST /api/webhook/virtual-account
- */
-export const virtualAccountWebhook = async (req, res) => {
-  const secret = process.env.PAYSTACK_SECRET_KEY;
-  const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : JSON.stringify(req.body);
-
-  // 1. Signature Verification
-  const hash = crypto.createHmac('sha512', secret).update(rawBody).digest('hex');
-  if (hash !== req.headers['x-paystack-signature']) {
-    return res.status(401).send('Invalid signature');
-  }
-
-  const event = JSON.parse(rawBody);
-  if (event.event !== 'charge.success') {
-    return res.status(200).send('Event ignored');
-  }
-
-  const data = event.data;
-  const reference = data.reference;
-  const amount = data.amount / 100; // kobo to NGN
-  
-  // Dedicated NUBAN specific logic
-  const accountNumber = data.dedicated_account?.account_number;
-  
-  if (!accountNumber) {
-    return res.status(200).send('Not a virtual account payment');
-  }
-
+export const flutterwaveWebhook = async (req, res) => {
   try {
-    // 2. Find user by virtual account number
-    const { rows } = await query('SELECT id, email FROM users WHERE virtual_account_number = $1', [accountNumber]);
-    const user = rows[0];
+    // =====================================================
+    // 1. VERIFY FLUTTERWAVE SIGNATURE
+    // =====================================================
+
+    const secretHash = process.env.FLUTTERWAVE_WEBHOOK_HASH;
+    const signature = req.headers['verif-hash'];
+
+    if (!secretHash || signature !== secretHash) {
+      console.error('[Flutterwave Webhook] Invalid signature');
+      return res.status(401).send('Unauthorized');
+    }
+
+    const payload = req.body;
+
+    console.log('[Flutterwave Webhook]', payload);
+
+    // =====================================================
+    // 2. ONLY PROCESS SUCCESSFUL PAYMENTS
+    // =====================================================
+
+    const status =
+      payload.status || payload.data?.status;
+
+    if (status !== 'successful') {
+      return res.status(200).send('Ignored');
+    }
+
+    // =====================================================
+    // 3. EXTRACT DATA
+    // =====================================================
+
+    const data = payload.data || payload;
+
+    const reference =
+      data.tx_ref || data.reference;
+
+    const transactionId =
+      data.id?.toString();
+
+    const amount =
+      (data.amount || 0);
+
+    const email =
+      data.customer?.email;
+
+    // =====================================================
+    // 4. FIND USER
+    // =====================================================
+
+    const { rows: users } = await query(
+      `SELECT id FROM users WHERE email = $1`,
+      [email]
+    );
+
+    const user = users[0];
 
     if (!user) {
-      console.error(`[VA Webhook] No user found for account ${accountNumber}`);
+      console.error(
+        '[Flutterwave Webhook] User not found',
+        email
+      );
+
       return res.status(200).send('User not found');
     }
 
-    // 3. Create a transaction record if it doesn't exist (since this was an external transfer)
-    // We check if this reference already exists to avoid duplication
-    const { rows: existingTx } = await query('SELECT * FROM transactions WHERE reference = $1', [reference]);
-    
+    // =====================================================
+    // 5. CREATE TRANSACTION IF NOT EXISTS
+    // =====================================================
+
+    const { rows: existingTx } = await query(
+      `SELECT * FROM transactions WHERE reference = $1`,
+      [reference]
+    );
+
     if (existingTx.length === 0) {
       await createTransaction(
-        user.id, 
-        null, 
-        'wallet_topup', 
-        amount, 
-        reference, 
-        'paystack'
+        user.id,
+        null,
+        'wallet_topup',
+        amount,
+        reference,
+        'flutterwave'
       );
     }
 
-    // 4. Process the payment (Idempotent)
-    const { isDuplicate, transaction } = await processCompletedPayment(
+    // =====================================================
+    // 6. PROCESS PAYMENT (CORE LOGIC)
+    // =====================================================
+
+    const {
+      isDuplicate,
+      transaction
+    } = await processCompletedPayment(
       reference,
       amount,
-      data.id?.toString(),
-      'paystack'
+      transactionId,
+      'flutterwave'
     );
 
-    const logStatus = isDuplicate ? 'duplicate' : 'processed';
+    // =====================================================
+    // 7. LOG WEBHOOK
+    // =====================================================
+
     await logWebhookEvent({
-      source: 'paystack',
+      source: 'flutterwave',
       reference,
-      eventType: event.event,
-      payload: event,
+      eventType: 'charge.completed',
+      payload,
       signatureOk: true,
-      status: logStatus,
-      note: isDuplicate ? 'Duplicate VA payment' : `Credited ₦${amount} to user ${user.id} via VA`
+      status: isDuplicate ? 'duplicate' : 'processed',
+      note: isDuplicate
+        ? 'Duplicate payment'
+        : `Wallet credited ₦${amount}`
     });
+
+    // =====================================================
+    // 8. NOTIFICATION
+    // =====================================================
 
     if (!isDuplicate) {
       await createNotification(
         user.id,
         'PAYMENT',
-        'Wallet Funded via Transfer',
-        `Your wallet has been credited with ₦${amount.toLocaleString()} via bank transfer.`
+        'Wallet Funded',
+        `Your wallet has been credited with ₦${amount}`
       );
-      console.log(`[VA Webhook] Successfully credited user ${user.id} with ₦${amount}`);
+
+      console.log(
+        `[Flutterwave Webhook] Wallet credited for user ${user.id}`
+      );
     }
 
+    // =====================================================
+    // 9. RESPONSE
+    // =====================================================
+
     return res.status(200).send('Webhook processed');
+
   } catch (error) {
-    console.error('[VA Webhook] Error:', error.message);
+    console.error(
+      '[Flutterwave Webhook ERROR]',
+      error
+    );
+
     await logWebhookEvent({
-      source: 'paystack',
-      reference: event?.data?.reference,
-      eventType: event?.event,
-      payload: event,
-      signatureOk: true,
+      source: 'flutterwave',
+      reference: null,
+      eventType: 'error',
+      payload: req.body,
+      signatureOk: false,
       status: 'error',
-      note: `VA processing error: ${error.message}`
+      note: error.message
     });
-    return res.status(500).send('Internal Error');
+
+    return res.status(500).send('Internal Server Error');
   }
 };
