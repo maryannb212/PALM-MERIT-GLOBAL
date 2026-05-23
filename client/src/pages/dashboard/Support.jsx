@@ -1,29 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createTicket, getMyTickets } from '../../services/api';
+import { createTicket, getMyTickets, getMyPlans } from '../../services/api';
 
 import './Dashboard.css';
 
 const Support = () => {
   const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [formData, setFormData] = useState({ title: '', description: '', priority: 'medium' });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const fetchTickets = async () => {
+    const fetchData = async () => {
       try {
-        const { data } = await getMyTickets();
-        setTickets(data);
+        const [ticketsRes, plansRes] = await Promise.all([
+          getMyTickets(),
+          getMyPlans().catch(() => ({ data: [] }))
+        ]);
+        setTickets(ticketsRes.data);
+        setPlans(plansRes.data || []);
       } catch (err) {
-        console.error('Error fetching tickets:', err);
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchTickets();
+    fetchData();
   }, []);
 
   const handleCreateTicket = async (e) => {
@@ -54,7 +59,7 @@ const Support = () => {
           <p>For urgent assistance, you can also reach us via:</p>
           <ul style={{ listStyle: 'none', marginTop: '10px' }}>
             <li>📧 <strong>Email:</strong> info@palmmeritglobal.com</li>
-            <li>💬 <strong>WhatsApp:</strong> +234 123 456 7890</li>
+            {plans.length > 0 && <li>💬 <strong>WhatsApp:</strong> +234 123 456 7890</li>}
           </ul>
         </div>
 

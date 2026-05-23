@@ -431,6 +431,7 @@ export const getUserProfile = async (req, res) => {
         u.profile_image, u.created_at,
         u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name, u.virtual_provider,
         u.referral_code, u.referral_unlock_date,
+        u.tshirt_paid, u.tshirt_payment_date,
         b.account_name, b.account_number, b.bank_name, b.bank_code,
         k.dob, k.middle_name, k.address, k.gender, k.bvn, k.id_type, k.id_number
       FROM users u
@@ -488,6 +489,8 @@ export const getUserProfile = async (req, res) => {
       virtual_provider: user.virtual_provider,
       referralCode: user.referral_code,
       referralUnlockDate: user.referral_unlock_date,
+      tshirt_paid: user.tshirt_paid || false,
+      tshirt_payment_date: user.tshirt_payment_date || null,
       totalMembers: user.role === 'admin' ? totalMembers : null,
       bankDetails: user.account_number ? {
         accountName: user.account_name,

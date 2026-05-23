@@ -22,7 +22,8 @@ const RegisterPage = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
-  const [verificationId, setVerificationId] = useState('');
+  const [verificationId, setVerificationId] = useState(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const setupRecaptcha = () => {
     // Always clear and recreate to avoid stale verifier state (-39 error fix)
@@ -87,8 +88,21 @@ const RegisterPage = () => {
     setError('');
   };
 
+  const startResendCooldown = () => {
+    setResendCooldown(60);
+    const timer = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const sendOtp = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match!");
       return;
@@ -100,6 +114,8 @@ const RegisterPage = () => {
 
     setIsLoading(true);
     setError('');
+    // Clear any previous OTP input when sending a new code
+    setOtp('');
 
     try {
       setupRecaptcha();
@@ -115,6 +131,7 @@ const RegisterPage = () => {
       const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
       setVerificationId(confirmationResult);
       setStep(4);
+      startResendCooldown();
     } catch (err) {
       console.error('Failed to send OTP:', err);
       // Clean up recaptcha to allow retries
@@ -122,16 +139,35 @@ const RegisterPage = () => {
         try { window.recaptchaVerifier.clear(); } catch (_) {}
         window.recaptchaVerifier = null;
       }
-      setError(err.message || 'Failed to send verification code. Please try again.');
+      if (err.code === 'auth/too-many-requests') {
+        setError('Too many attempts. Please wait a few minutes and try again.');
+      } else if (err.code === 'auth/invalid-phone-number') {
+        setError('Invalid phone number. Please enter a valid Nigerian phone number.');
+      } else {
+        setError(err.message || 'Failed to send verification code. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError('');
+    setOtp('');
+    await sendOtp();
+  };
+
   const verifyOtpAndRegister = async (e) => {
     e.preventDefault();
-    if (!otp || otp.length < 6) {
+    const trimmedOtp = otp.trim();
+    if (!trimmedOtp || trimmedOtp.length < 6) {
       setError('Please enter the 6-digit OTP');
+      return;
+    }
+
+    if (!verificationId) {
+      setError('Verification session expired. Please go back and request a new code.');
       return;
     }
 
@@ -139,7 +175,7 @@ const RegisterPage = () => {
     setError('');
 
     try {
-      const result = await verificationId.confirm(otp);
+      const result = await verificationId.confirm(trimmedOtp);
       const firebaseToken = await result.user.getIdToken();
       await register({
         firstName: formData.firstName,
@@ -160,8 +196,18 @@ const RegisterPage = () => {
       navigate('/dashboard');
     } catch (err) {
       console.error('Registration error:', err);
-      const message = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
-      setError(message);
+      if (err.code === 'auth/invalid-verification-code') {
+        setError('Invalid verification code. Please double-check the code and try again, or resend a new one.');
+      } else if (err.code === 'auth/code-expired') {
+        setError('Verification code has expired. Please resend a new code.');
+        setVerificationId(null);
+      } else if (err.code === 'auth/session-expired') {
+        setError('Verification session expired. Please resend a new code.');
+        setVerificationId(null);
+      } else {
+        const message = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -322,17 +368,37 @@ const RegisterPage = () => {
                   <label>Verification Code</label>
                   <input 
                     type="text" 
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={otp} 
-                    onChange={(e) => { setOtp(e.target.value); setError(''); }} 
+                    onChange={(e) => { 
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      setOtp(val); 
+                      setError(''); 
+                    }} 
                     placeholder="Enter 6-digit code" 
                     required 
                     maxLength="6"
                     autoComplete="one-time-code"
                   />
                 </div>
+
+                <div style={{ textAlign: 'center', margin: '10px 0' }}>
+                  <button 
+                    type="button" 
+                    onClick={handleResendOtp} 
+                    disabled={resendCooldown > 0 || isLoading}
+                    style={{ 
+                      background: 'none', border: 'none', color: resendCooldown > 0 ? '#999' : 'var(--color-primary)', 
+                      cursor: resendCooldown > 0 ? 'default' : 'pointer', textDecoration: 'underline', fontSize: '0.9rem' 
+                    }}
+                  >
+                    {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend verification code'}
+                  </button>
+                </div>
                 
                 <div className="form-actions mt-4">
-                  <Button type="button" variant="outline" onClick={() => setStep(3)}>Back</Button>
+                  <Button type="button" variant="outline" onClick={() => { setStep(3); setOtp(''); setError(''); setVerificationId(null); }}>Back</Button>
                   <Button type="submit" variant="accent" disabled={isLoading}>
                     {isLoading ? 'Verifying...' : 'Complete Registration'}
                   </Button>
