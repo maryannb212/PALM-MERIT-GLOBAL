@@ -1,3 +1,40 @@
+import { query, getClient } from '../config/db.js';
+
+/**
+ * Create a new PENDING transaction record.
+ * Called at payment initialisation time — before the user visits Paystack.
+ *
+ * @param {string} userId
+ * @param {string|null} planId      - savings_plans.id (null for plain wallet top-ups)
+ * @param {string} type             - 'deposit' | 'withdrawal' | 'membership' | 'penalty'
+ * @param {number} amount
+ * @param {string} reference        - Unique gateway reference
+ * @returns {Promise<object>}
+ */
+export const createTransaction = async (userId, planId, type, amount, reference, paymentProvider = null) => {
+  const text = `
+    INSERT INTO transactions (user_id, plan_id, type, amount, reference, payment_provider, status)
+    VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+    ON CONFLICT (reference) DO NOTHING
+    RETURNING *;
+  `;
+  const { rows } = await query(text, [userId, planId, type, amount, reference, paymentProvider]);
+
+  // If a row already existed for this reference return the existing one
+  if (!rows[0]) {
+    const existing = await query(
+      'SELECT * FROM transactions WHERE reference = $1',
+      [reference]
+    );
+    return existing.rows[0];
+  }
+  return rows[0];
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IDEMPOTENT PAYMENT PROCESSOR
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const processCompletedPayment = async (
   reference,
   verifiedAmount = null,
@@ -357,4 +394,76 @@ export const processCompletedPayment = async (
 
     client.release();
   }
+};
+
+/**
+ * Create a ledger entry in wallet_transactions
+ */
+export const createWalletLedgerEntry = async (client, userId, type, amount, reference, description) => {
+  const sql = `
+    INSERT INTO wallet_transactions (user_id, type, amount, reference, description)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING *;
+  `;
+  const { rows } = await client.query(sql, [userId, type, amount, reference, description]);
+  return rows[0];
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEGACY HELPER (kept for non-payment status updates, e.g. setting 'failed')
+// DO NOT use this to mark transactions 'completed' — use processCompletedPayment.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Update a transaction's status (for non-payment flows, e.g. marking failed).
+ * Does NOT trigger any wallet side-effects.
+ *
+ * @param {string} reference
+ * @param {'failed'|'pending'} status
+ * @returns {Promise<object|null>}
+ */
+export const updateTransactionStatus = async (reference, status) => {
+  if (status === 'completed') {
+    throw new Error(
+      'updateTransactionStatus must not be used to mark transactions completed. ' +
+      'Use processCompletedPayment() instead.'
+    );
+  }
+  const { rows } = await query(
+    `UPDATE transactions SET status = $1 WHERE reference = $2 RETURNING *`,
+    [status, reference]
+  );
+  return rows[0] || null;
+};
+
+/**
+ * Get all transactions for a user, newest first.
+ *
+ * @param {string} userId
+ * @returns {Promise<object[]>}
+ */
+export const getUserTransactions = async (userId) => {
+  const sql = `
+    SELECT t.*, p.plan_name
+    FROM transactions t
+    LEFT JOIN savings_plans p ON t.plan_id = p.id
+    WHERE t.user_id = $1
+    ORDER BY t.created_at DESC;
+  `;
+  const { rows } = await query(sql, [userId]);
+  return rows;
+};
+
+/**
+ * Look up a single transaction by reference.
+ *
+ * @param {string} reference
+ * @returns {Promise<object|null>}
+ */
+export const getTransactionByReference = async (reference) => {
+  const { rows } = await query(
+    'SELECT * FROM transactions WHERE reference = $1',
+    [reference]
+  );
+  return rows[0] || null;
 };
