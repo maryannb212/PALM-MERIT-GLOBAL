@@ -47,8 +47,7 @@ const Footer = () => {
           <h4>Contact Us</h4>
           <ul className="footer-contact">
             <li><strong>Email:</strong> info@palmmeritglobal.com</li>
-            <li><strong>WhatsApp:</strong> +2347026409761 </li>
-             <li><strong>Phone:</strong>+2347026409761 </li>
+             <li><strong>Phone:</strong>+2347012597990</li>
             <li><strong>Address:</strong> Ijegun-Ikotu Road, Old Garage Bus Stop, Beside Libra Park, Ikotun, Lagos State.</li>
           </ul>
         </div>
