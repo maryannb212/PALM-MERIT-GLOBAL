@@ -3,6 +3,9 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import './Auth.css';
+// Import Firebase auth methods to sign up silently behind the scenes
+import { auth } from '../../config/firebaseConfig';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 const RegisterPage = () => {
   const [step, setStep] = useState(1);
@@ -68,17 +71,30 @@ const RegisterPage = () => {
       return;
     }
 
+    // Since the backend requires an email, ensure one is provided if fallback is needed
+    const registrationEmail = formData.email || `${formData.phone}@palmmerit.com`;
+
     setIsLoading(true);
     setError('');
 
     try {
-      // Direct registration call with user data
+      // 1. Create user in Firebase silently using Email/Password to fetch the required token
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        registrationEmail, 
+        formData.password
+      );
+      
+      // 2. Extract the fresh Firebase ID Token your backend is looking for
+      const firebaseToken = await userCredential.user.getIdToken();
+
+      // 3. Complete context registration by passing the token directly
       await register({
         firstName: formData.firstName,
         lastName: formData.surname,
         middleName: formData.middleName,
         dob: formData.dob,
-        email: formData.email,
+        email: registrationEmail,
         password: formData.password,
         phone: formData.phone,
         address: formData.address,
@@ -86,13 +102,20 @@ const RegisterPage = () => {
         nokName: formData.nokName,
         nokRelationship: formData.nokRelationship,
         nokPhone: formData.nokPhone,
-        referredByCode: formData.referredByCode
+        referredByCode: formData.referredByCode,
+        firebaseToken // Pass token here to satisfy backend validation
       });
       
       navigate('/dashboard');
     } catch (err) {
       console.error(err);
-      const message = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
+      // Friendly cleanup error messages for common Firebase snags
+      let message = err.message || 'Registration failed. Please try again.';
+      if (err.code === 'auth/email-already-in-use') {
+        message = 'This email or phone number is already registered.';
+      } else if (err.response?.data?.message) {
+        message = err.response.data.message;
+      }
       setError(message);
     } finally {
       setIsLoading(false);
@@ -224,10 +247,11 @@ const RegisterPage = () => {
               <div className="form-section fade-in">
                 <h3>Account Credentials</h3>
                 <div className="form-group full-width">
-                  <label>Email Address (Optional)</label>
+                  <label>Email Address</label>
                   <input 
                     type="email" name="email" value={formData.email} onChange={handleInputChange} 
                     placeholder="name@example.com"
+                    required
                     autoComplete="off"
                   />
                 </div>
