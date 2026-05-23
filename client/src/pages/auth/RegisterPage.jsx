@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
+import { auth } from '../../config/firebaseConfig';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import './Auth.css';
 
 const RegisterPage = () => {
@@ -19,6 +21,30 @@ const RegisterPage = () => {
     email: '', password: '', confirmPassword: '', referredByCode: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [verificationId, setVerificationId] = useState('');
+
+  const setupRecaptcha = () => {
+    // Always clear and recreate to avoid stale verifier state (-39 error fix)
+    if (window.recaptchaVerifier) {
+      try { window.recaptchaVerifier.clear(); } catch (_) {}
+      window.recaptchaVerifier = null;
+    }
+
+    try {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: (response) => {
+          // reCAPTCHA solved
+        },
+        'expired-callback': () => {
+          setError('reCAPTCHA expired. Please try again.');
+        }
+      });
+    } catch (err) {
+      console.error("Recaptcha init error:", err);
+    }
+  };
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -61,7 +87,7 @@ const RegisterPage = () => {
     setError('');
   };
 
-  const handleRegister = async (e) => {
+  const sendOtp = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match!");
@@ -76,6 +102,45 @@ const RegisterPage = () => {
     setError('');
 
     try {
+      setupRecaptcha();
+      const appVerifier = window.recaptchaVerifier;
+      
+      let phoneNumber = formData.phone.trim();
+      if (phoneNumber.startsWith('0')) {
+        phoneNumber = '+234' + phoneNumber.substring(1);
+      } else if (!phoneNumber.startsWith('+')) {
+        phoneNumber = '+234' + phoneNumber;
+      }
+
+      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      setVerificationId(confirmationResult);
+      setStep(4);
+    } catch (err) {
+      console.error('Failed to send OTP:', err);
+      // Clean up recaptcha to allow retries
+      if (window.recaptchaVerifier) {
+        try { window.recaptchaVerifier.clear(); } catch (_) {}
+        window.recaptchaVerifier = null;
+      }
+      setError(err.message || 'Failed to send verification code. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyOtpAndRegister = async (e) => {
+    e.preventDefault();
+    if (!otp || otp.length < 6) {
+      setError('Please enter the 6-digit OTP');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const result = await verificationId.confirm(otp);
+      const firebaseToken = await result.user.getIdToken();
       await register({
         firstName: formData.firstName,
         lastName: formData.surname,
@@ -90,6 +155,7 @@ const RegisterPage = () => {
         nokRelationship: formData.nokRelationship,
         nokPhone: formData.nokPhone,
         referredByCode: formData.referredByCode,
+        firebaseToken,
       });
       navigate('/dashboard');
     } catch (err) {
@@ -117,6 +183,8 @@ const RegisterPage = () => {
             <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>2</div>
             <div className={`progress-line ${step >= 3 ? 'active' : ''}`}></div>
             <div className={`progress-step ${step >= 3 ? 'active' : ''}`}>3</div>
+            <div className={`progress-line ${step >= 4 ? 'active' : ''}`}></div>
+            <div className={`progress-step ${step >= 4 ? 'active' : ''}`}>4</div>
           </div>
 
           {error && (
@@ -125,7 +193,8 @@ const RegisterPage = () => {
             </div>
           )}
 
-          <form onSubmit={step === 3 ? handleRegister : (e) => { e.preventDefault(); nextStep(); }} className="auth-form">
+          <form onSubmit={step === 4 ? verifyOtpAndRegister : step === 3 ? sendOtp : (e) => { e.preventDefault(); nextStep(); }} className="auth-form">
+            <div id="recaptcha-container"></div>
 
             {/* ─── Step 1: Personal Info ─── */}
             {step === 1 && (
@@ -238,7 +307,34 @@ const RegisterPage = () => {
                 <div className="form-actions mt-4">
                   <Button type="button" variant="outline" onClick={prevStep}>Back</Button>
                   <Button type="submit" variant="accent" disabled={isLoading}>
-                    {isLoading ? 'Creating Account...' : 'Complete Registration'}
+                    {isLoading ? 'Sending Code...' : 'Next: Verify Phone'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* ─── Step 4: Verify Phone ─── */}
+            {step === 4 && (
+              <div className="form-section fade-in">
+                <h3>Verify Phone Number</h3>
+                <p>We've sent a 6-digit verification code to <strong>{formData.phone}</strong>.</p>
+                <div className="form-group full-width mt-3">
+                  <label>Verification Code</label>
+                  <input 
+                    type="text" 
+                    value={otp} 
+                    onChange={(e) => { setOtp(e.target.value); setError(''); }} 
+                    placeholder="Enter 6-digit code" 
+                    required 
+                    maxLength="6"
+                    autoComplete="one-time-code"
+                  />
+                </div>
+                
+                <div className="form-actions mt-4">
+                  <Button type="button" variant="outline" onClick={() => setStep(3)}>Back</Button>
+                  <Button type="submit" variant="accent" disabled={isLoading}>
+                    {isLoading ? 'Verifying...' : 'Complete Registration'}
                   </Button>
                 </div>
               </div>

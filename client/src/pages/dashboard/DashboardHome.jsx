@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead, generateVirtualAccount } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import MembershipPaywall from '../../components/MembershipPaywall';
-import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes, FaWhatsapp } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -155,6 +155,25 @@ const DashboardHome = () => {
             <p>Empowering your financial future — {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
           </div>
 
+        </div>
+
+        {/* ─── Community Banner ─── */}
+        <div className="dashboard-section community-banner" style={{ background: 'rgba(37, 211, 102, 0.1)', border: '1px solid #25D366', borderRadius: '12px', padding: '15px 20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+          <div>
+            <h3 style={{ margin: '0 0 5px 0', display: 'flex', alignItems: 'center', gap: '8px', color: '#128c7e', fontSize: '1.1rem' }}>
+              <FaWhatsapp size={20} /> Join the Official Palm Merit Community
+            </h3>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#4b5563' }}>Stay updated, connect with members, and receive real-time support in our WhatsApp group.</p>
+          </div>
+          <a 
+            href="https://chat.whatsapp.com/DLN74m6izwkJOyvcADozKF?mode=gi_t" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="btn"
+            style={{ background: '#25D366', color: 'white', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.9rem', textDecoration: 'none', boxShadow: '0 2px 4px rgba(37, 211, 102, 0.2)' }}
+          >
+            <FaWhatsapp size={16} /> Join Group
+          </a>
         </div>
 
         {/* ─── Virtual Account Card ─── */}

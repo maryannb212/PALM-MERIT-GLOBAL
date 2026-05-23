@@ -57,14 +57,6 @@ const MembershipPaywall = ({ user }) => {
           <h2>Payment Submitted!</h2>
           <p>Thank you, {user?.firstName}. Our team will verify your receipt shortly.</p>
           
-          <div className="whatsapp-join">
-            <h3>Join our Community</h3>
-            <p>Connect with other members and get real-time updates.</p>
-            <a href="https://chat.whatsapp.com/DLN74m6izwkJOyvcADozKF?mode=gi_t" target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp">
-              <FaWhatsapp /> Join General WhatsApp Group
-            </a>
-          </div>
-
           <div className="social-connect">
             <p>Follow us for more updates:</p>
             <div className="social-icons">
@@ -98,34 +90,6 @@ const MembershipPaywall = ({ user }) => {
             <li>✅ Exclusive community support & mentorship</li>
             <li>✅ Weekly impact and growth updates</li>
           </ul>
-
-          {/* Join Community Section (Before Payment) */}
-          <div className="whatsapp-join-prepay" style={{ background: 'rgba(37, 211, 102, 0.08)', border: '1px dashed #25D366', borderRadius: '12px', padding: '18px', marginBottom: '25px', textAlign: 'center' }}>
-            <h3 style={{ color: '#27ae60', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '0 0 6px 0', fontSize: '1.1rem', fontWeight: 'bold' }}>
-              <FaWhatsapp size={22} /> Join Our Community First!
-            </h3>
-            <p style={{ margin: '0 0 14px 0', fontSize: '0.9rem', color: '#4b5563', lineHeight: '1.4' }}>
-              Connect with thousands of fellow members, ask questions, and receive real-time updates in our WhatsApp general group.
-            </p>
-            <a 
-              href="https://chat.whatsapp.com/DLN74m6izwkJOyvcADozKF?mode=gi_t" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="btn btn-whatsapp"
-              style={{ background: '#25D366', color: 'white', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.92rem', textDecoration: 'none', boxShadow: '0 2px 4px rgba(37, 211, 102, 0.2)', transition: 'transform 0.2s' }}
-            >
-              <FaWhatsapp /> Join General WhatsApp Group
-            </a>
-            
-            <div className="social-connect-prepay" style={{ marginTop: '15px', borderTop: '1px solid #e5e7eb', paddingTop: '12px' }}>
-              <p style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: '#6b7280', fontWeight: '500' }}>Follow Palm Merit Global:</p>
-              <div className="social-icons" style={{ display: 'flex', justifyContent: 'center', gap: '20px', fontSize: '1.25rem' }}>
-                <a href="https://facebook.com/palmmerit" target="_blank" rel="noreferrer" style={{ color: '#1877F2' }}><FaFacebook /></a>
-                <a href="https://instagram.com/palmmerit" target="_blank" rel="noreferrer" style={{ color: '#E1306C' }}><FaInstagram /></a>
-                <a href="mailto:support@palmmerit.com" style={{ color: '#e06000' }}><FaEnvelope /></a>
-              </div>
-            </div>
-          </div>
 
           <div className="payment-options">
             <div className="provider-selection" style={{ marginBottom: '20px' }}>

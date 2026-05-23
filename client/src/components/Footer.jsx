@@ -18,7 +18,7 @@ const Footer = () => {
           <div className="social-icons">
             <a href="https://www.facebook.com/share/1B8w2RUd7r/?mibextid=wwXIfr" target="_blank" rel="noreferrer" className="social-icon"><FaFacebook /></a>
             <a href="https://instagram.com/palmmerit" target="_blank" rel="noreferrer" className="social-icon"><FaInstagram /></a>
-            <a href="https://chat.whatsapp.com/DLN74m6izwkJOyvcADozKF?mode=gi_t" target="_blank" rel="noreferrer" className="social-icon"><FaWhatsapp /></a>
+            <a href="https://wa.me/2347026409761" target="_blank" rel="noreferrer" className="social-icon"><FaWhatsapp /></a>
             <a href="mailto:info@palmmeritglobal.com" className="social-icon"><FaEnvelope /></a>
           </div>
         </div>

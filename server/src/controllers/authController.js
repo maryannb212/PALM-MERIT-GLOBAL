@@ -33,11 +33,21 @@ const generateRefreshToken = async (userId) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, referredByCode, middleName, dob, address, nearestBusStop, nokName, nokRelationship, nokPhone } = req.body;
+    const { firstName, lastName, email, password, phone, referredByCode, middleName, dob, address, nearestBusStop, nokName, nokRelationship, nokPhone, firebaseToken } = req.body;
 
-    if (!firstName || !lastName || !phone || !password) {
-      return res.status(400).json({ message: 'Please provide all required fields: first name, last name, phone, and password.' });
+    if (!firstName || !lastName || !phone || !password || !firebaseToken) {
+      return res.status(400).json({ message: 'Please provide all required fields including phone verification.' });
     }
+
+    // Verify Firebase token
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(firebaseToken);
+    } catch (err) {
+      return res.status(400).json({ message: 'Invalid or expired phone verification token.' });
+    }
+
+    const verifiedPhone = decodedToken.phone_number;
 
     // Normalize phone
     let normalizedPhone = phone.trim();
@@ -45,6 +55,10 @@ export const registerUser = async (req, res) => {
       normalizedPhone = '+234' + normalizedPhone.substring(1);
     } else if (!normalizedPhone.startsWith('+')) {
       normalizedPhone = '+234' + normalizedPhone;
+    }
+
+    if (verifiedPhone !== normalizedPhone) {
+      return res.status(400).json({ message: 'Verified phone number does not match provided phone number' });
     }
 
     const normalizedEmail = (email && email.trim() !== '') ? email.trim().toLowerCase() : null;
@@ -139,6 +153,24 @@ export const registerUser = async (req, res) => {
     const user = newUser[0];
 
     if (user) {
+      // Save KYC details
+      try {
+        const kycSql = `
+          INSERT INTO kyc_details (
+            user_id, first_name, last_name, middle_name, phone, email, 
+            address, nearest_bus_stop, dob, 
+            nok_name, nok_relationship, nok_phone
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `;
+        await query(kycSql, [
+          user.id, firstName, lastName, middleName || null, normalizedPhone, emailToSave,
+          address || null, nearestBusStop || null, dob || null,
+          nokName || null, nokRelationship || null, nokPhone || null
+        ]);
+      } catch (kycErr) {
+        console.error('Error saving KYC details during registration:', kycErr);
+      }
+
       // Send Welcome Email (Non-blocking) if email exists
       if (user.email) {
         sendWelcomeEmail(user).catch(err => console.error('Welcome email failed:', err));
