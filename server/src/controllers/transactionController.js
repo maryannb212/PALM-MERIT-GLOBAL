@@ -521,9 +521,11 @@ export const flutterwaveWebhook = async (req, res) => {
     let userId = null;
 
     if (txRef && txRef.startsWith('VA-')) {
-      const parts = txRef.split('-');
-      if (parts.length >= 2) {
-        userId = parts[1];
+      // txRef format: VA-<UUID>-<timestamp>
+      const prefixRemoved = txRef.replace('VA-', '');
+      const lastHyphenIndex = prefixRemoved.lastIndexOf('-');
+      if (lastHyphenIndex !== -1) {
+        userId = prefixRemoved.substring(0, lastHyphenIndex);
       }
     }
 
