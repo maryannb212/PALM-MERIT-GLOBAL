@@ -543,6 +543,31 @@ export const flutterwaveWebhook = async (req, res) => {
       }
     }
 
+    // NEW: Fallback for Virtual Account bank transfers (where email/tx_ref might not match)
+    if (!userId) {
+      const accountNumber = 
+        payload.data?.account?.account_number || 
+        payload.account?.account_number || 
+        payload.data?.account_number ||
+        payload.account_number;
+      
+      if (accountNumber) {
+        const { rows: vaRows } = await query(
+          `
+            SELECT id
+            FROM users
+            WHERE virtual_account_number = $1
+            LIMIT 1
+          `,
+          [accountNumber]
+        );
+        if (vaRows.length > 0) {
+          userId = vaRows[0].id;
+          console.log(`[Flutterwave Webhook] Matched user via virtual account number: ${accountNumber}`);
+        }
+      }
+    }
+
     // =====================================================
     // USER NOT FOUND
     // =====================================================

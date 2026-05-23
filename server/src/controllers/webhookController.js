@@ -158,12 +158,34 @@ export const flutterwaveWebhook = async (req, res) => {
     // 4. FIND USER
     // =====================================================
 
-    const { rows: users } = await query(
-      `SELECT id FROM users WHERE email = $1`,
-      [email]
-    );
+    let user = null;
+    let userId = null;
 
-    const user = users[0];
+    if (email) {
+      const { rows: users } = await query(
+        `SELECT id FROM users WHERE email = $1`,
+        [email]
+      );
+      user = users[0];
+      if (user) userId = user.id;
+    }
+
+    if (!userId) {
+      const accountNumber = 
+        payload.data?.account?.account_number || 
+        payload.account?.account_number || 
+        payload.data?.account_number ||
+        payload.account_number;
+      
+      if (accountNumber) {
+        const { rows: vaRows } = await query(
+          `SELECT id FROM users WHERE virtual_account_number = $1 LIMIT 1`,
+          [accountNumber]
+        );
+        user = vaRows[0];
+        if (user) userId = user.id;
+      }
+    }
 
     if (!user) {
       console.error(
