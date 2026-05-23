@@ -54,7 +54,7 @@ const HomePage = () => {
           </div>
           <div className="impact-grid">
             <div className="impact-card card">
-              <h3>Community Growth</h3>
+              <h3>Cooperative Empowerment</h3>
               <p>Supporting local families through collective initiatives and resource sharing.</p>
             </div>
             <div className="impact-card card">
