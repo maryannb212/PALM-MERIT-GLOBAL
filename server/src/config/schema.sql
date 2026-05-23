@@ -152,7 +152,8 @@ CREATE TABLE transactions (
     provider_reference VARCHAR(255),
     gateway_reference VARCHAR(255), -- Legacy/Alias for provider_reference
     receipt_url VARCHAR(255),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create Wallet Transactions table (Ledger)
