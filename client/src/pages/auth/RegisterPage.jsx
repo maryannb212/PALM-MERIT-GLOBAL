@@ -26,10 +26,13 @@ const RegisterPage = () => {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const setupRecaptcha = () => {
-    // Always clear and recreate to avoid stale verifier state (-39 error fix)
     if (window.recaptchaVerifier) {
-      try { window.recaptchaVerifier.clear(); } catch (_) {}
-      window.recaptchaVerifier = null;
+      return;
+    }
+
+    const container = document.getElementById('recaptcha-container');
+    if (container) {
+      container.innerHTML = '';
     }
 
     try {
@@ -40,6 +43,10 @@ const RegisterPage = () => {
         },
         'expired-callback': () => {
           setError('reCAPTCHA expired. Please try again.');
+          if (window.recaptchaVerifier) {
+            try { window.recaptchaVerifier.clear(); } catch (_) {}
+            window.recaptchaVerifier = null;
+          }
         }
       });
     } catch (err) {
@@ -53,6 +60,14 @@ const RegisterPage = () => {
     if (refCode) {
       setFormData(prev => ({ ...prev, referredByCode: refCode }));
     }
+
+    // Clean up recaptcha verifier when component unmounts to prevent leak/re-render crash
+    return () => {
+      if (window.recaptchaVerifier) {
+        try { window.recaptchaVerifier.clear(); } catch (_) {}
+        window.recaptchaVerifier = null;
+      }
+    };
   }, [location]);
 
   const handleInputChange = (e) => {

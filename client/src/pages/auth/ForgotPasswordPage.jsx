@@ -15,16 +15,36 @@ const ForgotPasswordPage = () => {
 
   const setupRecaptcha = () => {
     if (window.recaptchaVerifier) {
-      try { window.recaptchaVerifier.clear(); } catch (_) {}
-      window.recaptchaVerifier = null;
+      return window.recaptchaVerifier;
     }
+
+    const container = document.getElementById('recaptcha-container');
+    if (container) {
+      container.innerHTML = '';
+    }
+
     window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
       'size': 'invisible',
       'callback': () => {},
-      'expired-callback': () => { window.recaptchaVerifier = null; }
+      'expired-callback': () => {
+        if (window.recaptchaVerifier) {
+          try { window.recaptchaVerifier.clear(); } catch (_) {}
+          window.recaptchaVerifier = null;
+        }
+      }
     });
     return window.recaptchaVerifier;
   };
+
+  React.useEffect(() => {
+    // Clean up recaptcha verifier when component unmounts to prevent leak/re-render crash
+    return () => {
+      if (window.recaptchaVerifier) {
+        try { window.recaptchaVerifier.clear(); } catch (_) {}
+        window.recaptchaVerifier = null;
+      }
+    };
+  }, []);
 
   const startResendCooldown = () => {
     setResendCooldown(60);
