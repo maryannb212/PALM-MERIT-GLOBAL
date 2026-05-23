@@ -143,6 +143,8 @@ const RegisterPage = () => {
         setError('Too many attempts. Please wait a few minutes and try again.');
       } else if (err.code === 'auth/invalid-phone-number') {
         setError('Invalid phone number. Please enter a valid Nigerian phone number.');
+      } else if (err.code?.includes('-39') || err.message?.includes('-39') || err.message?.includes('39')) {
+        setError('Firebase has flagged this sign-in attempt (Anti-Abuse/Rate Limit). For local development and testing, please register a Test Phone Number in your Firebase Console to bypass carrier limits.');
       } else {
         setError(err.message || 'Failed to send verification code. Please try again.');
       }

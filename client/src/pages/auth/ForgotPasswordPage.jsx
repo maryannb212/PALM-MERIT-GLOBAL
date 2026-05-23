@@ -66,11 +66,16 @@ const ForgotPasswordPage = () => {
         try { window.recaptchaVerifier.clear(); } catch (_) {}
         window.recaptchaVerifier = null;
       }
-      const text = err.code === 'auth/too-many-requests'
-        ? 'Too many attempts. Please wait a few minutes and try again.'
-        : err.code === 'auth/invalid-phone-number'
-        ? 'Invalid phone number. Please use a valid Nigerian number.'
-        : 'Failed to send OTP. Please try again.';
+      let text = 'Failed to send OTP. Please try again.';
+      if (err.code === 'auth/too-many-requests') {
+        text = 'Too many attempts. Please wait a few minutes and try again.';
+      } else if (err.code === 'auth/invalid-phone-number') {
+        text = 'Invalid phone number. Please use a valid Nigerian number.';
+      } else if (err.code?.includes('-39') || err.message?.includes('-39') || err.message?.includes('39')) {
+        text = 'Firebase blocked this request under its Anti-Abuse and SMS rate limits. For local development or testing, use a registered Firebase test phone number.';
+      } else if (err.message) {
+        text = err.message;
+      }
       setMessage({ type: 'error', text });
     } finally {
       setLoading(false);
