@@ -6,7 +6,7 @@ import DepositModal from '../../components/DepositModal';
 import './Dashboard.css';
 
 const Transactions = () => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -15,6 +15,9 @@ const Transactions = () => {
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
+        if (refreshProfile) {
+          await refreshProfile();
+        }
         const response = await getMyTransactions();
         setTransactions(response.data || []);
       } catch (error) {
