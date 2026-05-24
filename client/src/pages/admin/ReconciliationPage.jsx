@@ -5,7 +5,8 @@ import {
   getPendingTransactions,
   getPendingWithdrawals,
   approveWithdrawal,
-  rejectWithdrawal
+  rejectWithdrawal,
+  reconcileFlutterwave
 } from '../../services/api';
 import { FaBalanceScale, FaCheckCircle, FaHistory, FaFilter, FaEye, FaHandHoldingUsd, FaTimesCircle, FaChartLine, FaWallet, FaLock, FaUniversity } from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
@@ -18,6 +19,25 @@ const ReconciliationPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('summary');
   const [processingId, setProcessingId] = useState(null);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState(null);
+
+  const handleReconcile = async () => {
+    if (!window.confirm('Trigger Flutterwave reconciliation? This will fetch last 48 hours of transactions and credit any missed ones.')) return;
+    setReconciling(true);
+    setReconcileResult(null);
+    try {
+      const { data } = await reconcileFlutterwave();
+      setReconcileResult(data.message);
+      alert(data.message || 'Reconciliation completed successfully!');
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      alert(error.response?.data?.message || 'Reconciliation failed.');
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -99,13 +119,45 @@ const ReconciliationPage = () => {
 
   return (
     <div className="admin-page-content">
-      <header className="dashboard-header">
+      <header className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' }}>
         <div className="header-title">
           <div className="header-icon"><FaBalanceScale /></div>
           <div>
             <h2>Financial Reconciliation</h2>
             <p className="text-muted">Monitor platform liquidity and manage pending settlements.</p>
           </div>
+        </div>
+        <div className="header-actions">
+          <button 
+            className="btn-primary" 
+            onClick={handleReconcile} 
+            disabled={reconciling}
+            style={{ 
+              background: '#800020', 
+              color: 'white', 
+              border: 'none', 
+              padding: '12px 20px', 
+              borderRadius: '8px', 
+              fontWeight: '600', 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(128, 0, 32, 0.2)',
+              transition: 'all 0.2s'
+            }}
+          >
+            {reconciling ? (
+              <>
+                <span className="spinner-small" style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', margin: '0 5px 0 0', display: 'inline-block' }}></span>
+                Reconciling...
+              </>
+            ) : (
+              <>
+                <FaHistory /> Reconcile Flutterwave
+              </>
+            )}
+          </button>
         </div>
       </header>
 
@@ -140,6 +192,11 @@ const ReconciliationPage = () => {
           </div>
         ) : activeTab === 'summary' ? (
           <div className="summary-view p-4">
+            {reconcileResult && (
+              <div className="notification-alert alert-success" style={{ margin: '0 0 25px 0', background: '#dcfce7', color: '#15803d', borderLeft: '4px solid #22c55e', padding: '15px 20px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <FaCheckCircle /> <span>{reconcileResult}</span>
+              </div>
+            )}
             <div className="stats-grid">
               <div className="stat-card">
                 <div className="stat-icon-wrapper"><FaWallet /></div>

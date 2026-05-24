@@ -145,6 +145,8 @@ export const rejectWithdrawal = (id, data) => API.put(`/admin/withdrawals/${id}/
 export const broadcastNotification = (data) => API.post('/admin/notifications/broadcast', data);
 export const approveManualPayment = (transactionId, data) => API.post(`/admin/approve-payment/${transactionId}`, data);
 export const getCashflow = () => API.get('/admin/cashflow');
+export const reconcileFlutterwave = () => API.post('/admin/reconcile-flutterwave');
+
 
 // Ambassador endpoints
 export const getAmbassadors = () => API.get('/ambassadors');
