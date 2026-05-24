@@ -33,21 +33,11 @@ const generateRefreshToken = async (userId) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, referredByCode, middleName, dob, address, nearestBusStop, nokName, nokRelationship, nokPhone, firebaseToken } = req.body;
+    const { firstName, lastName, email, password, phone, referredByCode, middleName, dob, address, nearestBusStop, nokName, nokRelationship, nokPhone } = req.body;
 
-    if (!firstName || !lastName || !phone || !password || !firebaseToken) {
-      return res.status(400).json({ message: 'Please provide all required fields including phone verification.' });
+    if (!firstName || !lastName || !phone || !password) {
+      return res.status(400).json({ message: 'Please provide all required fields.' });
     }
-
-    // Verify Firebase token
-    let decodedToken;
-    try {
-      decodedToken = await admin.auth().verifyIdToken(firebaseToken);
-    } catch (err) {
-      return res.status(400).json({ message: 'Invalid or expired phone verification token.' });
-    }
-
-    const verifiedPhone = decodedToken.phone_number;
 
     // Normalize phone
     let normalizedPhone = phone.trim();
@@ -55,10 +45,6 @@ export const registerUser = async (req, res) => {
       normalizedPhone = '+234' + normalizedPhone.substring(1);
     } else if (!normalizedPhone.startsWith('+')) {
       normalizedPhone = '+234' + normalizedPhone;
-    }
-
-    if (verifiedPhone !== normalizedPhone) {
-      return res.status(400).json({ message: 'Verified phone number does not match provided phone number' });
     }
 
     const normalizedEmail = (email && email.trim() !== '') ? email.trim().toLowerCase() : null;
