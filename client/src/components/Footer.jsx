@@ -54,6 +54,9 @@ const Footer = () => {
       </div>
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} Palm Merit Global Resources. All rights reserved.</p>
+        <p style="margin-top: 5px;">
+        Designed by <a href="https://allsmarttechhub.com" style="color: #007bff; text-decoration: none; font-weight: 500;">AllSmart Tech Hub</a>
+    </p>
       </div>
     </footer>
   );
