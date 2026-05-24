@@ -6,7 +6,8 @@ import {
   getPendingWithdrawals,
   approveWithdrawal,
   rejectWithdrawal,
-  reconcileFlutterwave
+  reconcileFlutterwave,
+  getWebhookLogs
 } from '../../services/api';
 import { FaBalanceScale, FaCheckCircle, FaHistory, FaFilter, FaEye, FaHandHoldingUsd, FaTimesCircle, FaChartLine, FaWallet, FaLock, FaUniversity } from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
@@ -21,6 +22,7 @@ const ReconciliationPage = () => {
   const [processingId, setProcessingId] = useState(null);
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState(null);
+  const [webhookLogs, setWebhookLogs] = useState([]);
 
   const handleReconcile = async () => {
     if (!window.confirm('Trigger Flutterwave reconciliation? This will fetch last 48 hours of transactions and credit any missed ones.')) return;
@@ -46,14 +48,16 @@ const ReconciliationPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, pendingRes, withdrawalsRes] = await Promise.all([
+      const [statsRes, pendingRes, withdrawalsRes, logsRes] = await Promise.all([
         getReconciliation(),
         getPendingTransactions(),
-        getPendingWithdrawals()
+        getPendingWithdrawals(),
+        getWebhookLogs()
       ]);
       setStats(statsRes.data);
       setPendingTransactions(pendingRes.data);
       setPendingWithdrawals(withdrawalsRes.data);
+      setWebhookLogs(logsRes.data || []);
     } catch (error) {
       console.error('Error fetching reconciliation data:', error);
     } finally {
@@ -182,6 +186,13 @@ const ReconciliationPage = () => {
           <FaHandHoldingUsd /> Withdrawal Requests
           {pendingWithdrawals.length > 0 && <span className="count-badge danger">{pendingWithdrawals.length}</span>}
         </button>
+        <button
+          className={`admin-tab-btn ${activeTab === 'webhook-logs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('webhook-logs')}
+        >
+          <FaHistory /> Webhook Audit Logs
+          {webhookLogs.length > 0 && <span className="count-badge primary" style={{ background: '#64748b' }}>{webhookLogs.length}</span>}
+        </button>
       </div>
 
       <div className="admin-card table-card">
@@ -307,7 +318,7 @@ const ReconciliationPage = () => {
               </tbody>
             </table>
           </div>
-        ) : (
+        ) : activeTab === 'withdrawals' ? (
           <div className="table-responsive">
             <table className="admin-table">
               <thead>
@@ -351,6 +362,58 @@ const ReconciliationPage = () => {
                             <FaTimesCircle />
                           </button>
                         </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Log ID</th>
+                  <th>Gateway</th>
+                  <th>Reference / Event</th>
+                  <th>Processing Status</th>
+                  <th>Activity Log Notes</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody>
+                {webhookLogs.length === 0 ? (
+                  <tr><td colSpan="6" className="table-empty">No webhook logs recorded yet.</td></tr>
+                ) : (
+                  webhookLogs.map((log) => (
+                    <tr key={log.id} className="table-row-hover">
+                      <td><code>#{log.id}</code></td>
+                      <td>
+                        <span className={`badge-pill ${log.source === 'flutterwave' ? 'pill-burgundy' : 'pill-dark'}`}>
+                          {log.source.toUpperCase()}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: '600', fontSize: '0.85rem' }}>{log.reference || 'N/A'}</span>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{log.event_type}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`badge-status ${
+                          log.status === 'processed' ? 'status-verified' : 
+                          log.status === 'duplicate' ? 'status-pending' : 
+                          'status-unverified'
+                        }`}>
+                          {log.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '0.85rem', color: '#334155', maxWidth: '300px', wordBreak: 'break-all' }}>
+                        {log.note || 'No notes.'}
+                      </td>
+                      <td className="date-cell" style={{ fontSize: '0.8rem' }}>
+                        {new Date(log.created_at).toLocaleString()}
                       </td>
                     </tr>
                   ))
