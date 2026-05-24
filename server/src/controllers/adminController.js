@@ -771,3 +771,32 @@ export const getWebhookLogs = async (req, res) => {
   }
 };
 
+export const getSystemStatus = async (req, res) => {
+  try {
+    const flwSecret = process.env.FLUTTERWAVE_SECRET_KEY || '';
+    const flwBvn = process.env.FLUTTERWAVE_MERCHANT_BVN || '';
+    const paystackSecret = process.env.PAYSTACK_SECRET_KEY || '';
+    const paymentMode = process.env.PAYMENT_MODE || 'live';
+
+    res.json({
+      paymentMode,
+      flutterwave: {
+        hasSecretKey: flwSecret.length > 0,
+        secretKeyLength: flwSecret.length,
+        secretKeyPrefix: flwSecret.substring(0, 7),
+        hasMerchantBvn: flwBvn.length > 0,
+        merchantBvnLength: flwBvn.length,
+      },
+      paystack: {
+        hasSecretKey: paystackSecret.length > 0,
+        secretKeyLength: paystackSecret.length,
+        secretKeyPrefix: paystackSecret.substring(0, 7),
+      }
+    });
+  } catch (error) {
+    console.error('Error in getSystemStatus:', error);
+    res.status(500).json({ message: 'Failed to fetch system status' });
+  }
+};
+
+

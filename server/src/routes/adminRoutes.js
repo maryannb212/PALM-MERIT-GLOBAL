@@ -19,7 +19,8 @@ import {
   getEligibilityQueue,
   approveEligibility,
   reconcileFlutterwave,
-  getWebhookLogs
+  getWebhookLogs,
+  getSystemStatus
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -58,6 +59,7 @@ router.get('/eligibility-queue', getEligibilityQueue);
 router.post('/approve-eligibility', approveEligibility);
 router.post('/reconcile-flutterwave', reconcileFlutterwave);
 router.get('/webhook-logs', getWebhookLogs);
+router.get('/system-status', getSystemStatus);
 
 // Security Locks
 router.get('/security/locks', getPageLocks);
