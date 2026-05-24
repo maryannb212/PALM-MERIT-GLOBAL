@@ -486,20 +486,16 @@ export const flutterwaveWebhook = async (req, res) => {
     console.log('VERIFIED AMOUNT:', verifiedAmount);
 
     // =====================================================
-    // CHECK DUPLICATE TRANSACTION
+    // CHECK IF ALREADY FULLY PROCESSED (idempotency)
     // =====================================================
 
     const { rows: existingTx } = await query(
-      `
-        SELECT *
-        FROM transactions
-        WHERE reference = $1
-      `,
+      `SELECT * FROM transactions WHERE reference = $1`,
       [reference]
     );
 
-    if (existingTx.length > 0) {
-      console.log('[Flutterwave Webhook] Duplicate transaction');
+    if (existingTx.length > 0 && existingTx[0].status === 'completed') {
+      console.log('[Flutterwave Webhook] Already completed — skipping');
 
       await logWebhookEvent({
         source: 'flutterwave',
@@ -508,10 +504,10 @@ export const flutterwaveWebhook = async (req, res) => {
         payload,
         signatureOk: true,
         status: 'duplicate',
-        note: 'Duplicate transaction ignored'
+        note: 'Transaction already completed'
       });
 
-      return res.status(200).send('Duplicate transaction');
+      return res.status(200).send('Already processed');
     }
 
     // =====================================================
@@ -520,8 +516,8 @@ export const flutterwaveWebhook = async (req, res) => {
 
     let userId = null;
 
+    // Try tx_ref format VA-<UUID>-<timestamp>
     if (txRef && txRef.startsWith('VA-')) {
-      // txRef format: VA-<UUID>-<timestamp>
       const prefixRemoved = txRef.replace('VA-', '');
       const lastHyphenIndex = prefixRemoved.lastIndexOf('-');
       if (lastHyphenIndex !== -1) {
@@ -529,23 +525,24 @@ export const flutterwaveWebhook = async (req, res) => {
       }
     }
 
+    // Try tx_ref format PM-<...> (app-initiated payments — user is on the existing transaction)
+    if (!userId && existingTx.length > 0 && existingTx[0].user_id) {
+      userId = existingTx[0].user_id;
+      console.log(`[Flutterwave Webhook] Matched user from existing pending transaction: ${userId}`);
+    }
+
+    // Try email lookup
     if (!userId && email) {
       const { rows: userRows } = await query(
-        `
-          SELECT id
-          FROM users
-          WHERE email = $1
-          LIMIT 1
-        `,
+        `SELECT id FROM users WHERE email = $1 LIMIT 1`,
         [email]
       );
-
       if (userRows.length > 0) {
         userId = userRows[0].id;
       }
     }
 
-    // NEW: Fallback for Virtual Account bank transfers (where email/tx_ref might not match)
+    // Fallback: Virtual Account bank transfers
     if (!userId) {
       const accountNumber = 
         payload.data?.account?.account_number || 
@@ -555,12 +552,7 @@ export const flutterwaveWebhook = async (req, res) => {
       
       if (accountNumber) {
         const { rows: vaRows } = await query(
-          `
-            SELECT id
-            FROM users
-            WHERE virtual_account_number = $1
-            LIMIT 1
-          `,
+          `SELECT id FROM users WHERE virtual_account_number = $1 LIMIT 1`,
           [accountNumber]
         );
         if (vaRows.length > 0) {
@@ -575,7 +567,7 @@ export const flutterwaveWebhook = async (req, res) => {
     // =====================================================
 
     if (!userId) {
-      console.error('[Flutterwave Webhook] User not found');
+      console.error('[Flutterwave Webhook] User not found for ref:', reference, 'email:', email);
 
       await logWebhookEvent({
         source: 'flutterwave',
@@ -584,7 +576,7 @@ export const flutterwaveWebhook = async (req, res) => {
         payload,
         signatureOk: true,
         status: 'error',
-        note: 'User not found'
+        note: `User not found (email: ${email})`
       });
 
       return res.status(200).send('User not found');
@@ -593,25 +585,26 @@ export const flutterwaveWebhook = async (req, res) => {
     console.log('USER ID:', userId);
 
     // =====================================================
-    // CREATE TRANSACTION
+    // CREATE TRANSACTION IF NOT EXISTS
     // =====================================================
 
-    await createTransaction(
-      userId,
-      null,
-      'wallet_topup',
-      verifiedAmount,
-      reference,
-      'flutterwave'
-    );
-
-    console.log('[Flutterwave Webhook] Transaction created');
+    if (existingTx.length === 0) {
+      await createTransaction(
+        userId,
+        null,
+        'wallet_topup',
+        verifiedAmount,
+        reference,
+        'flutterwave'
+      );
+      console.log('[Flutterwave Webhook] New transaction created');
+    }
 
     // =====================================================
-    // CREDIT USER WALLET
+    // CREDIT USER WALLET (idempotent — processCompletedPayment handles duplicates)
     // =====================================================
 
-    await processCompletedPayment(
+    const { isDuplicate } = await processCompletedPayment(
       reference,
       verifiedAmount,
       gatewayRef,
