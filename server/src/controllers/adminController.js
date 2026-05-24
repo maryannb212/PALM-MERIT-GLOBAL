@@ -799,4 +799,28 @@ export const getSystemStatus = async (req, res) => {
   }
 };
 
+export const getTransactionDebug = async (req, res) => {
+  try {
+    const { reference } = req.params;
+    
+    // Find transaction
+    const { rows: txRows } = await query(
+      `SELECT t.*, u.email, u.first_name, u.last_name, u.virtual_account_number 
+       FROM transactions t 
+       LEFT JOIN users u ON t.user_id = u.id 
+       WHERE t.reference = $1 OR t.gateway_reference = $1 LIMIT 1`,
+      [reference]
+    );
+
+    if (txRows.length === 0) {
+      return res.status(404).json({ message: 'Transaction not found in database' });
+    }
+
+    res.json(txRows[0]);
+  } catch (error) {
+    console.error('Error debugging transaction:', error);
+    res.status(500).json({ message: 'Failed to debug transaction' });
+  }
+};
+
 

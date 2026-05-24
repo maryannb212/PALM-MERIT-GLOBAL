@@ -36,7 +36,7 @@ const Transactions = () => {
   const walletBalance = parseFloat(user?.walletBalance || user?.wallet_balance || 0);
 
   const totalCredit = transactions
-    .filter(t => t.type === 'deposit' && t.status === 'completed')
+    .filter(t => (t.type === 'deposit' || t.type === 'wallet_topup') && t.status === 'completed')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
   const totalDebit = transactions
@@ -125,7 +125,7 @@ const Transactions = () => {
                       <td>{new Date(tx.created_at).toLocaleDateString()}</td>
                       <td>{formatCurrency(tx.amount)}</td>
                       <td>
-                        <span className={`badge ${tx.type === 'deposit' ? 'badge-success' : 'badge-warning'}`} style={{ color: tx.type === 'deposit' ? '#155724' : '#856404', background: tx.type === 'deposit' ? '#d4edda' : '#fff3cd' }}>
+                        <span className={`badge ${tx.type === 'deposit' || tx.type === 'wallet_topup' ? 'badge-success' : 'badge-warning'}`} style={{ color: (tx.type === 'deposit' || tx.type === 'wallet_topup') ? '#155724' : '#856404', background: (tx.type === 'deposit' || tx.type === 'wallet_topup') ? '#d4edda' : '#fff3cd' }}>
                           {tx.type}
                         </span>
                       </td>
