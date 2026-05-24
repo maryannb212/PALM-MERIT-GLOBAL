@@ -114,10 +114,6 @@ const MembershipPaywall = ({ user }) => {
               <div className="manual-payment" style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: '#1e293b' }}>Manual Bank Transfer</h3>
                 <div style={{ textAlign: 'left', marginBottom: '20px', color: '#475569', fontSize: '0.95rem', background: '#fff', padding: '15px', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
-                  <strong style={{color: '#0f172a'}}>Bank Name:</strong> Sterling Bank<br />
-                  <strong style={{color: '#0f172a'}}>Account Name:</strong> palm merit global limited<br />
-                  <strong style={{color: '#0f172a'}}>Account Number:</strong> 0145238769<br />
-                  <strong style={{color: '#0f172a'}}>Account Type:</strong> Business
                 </div>
                 
                 <div className="upload-section">
