@@ -1,300 +1,602 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import Button from '../../components/Button';
-import './Auth.css';
+import bcrypt from 'bcryptjs';
+import jsonwebtoken from 'jsonwebtoken';
+import crypto from 'crypto';
+import { createUser, findUserByEmail, findUserByPhone, findUserById, findUserByEmailOrPhone } from '../models/userModel.js';
+import { query } from '../config/db.js';
+import dotenv from 'dotenv';
+import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
+import { sendWelcomeEmail, sendPasswordResetEmail } from '../utils/emailService.js';
+import { createVirtualAccount } from '../services/virtualAccountService.js';
+import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
+import admin from '../config/firebaseAdmin.js';
 
-const RegisterPage = () => {
-  const [step, setStep] = useState(1);
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+dotenv.config();
 
-  const [formData, setFormData] = useState({
-    surname: '', middleName: '', firstName: '', dob: '', phone: '',
-    address: '', nearestBusStop: '',
-    nokName: '', nokRelationship: '', nokPhone: '', nokAddress: '', nokDob: '',
-    email: '', password: '', confirmPassword: '', referredByCode: ''
+const generateAccessToken = (id) => {
+  return jsonwebtoken.sign({ id }, process.env.JWT_SECRET || 'secret', {
+    expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '2h',
   });
-  const [showPassword, setShowPassword] = useState(false);
+};
 
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const refCode = searchParams.get('ref');
-    if (refCode) {
-      setFormData(prev => ({ ...prev, referredByCode: refCode }));
+const generateRefreshToken = async (userId) => {
+  const token = crypto.randomBytes(40).toString('hex');
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+  await query(
+    'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+    [userId, token, expiresAt]
+  );
+
+  return token;
+};
+
+export const registerUser = async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, phone, referredByCode, middleName, dob, address, nearestBusStop, nokName, nokRelationship, nokPhone, firebaseToken } = req.body;
+
+    if (!firstName || !lastName || !phone || !password || !firebaseToken) {
+      return res.status(400).json({ message: 'Please provide all required fields including phone verification.' });
     }
-  }, [location]);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-    setError('');
-  };
+    // Verify Firebase token
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(firebaseToken);
+    } catch (err) {
+      return res.status(400).json({ message: 'Invalid or expired phone verification token.' });
+    }
 
-  const validateStep = () => {
-    if (step === 1) {
-      if (!formData.surname || !formData.firstName || !formData.dob || !formData.phone) {
-        setError("Please fill all required personal details.");
-        return false;
+    const verifiedPhone = decodedToken.phone_number;
+
+    // Normalize phone
+    let normalizedPhone = phone.trim();
+    if (normalizedPhone.startsWith('0')) {
+      normalizedPhone = '+234' + normalizedPhone.substring(1);
+    } else if (!normalizedPhone.startsWith('+')) {
+      normalizedPhone = '+234' + normalizedPhone;
+    }
+
+    if (verifiedPhone !== normalizedPhone) {
+      return res.status(400).json({ message: 'Verified phone number does not match provided phone number' });
+    }
+
+    const normalizedEmail = (email && email.trim() !== '') ? email.trim().toLowerCase() : null;
+
+    // Check storage existence and validate referred code in a single parallel round-trip
+    const validationPromises = [
+      query('SELECT id, phone FROM users WHERE phone = $1', [normalizedPhone])
+    ];
+
+    if (normalizedEmail) {
+      validationPromises.push(query('SELECT id FROM users WHERE email = $1', [normalizedEmail]));
+    } else {
+      validationPromises.push(Promise.resolve({ rows: [] }));
+    }
+
+    if (referredByCode && referredByCode.trim()) {
+      validationPromises.push(query('SELECT id, referral_unlock_date FROM users WHERE referral_code = $1', [referredByCode.trim()]));
+    } else {
+      validationPromises.push(Promise.resolve({ rows: [] }));
+    }
+
+    const [phoneMatchRes, emailMatchRes, referrerRes] = await Promise.all(validationPromises);
+
+    const phoneMatch = phoneMatchRes.rows;
+    if (phoneMatch.length > 0) {
+      return res.status(400).json({ 
+        message: `User with phone number ${normalizedPhone} already exists`
+      });
+    }
+
+    const emailMatch = emailMatchRes.rows;
+    if (normalizedEmail && emailMatch.length > 0) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+
+    // Validate Referred By Code if provided
+    let referredById = null;
+    const referrerRows = referrerRes.rows;
+    if (referredByCode && referredByCode.trim()) {
+      if (referrerRows.length === 0) {
+        return res.status(400).json({ message: 'Invalid referral code' });
       }
-    } else if (step === 2) {
-      if (!formData.address || !formData.nearestBusStop || !formData.nokName || !formData.nokRelationship || !formData.nokPhone) {
-        setError("Please fill all address and next of kin details.");
-        return false;
+
+      const referrer = referrerRows[0];
+      const unlockDate = referrer.referral_unlock_date ? new Date(referrer.referral_unlock_date) : null;
+      if (unlockDate && unlockDate > new Date()) {
+        return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
       }
+      referredById = referrer.id;
     }
-    return true;
-  };
 
-  const nextStep = () => {
-    if (validateStep()) {
-      setStep(step + 1);
-      setError('');
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    const role = 'user'; // Default all registrations to 'user'
+
+    // Generate unique referral code for the new user
+    let isUnique = false;
+    let newReferralCode = '';
+    while (!isUnique) {
+      const f = (firstName || 'P').charAt(0).toUpperCase();
+      const l = (lastName || 'M').charAt(0).toUpperCase();
+      const randomNum = Math.floor(10000 + Math.random() * 90000);
+      newReferralCode = `${f}X${l}-${randomNum}`;
+      const { rows: checkCode } = await query('SELECT id FROM users WHERE referral_code = $1', [newReferralCode]);
+      if (checkCode.length === 0) isUnique = true;
     }
-  };
 
-  const prevStep = () => {
-    setStep(step - 1);
-    setError('');
-  };
+    // Calculate Referral Unlock Date: Exactly 1 month after registration
+    const createdDate = new Date();
+    const unlockDate = new Date(createdDate);
+    unlockDate.setMonth(unlockDate.getMonth() + 1);
 
-  const handleDirectRegister = async (e) => {
-    e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match!");
+    const sql = `
+      INSERT INTO users (first_name, last_name, email, password_hash, phone, role, referral_code, referred_by, referral_unlock_date, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, referral_code, referral_unlock_date, created_at;
+    `;
+    const emailToSave = normalizedEmail;
+    const { rows: newUser } = await query(sql, [
+      firstName,
+      lastName,
+      emailToSave,
+      passwordHash,
+      normalizedPhone,
+      role,
+      newReferralCode,
+      referredById,
+      unlockDate,
+      createdDate
+    ]);
+    const user = newUser[0];
+
+    if (user) {
+      // Save KYC details
+      try {
+        const kycSql = `
+          INSERT INTO kyc_details (
+            user_id, first_name, last_name, middle_name, phone, email, 
+            address, nearest_bus_stop, dob, 
+            nok_name, nok_relationship, nok_phone
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `;
+        await query(kycSql, [
+          user.id, firstName, lastName, middleName || null, normalizedPhone, emailToSave,
+          address || null, nearestBusStop || null, dob || null,
+          nokName || null, nokRelationship || null, nokPhone || null
+        ]);
+      } catch (kycErr) {
+        console.error('Error saving KYC details during registration:', kycErr);
+      }
+
+      // Send Welcome Email (Non-blocking) if email exists
+      if (user.email) {
+        sendWelcomeEmail(user).catch(err => console.error('Welcome email failed:', err));
+      }
+
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = await generateRefreshToken(user.id);
+
+      res.status(201).json({
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        role: user.role,
+        hasPaidMembership: user.has_paid_membership,
+        kycStatus: user.kyc_status,
+        profileImage: user.profile_image,
+        virtual_account_number: user.virtual_account_number,
+        virtual_bank_name: user.virtual_bank_name,
+        virtual_account_name: user.virtual_account_name,
+        referralCode: user.referral_code,
+        referralUnlockDate: user.referral_unlock_date,
+        token: accessToken,
+        refreshToken: refreshToken
+      });
+    } else {
+      res.status(400).json({ message: 'Invalid user data' });
+    }
+  } catch (error) {
+    console.error('Error in registerUser:', error);
+    res.status(500).json({ message: 'Server error during registration' });
+  }
+};
+
+export const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await findUserByEmailOrPhone(email);
+
+    if (user && (await bcrypt.compare(password, user.password_hash))) {
+      // OTP BYPASSED per user request
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = await generateRefreshToken(user.id);
+
+      res.json({
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        role: user.role,
+        hasPaidMembership: user.has_paid_membership,
+        kycStatus: user.kyc_status,
+        walletBalance: user.wallet_balance,
+        available_balance: user.available_balance,
+        profileImage: user.profile_image,
+        virtual_account_number: user.virtual_account_number,
+        virtual_bank_name: user.virtual_bank_name,
+        virtual_account_name: user.virtual_account_name,
+        token: accessToken,
+        refreshToken: refreshToken,
+        requiresOTP: false
+      });
+    } else {
+      res.status(401).json({ message: 'Invalid email or password' });
+    }
+  } catch (error) {
+    console.error('Error in loginUser:', error);
+    res.status(500).json({ message: 'Server error during login' });
+  }
+};
+
+export const verifyLoginOTP = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({ message: 'Phone/Email and OTP code are required' });
+    }
+
+    const user = await findUserByEmailOrPhone(email);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isValid = await checkOTP(user.id, code, 'login');
+    
+    if (!isValid) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    // OTP is valid, update last_login (Non-blocking)
+    query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(err => {
+      console.error('[Auth] Failed to update last_login:', err.message);
+    });
+
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = await generateRefreshToken(user.id);
+
+    res.json({
+      id: user.id,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      role: user.role,
+      hasPaidMembership: user.has_paid_membership,
+      kycStatus: user.kyc_status,
+      walletBalance: user.wallet_balance,
+      available_balance: user.available_balance,
+      profileImage: user.profile_image,
+      virtual_account_number: user.virtual_account_number,
+      virtual_bank_name: user.virtual_bank_name,
+      virtual_account_name: user.virtual_account_name,
+      token: accessToken,
+      refreshToken: refreshToken
+    });
+  } catch (error) {
+    console.error('Error in verifyLoginOTP:', error);
+    res.status(500).json({ message: 'Server error during OTP verification' });
+  }
+};
+
+export const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token is required' });
+    }
+
+    const { rows } = await query(
+      'SELECT * FROM refresh_tokens WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP',
+      [refreshToken]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ message: 'Invalid or expired refresh token' });
+    }
+
+    const userId = rows[0].user_id;
+    const accessToken = generateAccessToken(userId);
+
+    res.json({ token: accessToken });
+  } catch (error) {
+    console.error('Error in refreshToken:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const logoutUser = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
+    }
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Error in logoutUser:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const user = await findUserByPhone(phone);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User with this phone number does not exist' });
+    }
+
+    // Generate and save OTP for password reset
+    const otp = await createAndSaveOTP(user.id, 'reset');
+    
+    // Send OTP via SMS (Non-blocking)
+    sendOTP(user.phone, otp.code).catch(err => {
+      console.error('[Auth Service] Background Password Reset OTP delivery failed:', err.message);
+    });
+
+    res.json({ 
+      message: 'Password reset OTP sent to your phone',
+      mockOtp: process.env.NODE_ENV !== 'production' ? otp.code : undefined 
+    });
+  } catch (error) {
+    console.error('Error in forgotPassword:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    
+    if (!token || !password) {
+      return res.status(400).json({ message: 'Reset token and new password are required' });
+    }
+
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(token);
+    } catch (err) {
+      console.error('Firebase token verification failed:', err.code, err.message);
+      return res.status(400).json({ message: 'Invalid or expired reset token. Please request a new OTP.' });
+    }
+
+    const phone = decodedToken.phone_number;
+    
+    if (!phone) {
+      return res.status(400).json({ message: 'Invalid reset token payload' });
+    }
+
+    const user = await findUserByPhone(phone); // Assuming phone is stored in E.164 format (+234...)
+
+    if (!user) {
+      // It's possible the user stored their phone as 080... instead of +234...
+      // Let's try to convert +23480... to 080... and find again
+      let localPhone = phone;
+      if (phone.startsWith('+234')) {
+        localPhone = '0' + phone.substring(4);
+      }
+      const userAlt = await findUserByPhone(localPhone);
+      
+      if (!userAlt) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Found with local phone
+      await processPasswordReset(userAlt.id, password, res);
       return;
     }
 
-    setIsLoading(true);
-    setError('');
+    await processPasswordReset(user.id, password, res);
 
-    try {
-      // Direct registration call with user data
-      await register({
-        firstName: formData.firstName,
-        lastName: formData.surname,
-        middleName: formData.middleName,
-        dob: formData.dob,
-        email: formData.email,
-        password: formData.password,
-        phone: formData.phone,
-        address: formData.address,
-        nearestBusStop: formData.nearestBusStop,
-        nokName: formData.nokName,
-        nokRelationship: formData.nokRelationship,
-        nokPhone: formData.nokPhone,
-        referredByCode: formData.referredByCode
-      });
-      
-      navigate('/dashboard');
-    } catch (err) {
-      console.error(err);
-      const message = err.response?.data?.message || err.message || 'Registration failed. Please try again.';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div className="auth-page">
-      <div className="container">
-        <div className="auth-card register-card">
-          <div className="auth-header" style={{ textAlign: 'center' }}>
-            <img src="/logo.png" alt="Palm Merit Logo" style={{ width: '100px', marginBottom: '15px' }} />
-            <h2>Create Account</h2>
-            <p>Join the cooperative and start your journey</p>
-          </div>
-
-          <div className="progress-indicator">
-            <div className={`progress-step ${step >= 1 ? 'active' : ''}`}>1</div>
-            <div className={`progress-line ${step >= 2 ? 'active' : ''}`}></div>
-            <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>2</div>
-            <div className={`progress-line ${step >= 3 ? 'active' : ''}`}></div>
-            <div className={`progress-step ${step >= 3 ? 'active' : ''}`}>3</div>
-          </div>
-
-          {error && (
-            <div className="auth-alert danger">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={step === 3 ? handleDirectRegister : (e) => { e.preventDefault(); nextStep(); }} className="auth-form">
-            
-            {step === 1 && (
-              <div className="form-section fade-in">
-                <h3>Personal Information</h3>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Surname</label>
-                    <input 
-                      type="text" name="surname" value={formData.surname} onChange={handleInputChange} 
-                      placeholder="e.g. Adebayo" required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>First Name</label>
-                    <input 
-                      type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} 
-                      placeholder="e.g. John" required 
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Middle Name</label>
-                    <input 
-                      type="text" name="middleName" value={formData.middleName} onChange={handleInputChange} 
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Date of Birth</label>
-                    <input 
-                      type="date" name="dob" value={formData.dob} onChange={handleInputChange} required 
-                    />
-                  </div>
-                  <div className="form-group full-width">
-                    <label>Phone Number</label>
-                    <input 
-                      type="tel" name="phone" value={formData.phone} onChange={handleInputChange} 
-                      placeholder="08012345678" required 
-                      autoComplete="off"
-                    />
-                  </div>
-                </div>
-                <Button type="submit" variant="primary" className="btn-block mt-4">Next: Address Details</Button>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="form-section fade-in">
-                <h3>Address & Next of Kin</h3>
-                <div className="form-group full-width">
-                  <label>Residential Address</label>
-                  <textarea 
-                    name="address" value={formData.address} onChange={handleInputChange} required rows="2"
-                    placeholder="Enter your full street address"
-                  ></textarea>
-                </div>
-                <div className="form-group full-width">
-                  <label>Nearest Bus Stop</label>
-                  <input 
-                    type="text" name="nearestBusStop" value={formData.nearestBusStop} onChange={handleInputChange} required 
-                    placeholder="e.g. Ojota Bus Stop"
-                  />
-                </div>
-                
-                <h4 className="mt-4 mb-2">Next of Kin Details</h4>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Full Name</label>
-                    <input 
-                      type="text" name="nokName" value={formData.nokName} onChange={handleInputChange} required 
-                      placeholder="NOK Full Name"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Relationship</label>
-                    <input 
-                      type="text" name="nokRelationship" value={formData.nokRelationship} onChange={handleInputChange} required 
-                      placeholder="e.g. Brother, Spouse"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Phone Number</label>
-                    <input 
-                      type="tel" name="nokPhone" value={formData.nokPhone} onChange={handleInputChange} required 
-                      placeholder="NOK Phone Number"
-                      autoComplete="off"
-                    />
-                  </div>
-                </div>
-                
-                <div className="form-actions mt-4">
-                  <Button type="button" variant="outline" onClick={prevStep}>Back</Button>
-                  <Button type="submit" variant="primary">Next: Account Security</Button>
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="form-section fade-in">
-                <h3>Account Credentials</h3>
-                <div className="form-group full-width">
-                  <label>Email Address (Optional)</label>
-                  <input 
-                    type="email" name="email" value={formData.email} onChange={handleInputChange} 
-                    placeholder="name@example.com"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="form-group full-width">
-                  <label>Password</label>
-                  <div className="password-input-wrapper">
-                    <input 
-                      type={showPassword ? 'text' : 'password'} 
-                      name="password" value={formData.password} onChange={handleInputChange} required 
-                      placeholder="At least 6 characters"
-                      autoComplete="new-password"
-                    />
-                    <button 
-                      type="button" className="password-toggle" 
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? '👁️' : '👁️‍🗨️'}
-                    </button>
-                  </div>
-                </div>
-                <div className="form-group full-width">
-                  <label>Confirm Password</label>
-                  <input 
-                    type={showPassword ? 'text' : 'password'} 
-                    name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} required 
-                    placeholder="Repeat your password"
-                    autoComplete="new-password"
-                  />
-                </div>
-
-                <div className="form-group full-width">
-                  <label>Referral Code (Optional)</label>
-                  <input 
-                    type="text" 
-                    name="referredByCode" 
-                    value={formData.referredByCode || ''} 
-                    onChange={handleInputChange} 
-                    placeholder="e.g. CKO-72841"
-                    autoComplete="off"
-                  />
-                </div>
-                
-                <div className="auth-alert warning mt-3">
-                  <small>
-                    By clicking Complete Registration, you confirm that you have read and accepted our 
-                    <Link to="/terms" target="_blank" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 'bold' }}> Terms & Conditions</Link>. 
-                    Registration fees are non-refundable.
-                  </small>
-                </div>
-                
-                <div className="form-actions mt-4">
-                  <Button type="button" variant="outline" onClick={prevStep}>Back</Button>
-                  <Button type="submit" variant="accent" disabled={isLoading}>
-                    {isLoading ? 'Creating Account...' : 'Complete Registration'}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </form>
-
-          <div className="auth-footer mt-4">
-            <p>Already have an account? <Link to="/login">Sign In</Link></p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  } catch (error) {
+    console.error('Error in resetPassword:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 };
 
-export default RegisterPage;
+const processPasswordReset = async (userId, password, res) => {
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(password, salt);
+
+  await query(
+    'UPDATE users SET password_hash = $1 WHERE id = $2',
+    [passwordHash, userId]
+  );
+
+  res.json({ message: 'Password reset successful. You can now login with your new password.' });
+};
+
+
+
+export const getUserProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const sql = `
+      SELECT 
+        u.id, u.first_name, u.last_name, u.email, u.role, u.phone,
+        u.has_paid_membership, u.kyc_status, u.wallet_balance, u.available_balance, u.held_balance,
+        u.profile_image, u.created_at,
+        u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name, u.virtual_provider,
+        u.referral_code, u.referral_unlock_date,
+        u.tshirt_paid, u.tshirt_payment_date,
+        b.account_name, b.account_number, b.bank_name, b.bank_code,
+        k.dob, k.middle_name, k.address, k.gender, k.bvn, k.id_type, k.id_number
+      FROM users u
+      LEFT JOIN bank_accounts b ON u.id = b.user_id
+      LEFT JOIN kyc_details k ON u.id = k.user_id
+      WHERE u.id = $1
+    `;
+    const { rows } = await query(sql, [userId]);
+    if (rows.length === 0) return res.status(404).json({ message: 'User not found' });
+    
+    let user = rows[0];
+
+    // Get total members count
+    const { rows: countRows } = await query("SELECT COUNT(*) FROM users WHERE role = 'user'");
+    const totalMembers = parseInt(countRows[0].count, 10);
+
+    // Retroactive Virtual Account Generation:
+    // If the user is verified but doesn't have a virtual account (because it failed previously)
+    if (user.kyc_status === 'verified' && (!user.virtual_account_number || user.virtual_provider === 'system_fallback')) {
+      try {
+        const updatedAccount = await createVirtualAccount(userId);
+        if (updatedAccount) {
+          user.virtual_account_number = updatedAccount.virtual_account_number;
+          user.virtual_account_name = updatedAccount.virtual_account_name;
+          user.virtual_bank_name = updatedAccount.virtual_bank_name;
+        }
+      } catch (err) {
+        console.error('Failed retroactive virtual account generation:', err);
+      }
+    }
+
+    res.json({
+      id: user.id,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      hasPaidMembership: user.has_paid_membership,
+      kycStatus: user.kyc_status,
+      dob: user.dob,
+      middleName: user.middle_name,
+      address: user.address,
+      gender: user.gender,
+      bvn: user.bvn,
+      id_type: user.id_type,
+      id_number: user.id_number,
+      walletBalance: user.wallet_balance,
+      available_balance: user.available_balance,
+      held_balance: user.held_balance,
+      profileImage: user.profile_image,
+      virtual_account_number: user.virtual_account_number,
+      virtual_bank_name: user.virtual_bank_name,
+      virtual_account_name: user.virtual_account_name,
+      virtual_provider: user.virtual_provider,
+      referralCode: user.referral_code,
+      referralUnlockDate: user.referral_unlock_date,
+      tshirt_paid: user.tshirt_paid || false,
+      tshirt_payment_date: user.tshirt_payment_date || null,
+      totalMembers: user.role === 'admin' ? totalMembers : null,
+      bankDetails: user.account_number ? {
+        accountName: user.account_name,
+        accountNumber: user.account_number,
+        bankName: user.bank_name,
+        bankCode: user.bank_code
+      } : null
+    });
+  } catch (error) {
+    console.error('Error in getUserProfile:', error);
+    res.status(500).json({ message: 'Server error fetching profile' });
+  }
+};
+
+export const getMyReferrals = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const downlines = await getReferredDownlines(userId);
+    const activeQualifiedCount = await getActiveQualifiedCount(userId);
+    res.json({
+      downlines,
+      activeQualifiedCount,
+      eligibilityRequiredCount: 2,
+      isEligible: activeQualifiedCount >= 2
+    });
+  } catch (error) {
+    console.error('Error fetching referrals:', error);
+    res.status(500).json({ message: 'Server error fetching referrals' });
+  }
+};
+
+export const uploadProfileImage = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image file provided' });
+    }
+
+    // In production, req.file.path is the Cloudinary URL
+    // In development, it's the local file path
+    const imageUrl = req.file.path || req.file.location;
+
+    await query(
+      'UPDATE users SET profile_image = $1 WHERE id = $2',
+      [imageUrl, userId]
+    );
+
+    res.json({ profileImage: imageUrl, message: 'Profile image updated successfully' });
+  } catch (error) {
+    console.error('Error uploading profile image:', error);
+    res.status(500).json({ message: 'Server error uploading profile image' });
+  }
+};
+
+export const removeProfileImage = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await query(
+      'UPDATE users SET profile_image = NULL WHERE id = $1',
+      [userId]
+    );
+
+    res.json({ message: 'Profile image removed successfully' });
+  } catch (error) {
+    console.error('Error removing profile image:', error);
+    res.status(500).json({ message: 'Server error removing profile image' });
+  }
+};
+
+export const generateVirtualAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // First verify if the user already has one
+    const { rows } = await query('SELECT virtual_account_number, virtual_bank_name, virtual_account_name, virtual_provider FROM users WHERE id = $1', [userId]);
+    const user = rows[0];
+    
+    if (user?.virtual_account_number && user.virtual_provider !== 'system_fallback') {
+      return res.json({
+        message: 'Virtual account already exists',
+        virtual_account_number: user.virtual_account_number,
+        virtual_bank_name: user.virtual_bank_name,
+        virtual_account_name: user.virtual_account_name
+      });
+    }
+
+    const updatedAccount = await createVirtualAccount(userId);
+    
+    if (updatedAccount && updatedAccount.virtual_account_number) {
+      res.json({
+        message: 'Virtual account successfully generated',
+        virtual_account_number: updatedAccount.virtual_account_number,
+        virtual_bank_name: updatedAccount.virtual_bank_name,
+        virtual_account_name: updatedAccount.virtual_account_name
+      });
+    } else {
+      res.status(400).json({ message: 'Failed to generate virtual account' });
+    }
+  } catch (error) {
+    console.error('Error generating virtual account:', error.message);
+    res.status(500).json({ message: 'Server error while generating virtual account: ' + error.message });
+  }
+};
