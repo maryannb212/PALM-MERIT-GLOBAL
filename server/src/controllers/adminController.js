@@ -758,3 +758,16 @@ export const reconcileFlutterwave = async (req, res) => {
     res.status(500).json({ message: 'Reconciliation failed: ' + (error.response?.data?.message || error.message) });
   }
 };
+
+export const getWebhookLogs = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT * FROM webhook_logs ORDER BY id DESC LIMIT 30`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching webhook logs:', error);
+    res.status(500).json({ message: 'Failed to fetch webhook logs' });
+  }
+};
+
