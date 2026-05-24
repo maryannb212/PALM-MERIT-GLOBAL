@@ -54,7 +54,6 @@ const Footer = () => {
       </div>
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} Palm Merit Global Resources. All rights reserved.</p>
-    </p>
       </div>
     </footer>
   );
