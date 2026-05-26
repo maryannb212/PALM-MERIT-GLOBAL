@@ -185,25 +185,6 @@ const Wallet = () => {
 
             <div style={{ borderTop: '1px solid #eee', paddingTop: '25px' }}>
               <p style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: '#777' }}></p>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => setIsModalOpen(true)}
-                style={{ 
-                  padding: '12px 30px', 
-                  fontSize: '1rem', 
-                  fontWeight: 'bold', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '1px', 
-                  boxShadow: '0 4px 15px rgba(128, 0, 32, 0.25)',
-                  background: 'linear-gradient(135deg, #800020, #a30029)',
-                  border: 'none',
-                  color: 'white',
-                  cursor: 'pointer',
-                  borderRadius: '8px',
-                  transition: 'all 0.3s ease'
-                }}
-              >
-              </button>
             </div>
           </div>
         </div>
