@@ -184,7 +184,7 @@ const Wallet = () => {
             )}
 
             <div style={{ borderTop: '1px solid #eee', paddingTop: '25px' }}>
-              <p style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: '#777' }}>Or use other online payment channels:</p>
+              <p style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: '#777' }}></p>
               <button 
                 className="btn btn-primary" 
                 onClick={() => setIsModalOpen(true)}
@@ -203,7 +203,6 @@ const Wallet = () => {
                   transition: 'all 0.3s ease'
                 }}
               >
-                Instant Card/USSD Deposit
               </button>
             </div>
           </div>
