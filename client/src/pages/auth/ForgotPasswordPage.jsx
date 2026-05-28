@@ -1,50 +1,20 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth } from '../../config/firebaseConfig';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { forgotPassword, resetPassword } from '../../services/api';
 import './Auth.css';
 
 const ForgotPasswordPage = () => {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // 1=phone, 2=otp+new password
   const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [mockOtp, setMockOtp] = useState('');
   const navigate = useNavigate();
-
-  const setupRecaptcha = () => {
-    if (window.recaptchaVerifier) {
-      return window.recaptchaVerifier;
-    }
-
-    const container = document.getElementById('recaptcha-container');
-    if (container) {
-      container.innerHTML = '';
-    }
-
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      'size': 'invisible',
-      'callback': () => {},
-      'expired-callback': () => {
-        if (window.recaptchaVerifier) {
-          try { window.recaptchaVerifier.clear(); } catch (_) {}
-          window.recaptchaVerifier = null;
-        }
-      }
-    });
-    return window.recaptchaVerifier;
-  };
-
-  React.useEffect(() => {
-    // Clean up recaptcha verifier when component unmounts to prevent leak/re-render crash
-    return () => {
-      if (window.recaptchaVerifier) {
-        try { window.recaptchaVerifier.clear(); } catch (_) {}
-        window.recaptchaVerifier = null;
-      }
-    };
-  }, []);
 
   const startResendCooldown = () => {
     setResendCooldown(60);
@@ -64,38 +34,19 @@ const ForgotPasswordPage = () => {
     setLoading(true);
     setMessage({ type: '', text: '' });
     setOtp('');
+    setMockOtp('');
 
     try {
-      const appVerifier = setupRecaptcha();
-      
-      let formattedPhone = phone.trim();
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '+234' + formattedPhone.substring(1);
-      } else if (!formattedPhone.startsWith('+')) {
-        formattedPhone = '+234' + formattedPhone;
+      const { data } = await forgotPassword({ phone: phone.trim() });
+      setMessage({ type: 'success', text: data.message || 'OTP sent successfully! Check your phone.' });
+      if (data.mockOtp) {
+        setMockOtp(data.mockOtp);
+        setOtp(data.mockOtp);
       }
-
-      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      window.confirmationResult = confirmationResult;
-      setMessage({ type: 'success', text: 'OTP sent successfully! Check your phone.' });
       setStep(2);
       startResendCooldown();
     } catch (err) {
-      console.error('Firebase OTP error:', err);
-      if (window.recaptchaVerifier) {
-        try { window.recaptchaVerifier.clear(); } catch (_) {}
-        window.recaptchaVerifier = null;
-      }
-      let text = 'Failed to send OTP. Please try again.';
-      if (err.code === 'auth/too-many-requests') {
-        text = 'Too many attempts. Please wait a few minutes and try again.';
-      } else if (err.code === 'auth/invalid-phone-number') {
-        text = 'Invalid phone number. Please use a valid Nigerian number.';
-      } else if (err.code?.includes('-39') || err.message?.includes('-39') || err.message?.includes('39')) {
-        text = 'Firebase blocked this request under its Anti-Abuse and SMS rate limits. For local development or testing, use a registered Firebase test phone number.';
-      } else if (err.message) {
-        text = err.message;
-      }
+      const text = err.response?.data?.message || 'Failed to send OTP. Please try again.';
       setMessage({ type: 'error', text });
     } finally {
       setLoading(false);
@@ -106,10 +57,11 @@ const ForgotPasswordPage = () => {
     if (resendCooldown > 0) return;
     setMessage({ type: '', text: '' });
     setOtp('');
+    setMockOtp('');
     await handleSendOTP();
   };
 
-  const handleVerifyOTP = async (e) => {
+  const handleResetPassword = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage({ type: '', text: '' });
@@ -121,29 +73,29 @@ const ForgotPasswordPage = () => {
       return;
     }
 
-    if (!window.confirmationResult) {
-      setMessage({ type: 'error', text: 'Verification session expired. Please request a new code.' });
+    if (newPassword.length < 6) {
+      setMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
       setLoading(false);
-      setStep(1);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: 'error', text: 'Passwords do not match.' });
+      setLoading(false);
       return;
     }
 
     try {
-      const result = await window.confirmationResult.confirm(trimmedOtp);
-      const firebaseToken = await result.user.getIdToken();
-      
-      // Navigate to reset password page with the token via state (not URL to avoid truncation)
-      navigate('/reset-password', { state: { token: firebaseToken } });
+      const { data } = await resetPassword({ 
+        phone: phone.trim(), 
+        otp: trimmedOtp, 
+        password: newPassword 
+      });
+      setMessage({ type: 'success', text: data.message || 'Password reset successful!' });
+      setTimeout(() => navigate('/login'), 2500);
     } catch (err) {
-      console.error(err);
-      if (err.code === 'auth/invalid-verification-code') {
-        setMessage({ type: 'error', text: 'Invalid verification code. Please double-check and try again, or resend a new code.' });
-      } else if (err.code === 'auth/code-expired' || err.code === 'auth/session-expired') {
-        setMessage({ type: 'error', text: 'Verification code has expired. Please resend a new code.' });
-        window.confirmationResult = null;
-      } else {
-        setMessage({ type: 'error', text: 'Invalid or expired OTP. Please try again.' });
-      }
+      const text = err.response?.data?.message || 'Failed to reset password. Please try again.';
+      setMessage({ type: 'error', text });
     } finally {
       setLoading(false);
     }
@@ -152,9 +104,14 @@ const ForgotPasswordPage = () => {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-header">
+        <div className="auth-header" style={{ textAlign: 'center' }}>
+          <img src="/logo.png" alt="Palm Merit Logo" style={{ width: '100px', marginBottom: '15px' }} />
           <h2>Forgot Password</h2>
-          <p>Enter your phone number to receive an OTP to reset your password.</p>
+          <p>
+            {step === 1
+              ? 'Enter your registered phone number to receive an OTP.'
+              : 'Enter the OTP and your new password.'}
+          </p>
         </div>
 
         {message.text && (
@@ -162,8 +119,6 @@ const ForgotPasswordPage = () => {
             {message.text}
           </div>
         )}
-
-        <div id="recaptcha-container"></div>
 
         {step === 1 ? (
           <form onSubmit={handleSendOTP} className="auth-form">
@@ -184,7 +139,7 @@ const ForgotPasswordPage = () => {
             </button>
           </form>
         ) : (
-          <form onSubmit={handleVerifyOTP} className="auth-form">
+          <form onSubmit={handleResetPassword} className="auth-form">
             <div className="form-group">
               <label htmlFor="otp">Verification Code</label>
               <input
@@ -198,7 +153,13 @@ const ForgotPasswordPage = () => {
                 required
                 maxLength="6"
                 autoComplete="one-time-code"
+                style={{ textAlign: 'center', letterSpacing: '5px', fontSize: '1.1rem', fontWeight: 'bold' }}
               />
+              {mockOtp && (
+                <small style={{ color: 'green', display: 'block', marginTop: '5px' }}>
+                  Dev mode auto-fill: {mockOtp}
+                </small>
+              )}
             </div>
 
             <div style={{ textAlign: 'center', margin: '10px 0' }}>
@@ -215,9 +176,53 @@ const ForgotPasswordPage = () => {
               </button>
             </div>
 
+            <div className="form-group">
+              <label htmlFor="newPassword">New Password</label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="newPassword"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                  required
+                />
+                <button 
+                  type="button" 
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="confirmPassword">Confirm New Password</label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="confirmPassword"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat your password"
+                required
+              />
+            </div>
+
             <button type="submit" className="btn btn-primary full-width" disabled={loading}>
-              {loading ? 'Verifying...' : 'Verify OTP'}
+              {loading ? 'Resetting...' : 'Reset Password'}
             </button>
+
+            <div style={{ textAlign: 'center', marginTop: '15px' }}>
+              <button 
+                type="button" 
+                className="btn-link" 
+                onClick={() => { setStep(1); setMessage({ type: '', text: '' }); }}
+                style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                ← Change phone number
+              </button>
+            </div>
           </form>
         )}
 

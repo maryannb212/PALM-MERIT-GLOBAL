@@ -147,6 +147,7 @@ export const approveManualPayment = (transactionId, data) => API.post(`/admin/ap
 export const getCashflow = () => API.get('/admin/cashflow');
 export const reconcileFlutterwave = () => API.post('/admin/reconcile-flutterwave');
 export const getWebhookLogs = () => API.get('/admin/webhook-logs');
+export const getRecentTransfers = (hours = 24) => API.get(`/admin/transactions/recent?hours=${hours}`);
 
 
 // Ambassador endpoints

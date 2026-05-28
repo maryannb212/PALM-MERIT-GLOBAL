@@ -823,4 +823,34 @@ export const getTransactionDebug = async (req, res) => {
   }
 };
 
-
+export const getRecentTransfers = async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours) || 24;
+    const { rows } = await query(
+      `SELECT 
+        t.id,
+        t.reference,
+        t.type,
+        t.status,
+        t.amount,
+        t.payment_provider,
+        t.created_at,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.virtual_account_number,
+        u.wallet_balance,
+        u.available_balance
+      FROM transactions t
+      JOIN users u ON t.user_id = u.id
+      WHERE t.created_at >= NOW() - ($1 || ' hours')::INTERVAL
+        AND t.status = 'completed'
+      ORDER BY t.created_at DESC`,
+      [hours]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching recent transfers:', error);
+    res.status(500).json({ message: 'Failed to fetch recent transfers' });
+  }
+};

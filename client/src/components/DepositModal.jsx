@@ -1,19 +1,42 @@
 import React, { useState } from 'react';
-import { initializeDeposit } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { initializeDeposit, generateVirtualAccount } from '../services/api';
 import './DepositModal.css';
 
 const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
+  const { user, updateUser } = useAuth();
   const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card');
   const [internalProvider] = useState('flutterwave');
   const [loading, setLoading] = useState(false);
+  const [generatingVA, setGeneratingVA] = useState(false);
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text);
+    alert('Copied to clipboard!');
+  };
+
+  const handleGenerateVA = async () => {
+    setGeneratingVA(true);
+    try {
+      const response = await generateVirtualAccount();
+      alert(response.data.message || 'Virtual account successfully generated!');
+      updateUser({
+        virtual_account_number: response.data.virtual_account_number,
+        virtual_bank_name: response.data.virtual_bank_name,
+        virtual_account_name: response.data.virtual_account_name
+      });
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to generate virtual account');
+    } finally {
+      setGeneratingVA(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (paymentMethod !== 'card') return; // Prevent submission for bank transfer
     if (!amount || parseFloat(amount) <= 0) return;
 
     setLoading(true);
@@ -26,7 +49,6 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
         payment_provider: internalProvider
       });
       
-      // Redirect user to the payment gateway to complete actual payment
       if (data.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
@@ -39,6 +61,8 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
     }
   };
 
+  const hasVirtualAccount = user?.virtual_account_number && user?.virtual_bank_name !== 'Palm Merit Finance';
+
   return (
     <div className="modal-overlay">
       <div className="modal-content">
@@ -47,8 +71,70 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
           <button className="close-btn" onClick={onClose}>&times;</button>
         </header>
         
+        <div style={{ padding: '0 20px' }}>
+          {/* Virtual Account Section */}
+          <div style={{ 
+            background: 'linear-gradient(135deg, #f8f9fa, #e9ecef)', 
+            padding: '20px', 
+            borderRadius: '12px', 
+            border: '1px solid #dee2e6',
+            marginBottom: '20px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '1.3rem' }}>🏦</span>
+              <h4 style={{ margin: 0, color: '#800020', fontSize: '1rem' }}>Transfer via Your Virtual Account</h4>
+            </div>
+            
+            {hasVirtualAccount ? (
+              <div style={{ background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+                <div style={{ 
+                  fontSize: '1.4rem', 
+                  fontWeight: 'bold', 
+                  letterSpacing: '2px', 
+                  color: '#800020', 
+                  marginBottom: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  {user.virtual_account_number}
+                  <button onClick={() => handleCopy(user.virtual_account_number)} style={{ 
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#6c757d' 
+                  }} title="Copy">📋</button>
+                </div>
+                <div style={{ fontSize: '0.95rem', color: '#333', fontWeight: '600' }}>{user.virtual_bank_name}</div>
+                <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '3px' }}>{user.virtual_account_name}</div>
+                <p style={{ fontSize: '0.8rem', color: '#28a745', marginTop: '10px', marginBottom: 0, fontWeight: '500' }}>
+                  ✅ Transfer any amount here — it reflects in your wallet automatically!
+                </p>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '10px' }}>You don't have a virtual account yet.</p>
+                <button 
+                  onClick={handleGenerateVA}
+                  disabled={generatingVA}
+                  className="btn btn-secondary"
+                  style={{ padding: '8px 18px', borderRadius: '6px', fontSize: '0.9rem' }}
+                >
+                  {generatingVA ? 'Generating...' : 'Generate Virtual Account'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div style={{ 
+            display: 'flex', alignItems: 'center', gap: '12px', margin: '15px 0',
+            color: '#999', fontSize: '0.85rem' 
+          }}>
+            <div style={{ flex: 1, height: '1px', background: '#ddd' }}></div>
+            <span>OR pay instantly with card</span>
+            <div style={{ flex: 1, height: '1px', background: '#ddd' }}></div>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="modal-form">
-          <p>How much would you like to add to your savings?</p>
           <div className="form-group">
             <label>Amount (NGN)</label>
             <input 
@@ -60,66 +146,19 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
             />
           </div>
 
-          <div className="form-group">
-            <label>Payment Method</label>
-            <div className="provider-options" style={{ display: 'flex', gap: '10px' }}>
-              <label className={`provider-card ${paymentMethod === 'card' ? 'selected' : ''}`} style={{ flex: 1, padding: '15px', textAlign: 'center', cursor: 'pointer', border: paymentMethod === 'card' ? '2px solid #800020' : '1px solid #cbd5e1', borderRadius: '8px' }}>
-                <input 
-                  type="radio" 
-                  name="paymentMethod" 
-                  value="card" 
-                  checked={paymentMethod === 'card'} 
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{ display: 'none' }}
-                />
-                💳 Card Payment
-              </label>
-              <label className={`provider-card ${paymentMethod === 'bank' ? 'selected' : ''}`} style={{ flex: 1, padding: '15px', textAlign: 'center', cursor: 'pointer', border: paymentMethod === 'bank' ? '2px solid #800020' : '1px solid #cbd5e1', borderRadius: '8px' }}>
-                <input 
-                  type="radio" 
-                  name="paymentMethod" 
-                  value="bank" 
-                  checked={paymentMethod === 'bank'} 
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{ display: 'none' }}
-                />
-                🏦 Bank Transfer
-              </label>
-            </div>
-          </div>
-          
           {error && <p className="error-message">{error}</p>}
 
-          {paymentMethod === 'card' ? (
-            <div className="modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? 'Processing...' : 'Proceed to Payment'}
-              </button>
-            </div>
-          ) : (
-            <div className="manual-transfer-hint" style={{ marginTop: '15px', textAlign: 'center', fontSize: '0.85rem', background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '12px', color: '#1e293b', fontSize: '1rem' }}>Manual Bank Transfer</p>
-              <div style={{ textAlign: 'left', display: 'inline-block', marginBottom: '15px', color: '#475569', fontSize: '0.9rem', background: '#fff', padding: '15px', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
-                <strong style={{color: '#0f172a'}}>Bank Name:</strong> Sterling Bank<br/>
-                <strong style={{color: '#0f172a'}}>Account Name:</strong> palm merit global limited<br/>
-                <strong style={{color: '#0f172a'}}>Account No:</strong> 0145238769<br/>
-                <strong style={{color: '#0f172a'}}>Account Type:</strong> Business
-              </div>
-              <p style={{margin: '0 0 15px 0', color: '#64748b'}}>After transferring, please upload your receipt for verification.</p>
-              <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-                <a href="/dashboard/receipt" className="btn btn-primary" style={{textDecoration: 'none'}}>Upload Receipt</a>
-              </div>
-            </div>
-          )}
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Processing...' : '💳 Pay with Card'}
+            </button>
+          </div>
 
-          <div className="security-notice" style={{ marginTop: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem', color: '#475569', textAlign: 'center', lineHeight: '1.5' }}>
-            <p style={{ margin: '0 0 8px 0', color: '#0f172a', fontWeight: 'bold' }}>🔒 Secure Cooperative Contribution</p>
+          <div className="security-notice" style={{ marginTop: '15px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.78rem', color: '#475569', textAlign: 'center', lineHeight: '1.5' }}>
+            <p style={{ margin: '0 0 5px 0', color: '#0f172a', fontWeight: 'bold' }}>🔒 Secure Payment</p>
             <p style={{ margin: 0 }}>
-              Payment gateways (like Flutterwave or Paystack) and your bank are <strong>strictly used to securely process your deposit</strong> into the platform. 
-              <br/><br/>
-              <strong>PALM MERIT GLOBAL</strong> internally manages your cooperative tracking, savings lifecycle, referral validation, and maturity payouts.
+              Payments are processed securely via <strong>Flutterwave</strong>. Virtual account transfers are credited <strong>automatically</strong>.
             </p>
           </div>
         </form>

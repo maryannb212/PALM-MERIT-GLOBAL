@@ -7,7 +7,8 @@ import {
   approveWithdrawal,
   rejectWithdrawal,
   reconcileFlutterwave,
-  getWebhookLogs
+  getWebhookLogs,
+  getRecentTransfers
 } from '../../services/api';
 import { FaBalanceScale, FaCheckCircle, FaHistory, FaFilter, FaEye, FaHandHoldingUsd, FaTimesCircle, FaChartLine, FaWallet, FaLock, FaUniversity } from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
@@ -23,6 +24,7 @@ const ReconciliationPage = () => {
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState(null);
   const [webhookLogs, setWebhookLogs] = useState([]);
+  const [recentTransfers, setRecentTransfers] = useState([]);
 
   const handleReconcile = async () => {
     if (!window.confirm('Trigger Flutterwave reconciliation? This will fetch last 48 hours of transactions and credit any missed ones.')) return;
@@ -48,16 +50,18 @@ const ReconciliationPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, pendingRes, withdrawalsRes, logsRes] = await Promise.all([
+      const [statsRes, pendingRes, withdrawalsRes, logsRes, recentRes] = await Promise.all([
         getReconciliation(),
         getPendingTransactions(),
         getPendingWithdrawals(),
-        getWebhookLogs()
+        getWebhookLogs(),
+        getRecentTransfers()
       ]);
       setStats(statsRes.data);
       setPendingTransactions(pendingRes.data);
       setPendingWithdrawals(withdrawalsRes.data);
       setWebhookLogs(logsRes.data || []);
+      setRecentTransfers(recentRes.data || []);
     } catch (error) {
       console.error('Error fetching reconciliation data:', error);
     } finally {
@@ -192,6 +196,13 @@ const ReconciliationPage = () => {
         >
           <FaHistory /> Webhook Audit Logs
           {webhookLogs.length > 0 && <span className="count-badge primary" style={{ background: '#64748b' }}>{webhookLogs.length}</span>}
+        </button>
+        <button
+          className={`admin-tab-btn ${activeTab === 'recent' ? 'active' : ''}`}
+          onClick={() => setActiveTab('recent')}
+        >
+          <FaUniversity /> Recent Transfers (24h)
+          {recentTransfers.length > 0 && <span className="count-badge primary" style={{ background: '#0ea5e9' }}>{recentTransfers.length}</span>}
         </button>
       </div>
 
@@ -414,6 +425,51 @@ const ReconciliationPage = () => {
                       </td>
                       <td className="date-cell" style={{ fontSize: '0.8rem' }}>
                         {new Date(log.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : activeTab === 'recent' ? (
+          <div className="table-responsive">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Gateway</th>
+                  <th>Wallet Balance</th>
+                  <th>Reference</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentTransfers.length === 0 ? (
+                  <tr><td colSpan="8" className="table-empty">No completed transactions in the last 24 hours.</td></tr>
+                ) : (
+                  recentTransfers.map((tx) => (
+                    <tr key={tx.id} className="table-row-hover">
+                      <td style={{ fontWeight: '600' }}>{tx.first_name} {tx.last_name}</td>
+                      <td style={{ fontSize: '0.85rem' }}>{tx.email}</td>
+                      <td>
+                        <span className={`badge-pill ${tx.type === 'wallet_topup' ? 'pill-burgundy' : tx.type === 'membership' ? 'pill-dark' : 'pill-success'}`}>
+                          {tx.type.replace('_', ' ').toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: '700', color: '#15803d' }}>{formatCurrency(tx.amount)}</td>
+                      <td>
+                        <span className="badge-pill pill-dark">{(tx.payment_provider || 'N/A').toUpperCase()}</span>
+                      </td>
+                      <td>{formatCurrency(tx.wallet_balance)}</td>
+                      <td style={{ fontSize: '0.8rem', maxWidth: '200px', wordBreak: 'break-all' }}>
+                        <code>{tx.reference}</code>
+                      </td>
+                      <td className="date-cell" style={{ fontSize: '0.8rem' }}>
+                        {new Date(tx.created_at).toLocaleString()}
                       </td>
                     </tr>
                   ))

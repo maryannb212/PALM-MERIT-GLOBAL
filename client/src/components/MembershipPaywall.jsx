@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
-import { initializeMembership, uploadMembershipReceipt } from '../services/api';
-import { FaWhatsapp, FaFacebook, FaInstagram, FaEnvelope, FaUpload } from 'react-icons/fa';
+import { initializeMembership } from '../services/api';
+import { FaFacebook, FaInstagram, FaEnvelope } from 'react-icons/fa';
 import './MembershipPaywall.css';
 
 const MembershipPaywall = ({ user }) => {
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('card');
   const [internalProvider] = useState('flutterwave');
-  const [receiptUploaded, setReceiptUploaded] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
 
   const handlePayNow = async () => {
@@ -30,46 +27,6 @@ const MembershipPaywall = ({ user }) => {
     }
   };
 
-  const handleReceiptUpload = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setLoading(true);
-      setError('');
-      try {
-        const formData = new FormData();
-        formData.append('receipt', file);
-        await uploadMembershipReceipt(formData);
-        setReceiptUploaded(true);
-        setShowSuccess(true);
-      } catch (err) {
-        setError('Failed to upload receipt. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  if (showSuccess) {
-    return (
-      <div className="paywall-container">
-        <div className="paywall-card success-card">
-          <div className="success-icon">✅</div>
-          <h2>Payment Submitted!</h2>
-          <p>Thank you, {user?.firstName}. Our team will verify your receipt shortly.</p>
-          
-          <div className="social-connect">
-            <p>Follow us for more updates:</p>
-            <div className="social-icons">
-              <a href="https://facebook.com/palmmerit" target="_blank" rel="noreferrer"><FaFacebook /></a>
-              <a href="https://instagram.com/palmmerit" target="_blank" rel="noreferrer"><FaInstagram /></a>
-              <a href="mailto:support@palmmerit.com"><FaEnvelope /></a>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="paywall-container">
       <div className="paywall-card">
@@ -87,58 +44,39 @@ const MembershipPaywall = ({ user }) => {
           <ul className="benefits-list">
             <li>✅ Full access to all Savings Programmes</li>
             <li>✅ Create and manage your digital wallet</li>
+            <li>✅ Get your dedicated Virtual Funding Account</li>
             <li>✅ Exclusive community support & mentorship</li>
             <li>✅ Weekly impact and growth updates</li>
           </ul>
 
           <div className="payment-options">
-            <div className="provider-selection" style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Payment Method:</label>
-              <div className="provider-options" style={{ display: 'flex', gap: '10px' }}>
-                <label className={`provider-card ${paymentMethod === 'card' ? 'selected' : ''}`} style={{ flex: 1, padding: '15px', textAlign: 'center', cursor: 'pointer', border: paymentMethod === 'card' ? '2px solid #800020' : '1px solid #cbd5e1', borderRadius: '8px' }}>
-                  <input type="radio" name="paymentMethod" value="card" checked={paymentMethod === 'card'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ display: 'none' }} />
-                  💳 Card Payment
-                </label>
-                <label className={`provider-card ${paymentMethod === 'bank' ? 'selected' : ''}`} style={{ flex: 1, padding: '15px', textAlign: 'center', cursor: 'pointer', border: paymentMethod === 'bank' ? '2px solid #800020' : '1px solid #cbd5e1', borderRadius: '8px' }}>
-                  <input type="radio" name="paymentMethod" value="bank" checked={paymentMethod === 'bank'} onChange={(e) => setPaymentMethod(e.target.value)} style={{ display: 'none' }} />
-                  🏦 Bank Transfer
-                </label>
-              </div>
-            </div>
-
-            {paymentMethod === 'card' ? (
-              <button className="btn btn-primary full-width" onClick={handlePayNow} disabled={loading}>
-                {loading ? 'Processing...' : 'Pay Online Now'}
-              </button>
-            ) : (
-              <div className="manual-payment" style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: '#1e293b' }}>Manual Bank Transfer</h3>
-                <div style={{ textAlign: 'left', marginBottom: '20px', color: '#475569', fontSize: '0.95rem', background: '#fff', padding: '15px', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
-                </div>
-                
-                <div className="upload-section">
-                  <label htmlFor="receipt-upload" className="upload-label" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <FaUpload /> {receiptUploaded ? 'Receipt Uploaded' : 'Upload Payment Receipt'}
-                  </label>
-                  <input 
-                    type="file" 
-                    id="receipt-upload" 
-                    accept="image/*,.pdf" 
-                    onChange={handleReceiptUpload}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-              </div>
-            )}
+            <button className="btn btn-primary full-width" onClick={handlePayNow} disabled={loading} style={{
+              padding: '14px 30px',
+              fontSize: '1.05rem',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              boxShadow: '0 4px 15px rgba(128, 0, 32, 0.25)',
+              background: 'linear-gradient(135deg, #800020, #a30029)',
+              border: 'none',
+              color: 'white',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              borderRadius: '10px',
+              transition: 'all 0.3s ease',
+              width: '100%'
+            }}>
+              {loading ? 'Processing...' : '💳 Pay ₦500 & Activate Now'}
+            </button>
           </div>
+
           {error && <p className="error-message">{error}</p>}
           
           <div className="security-notice" style={{ marginTop: '25px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#475569', textAlign: 'center', lineHeight: '1.5' }}>
             <p style={{ margin: '0 0 8px 0', color: '#0f172a', fontWeight: 'bold' }}>🔒 Secure Cooperative Contribution</p>
             <p style={{ margin: 0 }}>
-              Payment gateways (like Flutterwave or Paystack) and your bank are <strong>strictly used to securely process your deposit</strong> into the platform. 
+              Payment is processed securely via <strong>Flutterwave</strong>. Once payment is confirmed, your membership is <strong>activated automatically</strong> — no admin approval needed.
               <br/><br/>
-              <strong>PALM MERIT GLOBAL</strong> internally manages your cooperative tracking, savings lifecycle, referral validation, and payouts.
+              After activation, you'll get access to your <strong>personal Virtual Funding Account</strong> for instant wallet top-ups.
             </p>
           </div>
         </div>

@@ -1,10 +1,13 @@
 import { query } from './src/config/db.js';
-import dotenv from 'dotenv';
-dotenv.config();
 
-async function check() {
-  const { rows } = await query("SELECT email, wallet_balance, available_balance, role FROM users WHERE available_balance > 0");
-  console.log('Users with available balance:', rows);
+async function verifyDeletedUser() {
+  try {
+    const { rows } = await query('SELECT id, first_name, last_name, status, email FROM users ORDER BY created_at DESC LIMIT 10');
+    console.table(rows);
+  } catch (e) {
+    console.error(e);
+  }
   process.exit(0);
 }
-check();
+
+verifyDeletedUser();

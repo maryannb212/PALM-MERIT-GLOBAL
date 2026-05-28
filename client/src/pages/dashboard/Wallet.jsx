@@ -8,7 +8,7 @@ import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import './Dashboard.css';
 
 const Wallet = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, refreshProfile } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +43,9 @@ const Wallet = () => {
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
+        if (refreshProfile) {
+          await refreshProfile();
+        }
         const response = await getMyTransactions();
         setTransactions(response.data || []);
       } catch (error) {

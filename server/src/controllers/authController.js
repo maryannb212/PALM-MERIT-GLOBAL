@@ -221,7 +221,7 @@ export const loginUser = async (req, res) => {
         requiresOTP: false
       });
     } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+      res.status(401).json({ message: 'Invalid phone/email or password' });
     }
   } catch (error) {
     console.error('Error in loginUser:', error);
@@ -323,7 +323,20 @@ export const logoutUser = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { phone } = req.body;
-    const user = await findUserByPhone(phone);
+
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone number is required' });
+    }
+
+    // Normalize phone before lookup (handles 080... -> +234...)
+    let normalizedPhone = phone.trim();
+    if (normalizedPhone.startsWith('0')) {
+      normalizedPhone = '+234' + normalizedPhone.substring(1);
+    } else if (!normalizedPhone.startsWith('+')) {
+      normalizedPhone = '+234' + normalizedPhone;
+    }
+
+    const user = await findUserByPhone(normalizedPhone);
 
     if (!user) {
       return res.status(404).json({ message: 'User with this phone number does not exist' });
@@ -339,6 +352,7 @@ export const forgotPassword = async (req, res) => {
 
     res.json({ 
       message: 'Password reset OTP sent to your phone',
+      phone: user.phone,
       mockOtp: process.env.NODE_ENV !== 'production' ? otp.code : undefined 
     });
   } catch (error) {
@@ -349,10 +363,38 @@ export const forgotPassword = async (req, res) => {
 
 export const resetPassword = async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const { token, password, phone, otp } = req.body;
     
-    if (!token || !password) {
-      return res.status(400).json({ message: 'Reset token and new password are required' });
+    if (!password) {
+      return res.status(400).json({ message: 'New password is required' });
+    }
+
+    // Path 1: OTP-based reset (phone + otp + password)
+    if (phone && otp) {
+      let normalizedPhone = phone.trim();
+      if (normalizedPhone.startsWith('0')) {
+        normalizedPhone = '+234' + normalizedPhone.substring(1);
+      } else if (!normalizedPhone.startsWith('+')) {
+        normalizedPhone = '+234' + normalizedPhone;
+      }
+
+      const user = await findUserByPhone(normalizedPhone);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const isValid = await checkOTP(user.id, otp, 'reset');
+      if (!isValid) {
+        return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one.' });
+      }
+
+      await processPasswordReset(user.id, password, res);
+      return;
+    }
+
+    // Path 2: Firebase token-based reset (token + password)
+    if (!token) {
+      return res.status(400).json({ message: 'Reset token or OTP is required' });
     }
 
     let decodedToken;
@@ -363,30 +405,16 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired reset token. Please request a new OTP.' });
     }
 
-    const phone = decodedToken.phone_number;
+    const firebasePhone = decodedToken.phone_number;
     
-    if (!phone) {
+    if (!firebasePhone) {
       return res.status(400).json({ message: 'Invalid reset token payload' });
     }
 
-    const user = await findUserByPhone(phone); // Assuming phone is stored in E.164 format (+234...)
+    const user = await findUserByPhone(firebasePhone);
 
     if (!user) {
-      // It's possible the user stored their phone as 080... instead of +234...
-      // Let's try to convert +23480... to 080... and find again
-      let localPhone = phone;
-      if (phone.startsWith('+234')) {
-        localPhone = '0' + phone.substring(4);
-      }
-      const userAlt = await findUserByPhone(localPhone);
-      
-      if (!userAlt) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      
-      // Found with local phone
-      await processPasswordReset(userAlt.id, password, res);
-      return;
+      return res.status(404).json({ message: 'User not found' });
     }
 
     await processPasswordReset(user.id, password, res);

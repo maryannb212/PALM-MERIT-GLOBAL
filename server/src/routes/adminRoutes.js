@@ -21,7 +21,8 @@ import {
   reconcileFlutterwave,
   getWebhookLogs,
   getSystemStatus,
-  getTransactionDebug
+  getTransactionDebug,
+  getRecentTransfers
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -62,6 +63,7 @@ router.post('/reconcile-flutterwave', reconcileFlutterwave);
 router.get('/webhook-logs', getWebhookLogs);
 router.get('/system-status', getSystemStatus);
 router.get('/transaction-debug/:reference', getTransactionDebug);
+router.get('/transactions/recent', getRecentTransfers);
 
 // Security Locks
 router.get('/security/locks', getPageLocks);

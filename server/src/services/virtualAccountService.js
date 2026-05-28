@@ -27,7 +27,7 @@ export const createVirtualAccount = async (userId) => {
   }
 
   const payload = {
-    email: user.email,
+    email: user.email || `user${userId}@palmmeritglobal.com`,
     is_permanent: true,
     bvn: MERCHANT_BVN,
     tx_ref: `VA-${userId}-${Date.now()}`,

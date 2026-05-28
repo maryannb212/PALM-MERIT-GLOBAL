@@ -69,6 +69,10 @@ export const subscribeToPlan = async (req, res) => {
     const regFeeTotal = config.regFee * requestedAccounts;
     const totalFirstPayment = initialSavingsTotal + regFeeTotal;
 
+    // Set preferred day automatically to today's day name (the day payment is made)
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const autoPreferredDay = daysOfWeek[new Date().getDay()];
+
     const client = await getClient();
     try {
       await client.query('BEGIN');
@@ -92,7 +96,7 @@ export const subscribeToPlan = async (req, res) => {
       );
 
       // Create the plan
-      const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, preferredDay, client);
+      const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, autoPreferredDay, client);
 
       // Set the initial current_amount of the savings plan to initialSavingsTotal
       await client.query(
