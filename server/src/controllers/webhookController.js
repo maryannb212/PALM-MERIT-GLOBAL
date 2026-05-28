@@ -161,7 +161,31 @@ export const flutterwaveWebhook = async (req, res) => {
     let user = null;
     let userId = null;
 
-    if (email) {
+    // UUID v4 validation regex
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    // 1. Try tx_ref format VA-<UUID>-<timestamp>
+    if (reference && reference.startsWith('VA-')) {
+      const prefixRemoved = reference.replace('VA-', '');
+      const lastHyphenIndex = prefixRemoved.lastIndexOf('-');
+      if (lastHyphenIndex !== -1) {
+        const potentialId = prefixRemoved.substring(0, lastHyphenIndex);
+        if (UUID_REGEX.test(potentialId)) {
+          const { rows: txRefUsers } = await query(
+            `SELECT id FROM users WHERE id = $1`,
+            [potentialId]
+          );
+          if (txRefUsers.length > 0) {
+            user = txRefUsers[0];
+            userId = user.id;
+            console.log(`[Flutterwave Webhook VA] Matched user from tx_ref: ${userId}`);
+          }
+        }
+      }
+    }
+
+    // 2. Try email lookup
+    if (!userId && email) {
       const { rows: users } = await query(
         `SELECT id FROM users WHERE email = $1`,
         [email]
@@ -170,6 +194,7 @@ export const flutterwaveWebhook = async (req, res) => {
       if (user) userId = user.id;
     }
 
+    // 3. Try virtual account number lookup
     if (!userId) {
       const accountNumber = 
         payload.data?.account?.account_number || 
@@ -275,15 +300,19 @@ export const flutterwaveWebhook = async (req, res) => {
       error
     );
 
-    await logWebhookEvent({
-      source: 'flutterwave',
-      reference: null,
-      eventType: 'error',
-      payload: req.body,
-      signatureOk: false,
-      status: 'error',
-      note: error.message
-    });
+    try {
+      await logWebhookEvent({
+        source: 'flutterwave',
+        reference: req.body?.data?.tx_ref || req.body?.tx_ref || null,
+        eventType: 'error',
+        payload: req.body,
+        signatureOk: false,
+        status: 'error',
+        note: `Error processing webhook: ${error.message}`
+      });
+    } catch (logErr) {
+      console.error('[Flutterwave Webhook] Failed to log error:', logErr.message);
+    }
 
     return res.status(500).send('Internal Server Error');
   }

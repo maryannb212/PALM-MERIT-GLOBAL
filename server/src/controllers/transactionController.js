@@ -516,12 +516,21 @@ export const flutterwaveWebhook = async (req, res) => {
 
     let userId = null;
 
+    // UUID v4 validation regex
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
     // Try tx_ref format VA-<UUID>-<timestamp>
     if (txRef && txRef.startsWith('VA-')) {
       const prefixRemoved = txRef.replace('VA-', '');
       const lastHyphenIndex = prefixRemoved.lastIndexOf('-');
       if (lastHyphenIndex !== -1) {
-        userId = prefixRemoved.substring(0, lastHyphenIndex);
+        const potentialId = prefixRemoved.substring(0, lastHyphenIndex);
+        if (UUID_REGEX.test(potentialId)) {
+          userId = potentialId;
+          console.log(`[Flutterwave Webhook] Parsed userId from tx_ref: ${userId}`);
+        } else {
+          console.warn(`[Flutterwave Webhook] Parsed non-UUID from tx_ref: "${potentialId}"`);
+        }
       }
     }
 
@@ -565,6 +574,12 @@ export const flutterwaveWebhook = async (req, res) => {
     // =====================================================
     // USER NOT FOUND
     // =====================================================
+
+    // Final validation: ensure userId is a valid UUID before querying
+    if (userId && !UUID_REGEX.test(userId)) {
+      console.warn(`[Flutterwave Webhook] Rejecting invalid UUID userId: "${userId}"`);
+      userId = null;
+    }
 
     if (!userId) {
       console.error('[Flutterwave Webhook] User not found for ref:', reference, 'email:', email);
@@ -645,15 +660,19 @@ export const flutterwaveWebhook = async (req, res) => {
   } catch (error) {
     console.error('[Flutterwave Webhook] ERROR:', error);
 
-    await logWebhookEvent({
-      source: 'flutterwave',
-      reference: req.body?.tx_ref || req.body?.data?.tx_ref || null,
-      eventType: req.body?.event || 'charge.completed',
-      payload: req.body,
-      signatureOk: true,
-      status: 'error',
-      note: error.message
-    });
+    try {
+      await logWebhookEvent({
+        source: 'flutterwave',
+        reference: req.body?.tx_ref || req.body?.data?.tx_ref || null,
+        eventType: req.body?.event || 'charge.completed',
+        payload: req.body,
+        signatureOk: true,
+        status: 'error',
+        note: `Error processing webhook: ${error.message}`
+      });
+    } catch (logErr) {
+      console.error('[Flutterwave Webhook] Failed to log error:', logErr.message);
+    }
 
     return res.status(500).send('Webhook error');
   }
