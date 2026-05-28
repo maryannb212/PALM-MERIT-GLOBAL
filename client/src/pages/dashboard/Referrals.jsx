@@ -45,18 +45,20 @@ const Referrals = () => {
   const referralLink = `${window.location.origin}/register?ref=${referralCode}`;
 
   // Parse Unlock Date
-  const unlockDate = user?.referralUnlockDate ? new Date(user.referralUnlockDate) : null;
-  const isLocked = unlockDate ? new Date() < unlockDate : true;
+  const unlockDate = user?.referral_unlock_date ? new Date(user.referral_unlock_date) : (user?.referralUnlockDate ? new Date(user.referralUnlockDate) : null);
+  const [isLocked, setIsLocked] = useState(() => unlockDate ? new Date() < unlockDate : true);
 
   // Calculate Countdown
   const [timeLeft, setTimeLeft] = useState('');
   useEffect(() => {
-    if (!unlockDate || !isLocked) return;
+    if (!unlockDate) return;
+    if (!isLocked) return;
 
     const updateCountdown = () => {
       const diff = unlockDate.getTime() - new Date().getTime();
       if (diff <= 0) {
         setTimeLeft('');
+        setIsLocked(false);
         return;
       }
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
