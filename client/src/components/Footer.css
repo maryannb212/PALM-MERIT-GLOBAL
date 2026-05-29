@@ -78,6 +78,22 @@
 
 .footer-contact strong {
   color: var(--color-white);
+
+  .footer-credit {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #d1d5db;
+}
+
+.footer-credit a {
+  color: #38bdf8;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer-credit a:hover {
+  text-decoration: underline;
+}
 }
 
 .footer-bottom {
