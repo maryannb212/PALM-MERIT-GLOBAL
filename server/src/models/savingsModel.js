@@ -1,6 +1,11 @@
 import { query } from '../config/db.js';
 
 export const createSavingsPlan = async (userId, planName, targetAmount, numberOfAccounts = 1, clearanceRequired = false, refundOnly = false, preferredDay = null, client = null) => {
+  // If preferredDay not provided, default to the current day's name (based on server time)
+  if (!preferredDay) {
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    preferredDay = daysOfWeek[new Date().getDay()];
+  }
   const sql = `
     INSERT INTO savings_plans (user_id, plan_name, target_amount, number_of_accounts, clearance_required, refund_only, preferred_day)
     VALUES ($1, $2, $3, $4, $5, $6, $7)

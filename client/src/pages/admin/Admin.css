@@ -1,4 +1,9 @@
-.admin-table {
+:root {
+  --color-primary: #D4AF37; /* Gold */
+  --color-primary-light: #F0E68C; /* Light gold */
+  --color-primary-dark: #B8860B; /* Dark gold */
+}
+
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -11,6 +16,13 @@
 }
 
 .admin-table th {
+  background: #fff8e1; /* Light gold background */
+  font-weight: 600;
+  color: #000; /* Ensure visibility */
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
   background: #fdfdfd;
   font-weight: 600;
   color: #64748b;
@@ -33,6 +45,16 @@
 }
 
 .admin-action-card {
+  background: #fff8e1; /* Goldish card */
+  border: 1px solid var(--color-primary-dark);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
@@ -300,6 +322,14 @@
   gap: 10px;
   margin-bottom: 25px;
   padding: 5px;
+  background: #fff8e1;
+  border-radius: 12px;
+  width: fit-content;
+}
+  display: flex;
+  gap: 10px;
+  margin-bottom: 25px;
+  padding: 5px;
   background: #f1f5f9;
   border-radius: 12px;
   width: fit-content;
@@ -325,8 +355,18 @@
   color: var(--color-primary);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
+  background: white;
+  color: var(--color-primary);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
 
 .count-badge {
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #fff8e1;
+  font-size: 0.75rem;
+  color: #000;
+}
   padding: 2px 8px;
   border-radius: 20px;
   background: #e2e8f0;
@@ -334,7 +374,7 @@
   color: #475569;
 }
 
-.count-badge.primary { background: var(--color-primary); color: white; }
+.count-badge.primary { background: var(--color-primary); color: #000; }
 .count-badge.danger { background: #ef4444; color: white; }
 
 /* Logistics & Extra Table Info */

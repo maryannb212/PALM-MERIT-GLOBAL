@@ -45,17 +45,29 @@ const Referrals = () => {
   const referralLink = `${window.location.origin}/register?ref=${referralCode}`;
 
   // Parse Unlock Date
-  const unlockDate = user?.referral_unlock_date ? new Date(user.referral_unlock_date) : (user?.referralUnlockDate ? new Date(user.referralUnlockDate) : null);
-  const [isLocked, setIsLocked] = useState(() => unlockDate ? new Date() < unlockDate : true);
+  const unlockTimestamp = (() => {
+    if (user?.referral_unlock_date) return new Date(user.referral_unlock_date).getTime();
+    if (user?.referralUnlockDate) return new Date(user.referralUnlockDate).getTime();
+    if (user?.createdAt) {
+      const created = new Date(user.createdAt);
+      // 30 days lock period
+      return created.getTime() + 30 * 24 * 60 * 60 * 1000;
+    }
+    return null;
+  })();
+  // If no unlock timestamp (shouldn't happen), treat as unlocked; otherwise compare now
+  const [isLocked, setIsLocked] = useState(() => unlockTimestamp ? Date.now() < unlockTimestamp : false);
+  // Store the date object for display purposes
+  const unlockDate = unlockTimestamp ? new Date(unlockTimestamp) : null;
 
   // Calculate Countdown
   const [timeLeft, setTimeLeft] = useState('');
   useEffect(() => {
-    if (!unlockDate) return;
+    if (!unlockTimestamp) return;
     if (!isLocked) return;
 
     const updateCountdown = () => {
-      const diff = unlockDate.getTime() - new Date().getTime();
+      const diff = unlockTimestamp - Date.now();
       if (diff <= 0) {
         setTimeLeft('');
         setIsLocked(false);
@@ -73,7 +85,7 @@ const Referrals = () => {
     updateCountdown();
     const interval = setInterval(updateCountdown, 60000);
     return () => clearInterval(interval);
-  }, [unlockDate, isLocked]);
+  }, [unlockTimestamp, isLocked]);
 
   const handleCopyLink = () => {
     if (isLocked) return;

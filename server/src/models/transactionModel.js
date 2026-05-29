@@ -1,4 +1,94 @@
 import { query, getClient } from '../config/db.js';
+import { createNotification } from '../models/notificationModel.js';
+import { sendTermiiSMS } from '../../server/src/utils/termiiService.js';
+
+/**
+ * Settle any outstanding penalties (defaults) for a user before applying credit.
+ * Returns the remaining amount after applying to penalties.
+ *
+ * @param {object} client - Database client with transaction
+ * @param {string} userId - User identifier
+ * @param {number} amount - Incoming payment amount to apply
+ * @param {string} paymentReference - Reference of the source payment
+ * @returns {Promise<number>} Remaining amount after penalties settled
+ */
+const settleOutstandingPenalties = async (client, userId, amount, paymentReference) => {
+  if (amount <= 0) return 0;
+
+  // Fetch unresolved defaults for the user, ordered by missed_date (oldest first)
+  const { rows: defaults } = await client.query(
+    `
+      SELECT id, penalty_amount
+      FROM defaults
+      WHERE user_id = $1 AND resolved = FALSE
+      ORDER BY missed_date ASC
+    `,
+    [userId]
+  );
+
+  let remaining = amount;
+
+  for (const d of defaults) {
+    if (remaining <= 0) break;
+    const penalty = parseFloat(d.penalty_amount);
+    if (remaining >= penalty) {
+      // Fully settle this default
+      await client.query(`UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1`, [d.id]);
+
+      // Record settlement transaction
+      await client.query(
+        `INSERT INTO transactions (user_id, plan_id, type, amount, status, reference, payment_provider)
+         VALUES ($1, NULL, 'penalty_settlement', $2, 'completed', $3, 'system') RETURNING *`,
+        [userId, penalty, paymentReference]
+      );
+
+      // Ledger entry for settlement
+      await client.query(
+        `INSERT INTO wallet_transactions (user_id, type, amount, reference, description)
+         VALUES ($1, 'debit', $2, $3, $4)`,
+        [userId, penalty, paymentReference, `Penalty settlement from payment ${paymentReference}`]
+      );
+
+      // Notify user
+      await createNotification(
+        userId,
+        'ALERT',
+        'Penalty Settled',
+        `A penalty of ₦${penalty.toLocaleString()} has been fully settled with your recent payment.`
+      ).catch(() => {});
+
+      // Send SMS (optional, ignore errors)
+      try { await sendTermiiSMS(userId, `Your penalty of ₦${penalty.toLocaleString()} was settled.`); } catch (e) {}
+
+      remaining -= penalty;
+    } else {
+      // Partially settle this default
+      const newPenalty = penalty - remaining;
+      await client.query(`UPDATE defaults SET penalty_amount = $1 WHERE id = $2`, [newPenalty, d.id]);
+
+      // Ledger entry for partial settlement
+      await client.query(
+        `INSERT INTO wallet_transactions (user_id, type, amount, reference, description)
+         VALUES ($1, 'debit', $2, $3, $4)`,
+        [userId, remaining, paymentReference, `Partial penalty settlement from payment ${paymentReference}`]
+      );
+
+      // Notify user of partial settlement
+      await createNotification(
+        userId,
+        'ALERT',
+        'Penalty Partially Settled',
+        `A penalty of ₦${penalty.toLocaleString()} was partially settled. Remaining penalty: ₦${newPenalty.toLocaleString()}.`
+      ).catch(() => {});
+      try { await sendTermiiSMS(userId, `Partial penalty of ₦${remaining.toLocaleString()} settled.`); } catch (e) {}
+      remaining = 0;
+    }
+  }
+
+  // Return any leftover amount to be credited after penalties are handled
+  return remaining;
+};
+
 
 /**
  * Create a new PENDING transaction record.
@@ -138,28 +228,24 @@ export const processCompletedPayment = async (
           status = 'completed',
           provider_reference = COALESCE($1, provider_reference),
           gateway_reference = COALESCE($1, gateway_reference),
-          payment_provider = COALESCE($2, payment_provider),
-          updated_at = CURRENT_TIMESTAMP
+          payment_provider = COALESCE($2, payment_provider)
         WHERE reference = $3
         RETURNING *
       `,
-      [
-        gatewayRef,
-        provider,
-        reference
-      ]
+      [gatewayRef, provider, reference]
     );
 
     const completedTx = updatedTxRows[0];
 
-    console.log(
-      '[TRANSACTION COMPLETED]',
-      completedTx.reference
-    );
-
     // =====================================================
     // HANDLE TRANSACTION TYPES
     // =====================================================
+
+    // Resolve any outstanding penalties before crediting the user.
+    let creditAmount = parseFloat(completedTx.amount);
+    if (completedTx.type === 'deposit' || completedTx.type === 'wallet_topup' || completedTx.type === 'contribution') {
+      creditAmount = await settleOutstandingPenalties(client, completedTx.user_id, creditAmount, completedTx.reference);
+    }
 
     if (
       completedTx.type === 'deposit' ||
@@ -173,20 +259,22 @@ export const processCompletedPayment = async (
 
       if (completedTx.plan_id) {
 
-        await client.query(
-          `
-            UPDATE savings_plans
-            SET
-              current_amount =
-                COALESCE(current_amount, 0) + $1,
-              updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
-          `,
-          [
-            completedTx.amount,
-            completedTx.plan_id
-          ]
-        );
+        if (creditAmount > 0) {
+          await client.query(
+            `
+              UPDATE savings_plans
+              SET
+                current_amount =
+                  COALESCE(current_amount, 0) + $1,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = $2
+            `,
+            [
+              creditAmount,
+              completedTx.plan_id
+            ]
+          );
+        }
 
         console.log(
           '[PLAN UPDATED]',
@@ -199,26 +287,28 @@ export const processCompletedPayment = async (
         // WALLET FUNDING
         // =========================================
 
-        await client.query(
-          `
-            UPDATE users
-            SET
-              available_balance =
-                COALESCE(available_balance, 0) + $1,
+        if (creditAmount > 0) {
+          await client.query(
+            `
+              UPDATE users
+              SET
+                available_balance =
+                  COALESCE(available_balance, 0) + $1,
 
-              wallet_balance =
-                COALESCE(wallet_balance, 0) + $1
+                wallet_balance =
+                  COALESCE(wallet_balance, 0) + $1
 
-            WHERE id = $2
-          `,
-          [
-            completedTx.amount,
-            completedTx.user_id
-          ]
-        );
+              WHERE id = $2
+            `,
+            [
+              creditAmount,
+              completedTx.user_id
+            ]
+          );
+        }
 
         console.log(
-          `[WALLET CREDITED] USER ${completedTx.user_id} +₦${completedTx.amount}`
+          `[WALLET CREDITED] USER ${completedTx.user_id} +₦${creditAmount}`
         );
 
         // =========================================
@@ -246,16 +336,17 @@ export const processCompletedPayment = async (
         // CREATE LEDGER ENTRY
         // =========================================
 
-        await createWalletLedgerEntry(
-          client,
-          completedTx.user_id,
-          'credit',
-          completedTx.amount,
-          reference,
-          'Wallet Top-up'
-        );
+        if (creditAmount > 0) {
+          await createWalletLedgerEntry(
+            client,
+            completedTx.user_id,
+            'credit',
+            creditAmount,
+            reference,
+            'Wallet Top-up'
+          );
+        }
       }
-
     } else if (
       completedTx.type === 'membership'
     ) {
@@ -347,6 +438,22 @@ export const processCompletedPayment = async (
                 $2,
                 $3,
                 'cash',
+                'pending'
+              )
+            `,
+            [
+              completedTx.user_id,
+              completedTx.plan_id,
+              expectedAmount
+            ]
+          );
+        }
+
+        console.log(
+          '[CLEARANCE PAYMENT PROCESSED]'
+        );
+      }
+    }         'cash',
                 'pending'
               )
             `,

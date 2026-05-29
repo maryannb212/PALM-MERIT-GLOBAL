@@ -35,7 +35,13 @@ export const runMaturityCheck = async () => {
 
       }
 
-      const startDate = new Date(plan.start_date);
+      // Determine the actual contribution start date from the first savings transaction
+      const { rows: contribRows } = await client.query(
+        `SELECT MIN(created_at) AS contribution_date FROM transactions WHERE plan_id = $1 AND type = 'savings'`,
+        [plan.id]
+      );
+      const contributionDate = contribRows[0].contribution_date ? new Date(contribRows[0].contribution_date) : new Date(plan.start_date);
+      const startDate = contributionDate;
       const maturityDate = new Date(startDate.getTime() + (durationDays * 24 * 60 * 60 * 1000));
       const now = new Date();
 
