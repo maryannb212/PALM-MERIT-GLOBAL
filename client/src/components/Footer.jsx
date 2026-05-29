@@ -54,9 +54,7 @@ const Footer = () => {
       </div>
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} Palm Merit Global Resources. All rights reserved.</p>
-</div>
-
-       <p className="footer-credit">
+               <p className="footer-credit">
     Designed & Developed by{" "}
     <a
       href="https://allsmarttechhub.com"
@@ -66,6 +64,9 @@ const Footer = () => {
       All Smart Tech
     </a>
   </p>
+</div>
+
+
     </footer>
   );
 };
