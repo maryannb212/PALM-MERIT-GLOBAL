@@ -54,7 +54,18 @@ const Footer = () => {
       </div>
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} Palm Merit Global Resources. All rights reserved.</p>
-      </div>
+</div>
+
+       <p className="footer-credit">
+    Designed & Developed by{" "}
+    <a
+      href="https://allsmarttechhub.com"
+      target="_blank"
+      rel="noreferrer"
+    >
+      All Smart Tech
+    </a>
+  </p>
     </footer>
   );
 };
