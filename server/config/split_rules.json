@@ -1,0 +1,21 @@
+{
+  "standard": {
+    "registration_fee": "registration fees",
+    "savings_contribution": "savings contributions",
+    "default_repayment": "default repayments",
+    "late_incentive": "late incentives",
+    "wallet_funding": "wallet funding",
+    "cooperative_program": "cooperative program payments",
+    "merchandise": "merchandise/T-shirt payments",
+    "payout_reversal": "payout reversals",
+    "referral_income": "referral-related income"
+  },
+  "future": {
+    "bundled_promotion": "bundled promotions",
+    "discount": "discounts",
+    "partial_waiver": "partial waivers",
+    "admin_adjustment": "admin adjustments",
+    "campaign_incentive": "campaign incentives",
+    "partner_contribution": "partner-based contributions"
+  }
+}

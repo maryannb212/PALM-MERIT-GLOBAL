@@ -21,11 +21,14 @@ import {
   reconcileFlutterwave,
   getWebhookLogs,
   getSystemStatus,
-  getTransactionDebug,
-  getRecentTransfers
+  getTransactionDebug, 
+  getRecentTransfers, 
+  getFinancialReport,
+  deleteTestPayment 
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
+import { getFinancialReport } from '../controllers/financialReportController.js';
 import { ceoLogin } from '../controllers/adminAuthController.js';
 import { getPageLocks, updatePageLock, verifyPageLock } from '../controllers/adminSecurityController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
@@ -49,6 +52,7 @@ router.post('/notifications/broadcast', broadcastNotification);
 router.get('/defaulters', getDefaulters);
 router.get('/reconciliation', getReconciliationStats);
 router.get('/cashflow', getCashflowSummary);
+router.get('/financial-report', getFinancialReport);
 router.get('/transactions/pending', getPendingTransactions);
 router.post('/approve-payment/:transactionId', approveManualPayment);
 router.get('/withdrawals/pending', getPendingWithdrawals);
@@ -64,7 +68,7 @@ router.get('/webhook-logs', getWebhookLogs);
 router.get('/system-status', getSystemStatus);
 router.get('/transaction-debug/:reference', getTransactionDebug);
 router.get('/transactions/recent', getRecentTransfers);
-
+router.delete('/payments/:id', deleteTestPayment);
 // Security Locks
 router.get('/security/locks', getPageLocks);
 router.put('/security/locks', updatePageLock);

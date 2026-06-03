@@ -1,4 +1,4 @@
-import { query, getClient } from '../config/db.js';
+import cashFlowService from '../services/cashFlowService.js';
 import { createNotification } from '../models/notificationModel.js';
 import { sendTermiiSMS } from '../../server/src/utils/termiiService.js';
 
@@ -476,6 +476,13 @@ export const processCompletedPayment = async (
     // =====================================================
 
     await client.query('COMMIT');
+
+    // Record transaction in cash‑flow aggregates
+    try {
+      await cashFlowService.recordTransaction(completedTx);
+    } catch (e) {
+      console.error('[transactionModel] cashFlowService error', e);
+    }
 
     console.log(
       '[PAYMENT PROCESS COMPLETED SUCCESSFULLY]'

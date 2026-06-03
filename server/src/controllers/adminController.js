@@ -758,7 +758,31 @@ export const reconcileFlutterwave = async (req, res) => {
     res.status(500).json({ message: 'Reconciliation failed: ' + (error.response?.data?.message || error.message) });
   }
 };
+};
 
+export const getCashFlowSummary = async (req, res) => {
+  try {
+    const incomingSql = `
+      SELECT COALESCE(SUM(amount),0) as total_incoming
+      FROM transactions
+      WHERE status = 'completed' AND type IN ('wallet_topup','deposit','contribution')
+    `;
+    const { rows: incRows } = await query(incomingSql);
+    const totalIncoming = parseFloat(incRows[0].total_incoming);
+    const outgoingSql = `
+      SELECT COALESCE(SUM(amount),0) as total_outgoing
+      FROM transactions
+      WHERE status = 'completed' AND type IN ('withdrawal','penalty','clearance','membership')
+    `;
+    const { rows: outRows } = await query(outgoingSql);
+    const totalOutgoing = parseFloat(outRows[0].total_outgoing);
+    const netChange = totalIncoming - totalOutgoing;
+    res.json({ totalIncoming, totalOutgoing, netChange });
+  } catch (error) {
+    console.error('Error fetching cash flow summary:', error);
+    res.status(500).json({ message: 'Server error fetching cash flow summary' });
+  }
+};
 export const getWebhookLogs = async (req, res) => {
   try {
     const { rows } = await query(
@@ -853,4 +877,40 @@ export const getRecentTransfers = async (req, res) => {
     console.error('Error fetching recent transfers:', error);
     res.status(500).json({ message: 'Failed to fetch recent transfers' });
   }
+}
+
+export const deleteTestPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Ensure the transaction is marked as a test payment before deleting
+    const { rows: existing } = await query('SELECT is_test FROM transactions WHERE id = $1', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+    if (!existing[0].is_test) {
+      return res.status(400).json({ message: 'Only test payments can be deleted' });
+    }
+    await query('DELETE FROM transactions WHERE id = $1', [id]);
+    res.json({ message: 'Test payment deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting test payment:', error);
+    res.status(500).json({ message: 'Failed to delete test payment' });
+  }
 };
+
+export const getAllPayments = async (req, res) => {
+  try {
+    const { rows } = await query(`
+      SELECT t.id, t.reference, t.type, t.status, t.amount, t.payment_provider, t.created_at,
+             u.first_name, u.last_name, u.email, u.virtual_account_number, u.wallet_balance, u.available_balance
+      FROM transactions t
+      JOIN users u ON t.user_id = u.id
+      WHERE t.status = 'completed'
+      ORDER BY t.created_at DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching all payments:', error);
+    res.status(500).json({ message: 'Failed to fetch all payments' });
+  }
+};;

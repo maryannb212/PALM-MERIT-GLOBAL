@@ -1,63 +1,55 @@
-import jsonwebtoken from 'jsonwebtoken';
-import { findUserById } from '../models/userModel.js';
-import dotenv from 'dotenv';
+// server/src/middleware/authMiddleware.js
 
-dotenv.config();
+/**
+ * Authentication and Role‑Based Access Control Middleware
+ * -----------------------------------------------------
+ * This middleware verifies the Firebase ID token (or any JWT) sent via the
+ * `Authorization: Bearer <token>` header and attaches the decoded user payload
+ * to `req.user`. It also provides a helper `requireRoles(...allowedRoles)` that
+ * can be used in route definitions to restrict access based on the user's role.
+ *
+ * The platform already uses Firebase for authentication (`firebaseAdmin`).
+ * If the project uses a different JWT secret, replace the verification logic
+ * accordingly.
+ */
 
-export const protect = async (req, res, next) => {
-  let token;
+import { firebaseAdmin } from '../config/firebaseAdmin.js'; // Adjust path if needed
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      token = req.headers.authorization.split(' ')[1];
-
-      const decoded = jsonwebtoken.verify(token, process.env.JWT_SECRET || 'secret');
-
-      // Handle CEO admin token (uses string ID, not in database)
-      if (decoded.id === 'ceo-admin-id' && decoded.role === 'admin') {
-        req.user = {
-          id: 'ceo-admin-id',
-          first_name: 'System',
-          last_name: 'Admin',
-          email: 'admin@palmmerit.com',
-          role: 'admin',
-          has_paid_membership: true,
-          kyc_status: 'verified'
-        };
-        return next();
-      }
-
-      req.user = await findUserById(decoded.id);
-
-      if (!req.user) {
-        return res.status(401).json({ message: 'Not authorized, user not found' });
-      }
-
-      next();
-    } catch (error) {
-      console.error('Auth middleware error:', error);
-      return res.status(401).json({ message: 'Not authorized, token failed' });
+/** Verify Firebase ID token and attach user info */
+export const verifyToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+      return res.status(401).json({ error: 'Missing auth token' });
     }
-  } else if (!token) {
-    return res.status(401).json({ message: 'Not authorized, no token' });
+    const decoded = await firebaseAdmin.auth().verifyIdToken(token);
+    // Expected payload contains at least uid and custom claims like `role`
+    req.user = {
+      uid: decoded.uid,
+      email: decoded.email,
+      role: decoded.role || 'STANDARD_USER',
+    };
+    next();
+  } catch (err) {
+    console.error('[authMiddleware] Token verification failed', err);
+    return res.status(401).json({ error: 'Invalid auth token' });
   }
 };
 
-export const admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+/**
+ * Role guard – usage in routes:
+ *   router.get('/finance/summary', verifyToken, requireRoles('SUPER_ADMIN', 'FINANCE_ACCOUNTANT'), handler);
+ */
+export const requireRoles = (...allowedRoles) => {
+  const permitted = new Set(allowedRoles);
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthenticated' });
+    }
+    if (!permitted.has(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden: insufficient role' });
+    }
     next();
-  } else {
-    res.status(403).json({ message: 'Not authorized as an admin' });
-  }
-};
-
-export const checkMembership = (req, res, next) => {
-  if (req.user && (req.user.has_paid_membership || req.user.role === 'admin')) {
-    next();
-  } else {
-    res.status(403).json({ 
-      message: 'Membership fee required', 
-      requiresMembership: true 
-    });
-  }
+  };
 };

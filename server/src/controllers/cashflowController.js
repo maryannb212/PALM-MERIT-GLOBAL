@@ -10,7 +10,7 @@ export const getCashflowSummary = async (req, res) => {
     const inflowSql = `
       SELECT SUM(amount) as total_inflow
       FROM transactions
-      WHERE status = 'completed' AND type IN ('deposit', 'membership', 'clearance', 'wallet_topup', 'contribution');
+      WHERE status = 'completed' AND type IN ('deposit', 'membership', 'clearance', 'wallet_topup', 'contribution') AND is_test = FALSE;
     `;
     const inflowResult = await query(inflowSql);
     const totalInflow = parseFloat(inflowResult.rows[0].total_inflow) || 0;
@@ -19,7 +19,7 @@ export const getCashflowSummary = async (req, res) => {
     const withdrawalSql = `
       SELECT SUM(amount) as total_withdrawals
       FROM transactions
-      WHERE status = 'completed' AND type = 'withdrawal';
+      WHERE status = 'completed' AND type = 'withdrawal' AND is_test = FALSE;
     `;
     const withdrawalResult = await query(withdrawalSql);
     const totalWithdrawals = parseFloat(withdrawalResult.rows[0].total_withdrawals) || 0;

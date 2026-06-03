@@ -10,25 +10,21 @@ export const submitKYC = async (req, res) => {
     } = req.body;
     const userId = req.user.id;
 
-    // Get file paths
-    const getFilePath = (field) => {
-      if (!req.files || !req.files[field] || !req.files[field][0]) return null;
-      // In production (Cloudinary), 'path' is the full URL.
-      // In development (local), 'filename' needs the '/uploads/' prefix.
-      return process.env.NODE_ENV === 'production' 
-        ? req.files[field][0].path 
-        : `/uploads/${req.files[field][0].filename}`;
-    };
+// File upload handling removed; KYC submissions no longer require document uploads.
+// getFilePath helper and related code have been eliminated.
 
-    const idFrontUrl = getFilePath('id_image');
-    const idBackUrl = getFilePath('idBack');
-    const selfieUrl = getFilePath('selfie');
-    const profileImageUrl = getFilePath('profile_image');
+// Document URLs are no longer required.
+      const idFrontUrl = null;
+      const idBackUrl = null;
+      const selfieUrl = null;
+      const profileImageUrl = null;
 
-    // Basic validation
-    if (!bvn || !id_type || !id_number) {
-      return res.status(400).json({ message: 'BVN, ID Type, and ID Number are required' });
-    }
+// Basic validation
+      if (!bvn || !id_type || !id_number) {
+        return res.status(400).json({ message: 'BVN, ID Type, and ID Number are required' });
+      }
+      // No required document files now.
+
 
     const formattedDob = date_of_birth === "" ? null : date_of_birth;
 
@@ -40,9 +36,9 @@ export const submitKYC = async (req, res) => {
         INSERT INTO kyc_details (
           user_id, first_name, last_name, middle_name, phone, email, 
           address, gender, dob, bvn, bank_name, bank_code, account_number,
-          id_type, id_number, document_url, document_back_url, selfie_url
+          id_type, id_number
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         ON CONFLICT (user_id) DO UPDATE SET 
           first_name = EXCLUDED.first_name,
           last_name = EXCLUDED.last_name,
@@ -58,9 +54,6 @@ export const submitKYC = async (req, res) => {
           account_number = EXCLUDED.account_number,
           id_type = EXCLUDED.id_type,
           id_number = EXCLUDED.id_number,
-          document_url = COALESCE(EXCLUDED.document_url, kyc_details.document_url),
-          document_back_url = COALESCE(EXCLUDED.document_back_url, kyc_details.document_back_url),
-          selfie_url = COALESCE(EXCLUDED.selfie_url, kyc_details.selfie_url),
           updated_at = CURRENT_TIMESTAMP
         RETURNING *;
       `;
@@ -68,7 +61,7 @@ export const submitKYC = async (req, res) => {
       await client.query(kycSql, [
         userId, firstName, lastName, middleName, phone, email, 
         address, gender, formattedDob, bvn, bankName, bankCode, accountNumber,
-        id_type, id_number, idFrontUrl, idBackUrl, selfieUrl
+        id_type, id_number
       ]);
 
       // Check current kyc_status of user
@@ -78,11 +71,7 @@ export const submitKYC = async (req, res) => {
 
       let userSql = `UPDATE users SET kyc_status = $2`;
       const userValues = [userId, targetKycStatus];
-      
-      if (profileImageUrl) {
-        userSql += `, profile_image = $3`;
-        userValues.push(profileImageUrl);
-      }
+      // No profile image handling required.
       userSql += ` WHERE id = $1 RETURNING kyc_status;`;
 
       const { rows: userRows } = await client.query(userSql, userValues);

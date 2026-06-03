@@ -5,7 +5,7 @@ import { isReferrerEligibleForMultiplier } from '../helpers/referralHelper.js';
 
 export const subscribeToPlan = async (req, res) => {
   try {
-    const { planName, targetAmount, numberOfAccounts, preferredDay } = req.body;
+    const { planName, targetAmount, numberOfAccounts } = req.body;
     const userId = req.user.id;
 
     if (!planName || !targetAmount) {

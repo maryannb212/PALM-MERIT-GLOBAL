@@ -380,7 +380,7 @@ const ReconciliationPage = () => {
               </tbody>
             </table>
           </div>
-        ) : (
+        ) : activeTab === 'webhook-logs' ? (
           <div className="table-responsive">
             <table className="admin-table">
               <thead>
@@ -401,9 +401,7 @@ const ReconciliationPage = () => {
                     <tr key={log.id} className="table-row-hover">
                       <td><code>#{log.id}</code></td>
                       <td>
-                        <span className={`badge-pill ${log.source === 'flutterwave' ? 'pill-burgundy' : 'pill-dark'}`}>
-                          {log.source.toUpperCase()}
-                        </span>
+                        <span className={`badge-pill ${log.source === 'flutterwave' ? 'pill-burgundy' : 'pill-dark'}`}>{log.source.toUpperCase()}</span>
                       </td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -412,20 +410,10 @@ const ReconciliationPage = () => {
                         </div>
                       </td>
                       <td>
-                        <span className={`badge-status ${
-                          log.status === 'processed' ? 'status-verified' : 
-                          log.status === 'duplicate' ? 'status-pending' : 
-                          'status-unverified'
-                        }`}>
-                          {log.status.toUpperCase()}
-                        </span>
+                        <span className={`badge-status ${log.status === 'processed' ? 'status-verified' : log.status === 'duplicate' ? 'status-pending' : 'status-unverified'}`}>{log.status.toUpperCase()}</span>
                       </td>
-                      <td style={{ fontSize: '0.85rem', color: '#334155', maxWidth: '300px', wordBreak: 'break-all' }}>
-                        {log.note || 'No notes.'}
-                      </td>
-                      <td className="date-cell" style={{ fontSize: '0.8rem' }}>
-                        {new Date(log.created_at).toLocaleString()}
-                      </td>
+                      <td style={{ fontSize: '0.85rem', color: '#334155', maxWidth: '300px', wordBreak: 'break-all' }}>{log.note || 'No notes.'}</td>
+                      <td className="date-cell" style={{ fontSize: '0.8rem' }}>{new Date(log.created_at).toLocaleString()}</td>
                     </tr>
                   ))
                 )}

@@ -614,3 +614,27 @@ export const generateVirtualAccount = async (req, res) => {
     res.status(500).json({ message: 'Server error while generating virtual account: ' + error.message });
   }
 };
+export const changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: 'Old and new passwords are required' });
+    }
+    const user = await findUserById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const match = await bcrypt.compare(oldPassword, user.password_hash);
+    if (!match) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error in changePassword:', error);
+    res.status(500).json({ message: 'Server error changing password' });
+  }
+};
