@@ -129,19 +129,19 @@
 
 .member-name {
   font-weight: 600;
-  color: #1e293b;
+  color: --color-primary;
   font-size: 0.95rem;
 }
 
 .member-id {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color:  --color-primary;
 }
 
 /* Contact Info */
 .contact-info {
   font-size: 0.85rem;
-  color: #475569;
+  color:  --color-primary;
 }
 
 .contact-item {
