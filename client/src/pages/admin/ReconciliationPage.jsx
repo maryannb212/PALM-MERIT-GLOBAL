@@ -465,7 +465,8 @@ const ReconciliationPage = () => {
               </tbody>
             </table>
           </div>
-        )}
+        ) : null}
+
       </div>
     </div>
   );
