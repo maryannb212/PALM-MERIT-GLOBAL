@@ -60,6 +60,15 @@ const Referrals = () => {
   // Store the date object for display purposes
   const unlockDate = unlockTimestamp ? new Date(unlockTimestamp) : null;
 
+  // Parse Expiry Date
+  const expiryTimestamp = (() => {
+    if (user?.referral_expiry_date) return new Date(user.referral_expiry_date).getTime();
+    if (user?.referralExpiryDate) return new Date(user.referralExpiryDate).getTime();
+    return null;
+  })();
+  const [isExpired, setIsExpired] = useState(() => expiryTimestamp ? Date.now() > expiryTimestamp : false);
+  const expiryDate = expiryTimestamp ? new Date(expiryTimestamp) : null;
+
   // Calculate Countdown
   const [timeLeft, setTimeLeft] = useState('');
   useEffect(() => {
@@ -157,11 +166,28 @@ const Referrals = () => {
                   <button disabled className="ref-copy-btn"><FaCopy /> Copy</button>
                 </div>
               </div>
+            ) : isExpired ? (
+              <div className="ref-locked-state">
+                <FaTimesCircle className="lock-icon-hero" style={{color: '#ef4444'}} />
+                <h3>Referral Link Expired</h3>
+                <p>Your referral link has expired and is no longer active for new registrations.</p>
+                <p className="text-muted" style={{fontSize: '0.9rem'}}>Expired on {expiryDate ? expiryDate.toLocaleDateString(undefined, { dateStyle: 'long' }) : 'N/A'}</p>
+                
+                <div className="ref-input-wrapper mt-3">
+                  <input type="text" value="EXPIRED" disabled />
+                  <button disabled className="ref-copy-btn"><FaCopy /> Copy</button>
+                </div>
+              </div>
             ) : (
               <div className="ref-unlocked-state">
                 <FaUnlock className="lock-icon-hero" style={{color: '#10b981'}} />
                 <h3>Your Invitation Link is Active!</h3>
                 <p>Share this personalized link with colleagues, friends, or family. When they register and start saving actively, you increase your eligibility for premium payout bonuses during maturity review!</p>
+                {expiryDate && (
+                  <p className="text-muted mt-2" style={{fontSize: '0.9rem'}}>
+                    <strong>Note:</strong> This link expires on {expiryDate.toLocaleDateString(undefined, { dateStyle: 'long' })}.
+                  </p>
+                )}
                 
                 <div className="ref-input-wrapper mt-3">
                   <input type="text" value={referralLink} readOnly onClick={(e) => e.target.select()} />

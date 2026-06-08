@@ -98,6 +98,18 @@ export const subscribeToPlan = async (req, res) => {
       // Create the plan
       const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, autoPreferredDay, client);
 
+      // Adjust referral dates based on plan type
+      if (planName === 'SILVER') {
+        // SILVER plans unlock referrals automatically and expire in 90 days
+        await client.query(
+          `UPDATE users 
+           SET referral_unlock_date = CURRENT_TIMESTAMP, 
+               referral_expiry_date = CURRENT_TIMESTAMP + INTERVAL '90 days' 
+           WHERE id = $1`,
+          [userId]
+        );
+      }
+
       // Set the initial current_amount of the savings plan to initialSavingsTotal
       await client.query(
         'UPDATE savings_plans SET current_amount = $1 WHERE id = $2',

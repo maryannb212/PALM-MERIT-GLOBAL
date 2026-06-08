@@ -61,7 +61,7 @@ export const registerUser = async (req, res) => {
     }
 
     if (referredByCode && referredByCode.trim()) {
-      validationPromises.push(query('SELECT id, referral_unlock_date FROM users WHERE referral_code = $1', [referredByCode.trim()]));
+      validationPromises.push(query('SELECT id, referral_unlock_date, referral_expiry_date FROM users WHERE referral_code = $1', [referredByCode.trim()]));
     } else {
       validationPromises.push(Promise.resolve({ rows: [] }));
     }
@@ -93,6 +93,12 @@ export const registerUser = async (req, res) => {
       if (unlockDate && unlockDate > new Date()) {
         return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
       }
+      
+      const expiryDate = referrer.referral_expiry_date ? new Date(referrer.referral_expiry_date) : null;
+      if (expiryDate && expiryDate < new Date()) {
+        return res.status(400).json({ message: 'This referral code has expired' });
+      }
+      
       referredById = referrer.id;
     }
 
@@ -113,15 +119,19 @@ export const registerUser = async (req, res) => {
       if (checkCode.length === 0) isUnique = true;
     }
 
-    // Calculate Referral Unlock Date: Exactly 1 month after registration
+    // Calculate Referral Unlock Date: 25 days after registration by default
     const createdDate = new Date();
     const unlockDate = new Date(createdDate);
-    unlockDate.setMonth(unlockDate.getMonth() + 1);
+    unlockDate.setDate(unlockDate.getDate() + 25);
+    
+    // Calculate Default Expiry: 14 days after unlock date (CREST rule)
+    const expiryDate = new Date(unlockDate);
+    expiryDate.setDate(expiryDate.getDate() + 14);
 
     const sql = `
-      INSERT INTO users (first_name, last_name, email, password_hash, phone, role, referral_code, referred_by, referral_unlock_date, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, referral_code, referral_unlock_date, created_at;
+      INSERT INTO users (first_name, last_name, email, password_hash, phone, role, referral_code, referred_by, referral_unlock_date, referral_expiry_date, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, referral_code, referral_unlock_date, referral_expiry_date, created_at;
     `;
     const emailToSave = normalizedEmail;
     const { rows: newUser } = await query(sql, [
@@ -134,6 +144,7 @@ export const registerUser = async (req, res) => {
       newReferralCode,
       referredById,
       unlockDate,
+      expiryDate,
       createdDate
     ]);
     const user = newUser[0];
@@ -448,7 +459,7 @@ export const getUserProfile = async (req, res) => {
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.available_balance, u.held_balance,
         u.profile_image, u.created_at,
         u.virtual_account_number, u.virtual_bank_name, u.virtual_account_name, u.virtual_provider,
-        u.referral_code, u.referral_unlock_date,
+        u.referral_code, u.referral_unlock_date, u.referral_expiry_date,
         u.tshirt_paid, u.tshirt_payment_date,
         b.account_name, b.account_number, b.bank_name, b.bank_code,
         k.dob, k.middle_name, k.address, k.gender, k.bvn, k.id_type, k.id_number
@@ -507,6 +518,7 @@ export const getUserProfile = async (req, res) => {
       virtual_provider: user.virtual_provider,
       referralCode: user.referral_code,
       referralUnlockDate: user.referral_unlock_date,
+      referralExpiryDate: user.referral_expiry_date,
       tshirt_paid: user.tshirt_paid || false,
       tshirt_payment_date: user.tshirt_payment_date || null,
       totalMembers: user.role === 'admin' ? totalMembers : null,

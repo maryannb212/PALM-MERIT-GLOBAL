@@ -42,7 +42,7 @@ export const calculateDownlineStatus = (user, plans) => {
  */
 export const getReferredDownlines = async (userId) => {
   const sql = `
-    SELECT id, first_name, last_name, email, phone, status, created_at, referral_code, referral_unlock_date
+    SELECT id, first_name, last_name, email, phone, status, created_at, referral_code, referral_unlock_date, referral_expiry_date
     FROM users
     WHERE referred_by = $1
     ORDER BY created_at DESC
@@ -71,6 +71,7 @@ export const getReferredDownlines = async (userId) => {
       createdAt: downline.created_at,
       referralCode: downline.referral_code,
       referralUnlockDate: downline.referral_unlock_date,
+      referralExpiryDate: downline.referral_expiry_date,
       plans: plans.map(p => ({
         planName: p.plan_name,
         status: p.status,

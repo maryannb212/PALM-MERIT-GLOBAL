@@ -457,7 +457,7 @@ export const getPendingTransactions = async (req, res) => {
 export const getAdminReferralStats = async (req, res) => {
   try {
     const { rows: users } = await query(`
-      SELECT id, first_name, last_name, email, phone, referral_code, referred_by, referral_unlock_date, status, created_at
+      SELECT id, first_name, last_name, email, phone, referral_code, referred_by, referral_unlock_date, referral_expiry_date, status, created_at
       FROM users
       ORDER BY created_at DESC
     `);
@@ -527,6 +527,7 @@ export const getAdminReferralStats = async (req, res) => {
         createdAt: u.created_at,
         referralCode: u.referral_code,
         referralUnlockDate: u.referral_unlock_date,
+        referralExpiryDate: u.referral_expiry_date,
         downlinesCount: directDownlines.length,
         activeQualifiedCount,
         isEligible: activeQualifiedCount >= 2,

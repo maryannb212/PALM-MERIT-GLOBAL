@@ -9,6 +9,7 @@ import logger from './utils/logger.js';
 
 import { startCronJobs } from './jobs/penaltyJob.js';
 import { startStaffDeactivationJob } from './jobs/staffDeactivationJob.js';
+import { startDeductionJob } from './jobs/deductionJob.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -150,6 +151,7 @@ app.use((err, req, res, next) => {
 // Initialize scheduled tasks (Persistent mode)
 import { startMaturityJob } from './jobs/maturityCron.js';
 startMaturityJob();
+startDeductionJob();
 startCronJobs();
 startStaffDeactivationJob();
 

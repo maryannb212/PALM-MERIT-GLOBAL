@@ -259,7 +259,7 @@ const RegisterPage = () => {
                 </div>
 
                 <div className="form-group full-width">
-                  <label>Referral Code (Optional)</label>
+                  <label>Referred By / Upline Code (Optional)</label>
                   <input 
                     type="text" 
                     name="referredByCode" 
