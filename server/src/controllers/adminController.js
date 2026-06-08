@@ -759,7 +759,6 @@ export const reconcileFlutterwave = async (req, res) => {
     res.status(500).json({ message: 'Reconciliation failed: ' + (error.response?.data?.message || error.message) });
   }
 };
-};
 
 export const getCashFlowSummary = async (req, res) => {
   try {

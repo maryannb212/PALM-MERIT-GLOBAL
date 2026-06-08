@@ -14,7 +14,7 @@ const PLAN_CONFIG = {
 /**
  * Helper to count how many contributions should have occurred by today.
  */
-const countExpectedContributions = (startDate, preferredDay, isDaily) => {
+export const countExpectedContributions = (startDate, preferredDay, isDaily) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
