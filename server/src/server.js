@@ -4,6 +4,10 @@ dotenv.config();
 import app from './app.js';
 import pool from './config/db.js';
 import logger from './utils/logger.js';
+import { exec } from 'child_process';
+import util from 'util';
+
+const execPromise = util.promisify(exec);
 
 const PORT = process.env.PORT || 5000;
 
@@ -28,6 +32,14 @@ const startServer = async (retries = 5) => {
       // Test database connection
       const res = await pool.query('SELECT NOW()');
       logger.info(`[startup] Database connected at ${res.rows[0].now}`);
+
+      // Run automatic migrations
+      logger.info(`[startup] Running database migrations...`);
+      const { stdout, stderr } = await execPromise('npx knex migrate:latest');
+      if (stderr && !stderr.includes('warn')) {
+         logger.info(`[startup] Migration warnings/errors: ${stderr}`);
+      }
+      logger.info(`[startup] Database migrations completed. Output: \n${stdout.trim()}`);
 
       const server = app.listen(PORT, '0.0.0.0', () => {
         logger.info(`[startup] Palm Merit Global API`);
