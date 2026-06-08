@@ -11,6 +11,127 @@ const PLAN_CONFIG = {
   'ISUSU': { amount: 500, isDaily: true }
 };
 
+/**
+ * Helper to count how many contributions should have occurred by today.
+ */
+const countExpectedContributions = (startDate, preferredDay, isDaily) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+
+  if (start >= today) return 0;
+
+  if (isDaily) {
+    const diffTime = today - start;
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const targetDayIndex = daysOfWeek.findIndex(d => d.toLowerCase() === (preferredDay || '').toLowerCase());
+
+  if (targetDayIndex === -1) {
+    const diffTime = today - start;
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+  }
+
+  let count = 0;
+  const cursor = new Date(start);
+
+  while (cursor.getDay() !== targetDayIndex) {
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  while (cursor < today) {
+    count++;
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  return count;
+};
+
+export const runStartupCatchupDeductions = async () => {
+  console.log('--- Running Startup Catch-up for Missed Deductions ---');
+  try {
+    const sql = `SELECT * FROM savings_plans WHERE status = 'active'`;
+    const { rows: activePlans } = await query(sql);
+
+    for (const plan of activePlans) {
+      const config = PLAN_CONFIG[plan.plan_name];
+      if (!config) continue;
+
+      const expectedInstallment = config.amount * (plan.number_of_accounts || 1);
+      const expectedCount = countExpectedContributions(plan.start_date, plan.preferred_day, config.isDaily);
+      const expectedTotal = expectedCount * expectedInstallment;
+      const currentAmount = parseFloat(plan.current_amount || 0);
+
+      // If they are behind on their contributions (time has passed, but funds not added)
+      if (currentAmount < expectedTotal) {
+        const owedAmount = expectedTotal - currentAmount;
+        console.log(`Plan ${plan.id} (${plan.plan_name}) is behind. Expected: ₦${expectedTotal}, Actual: ₦${currentAmount}. Catching up ₦${owedAmount}...`);
+
+        const client = await getClient();
+        try {
+          await client.query('BEGIN');
+          const { rows: users } = await client.query('SELECT id, available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
+          if (users.length === 0) throw new Error('User not found');
+          
+          const user = users[0];
+          const availableBalance = parseFloat(user.available_balance);
+
+          if (availableBalance >= owedAmount) {
+            const reference = `CATCHUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+            // Deduct from wallet
+            await client.query(
+              'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
+              [owedAmount, user.id]
+            );
+
+            // Add to savings plan current_amount
+            await client.query(
+              'UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+              [owedAmount, plan.id]
+            );
+
+            // Record transaction
+            await client.query(`
+              INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+              VALUES ($1, $2, 'savings', $3, 'completed', $4)
+            `, [user.id, plan.id, owedAmount, reference]);
+
+            // Record ledger entry
+            await createWalletLedgerEntry(client, user.id, 'debit', owedAmount, reference, `Catch-up savings deduction for ${plan.plan_name}`);
+
+            await client.query('COMMIT');
+
+            // Notify Success
+            await createNotification(
+              user.id,
+              'SYSTEM',
+              'Catch-up Deduction Successful',
+              `A catch-up deduction of ₦${owedAmount.toLocaleString()} was successfully processed for your ${plan.plan_name} plan for previously missed durations.`
+            );
+            console.log(`Successfully caught up ₦${owedAmount} for plan ${plan.id}`);
+          } else {
+            console.log(`Plan ${plan.id} missed deductions, but user has insufficient funds (₦${availableBalance}) to catch up ₦${owedAmount}.`);
+            await client.query('ROLLBACK');
+          }
+        } catch (err) {
+          await client.query('ROLLBACK');
+          console.error(`Error processing catch-up for plan ${plan.id}:`, err);
+        } finally {
+          client.release();
+        }
+      }
+    }
+    console.log('--- Startup Catch-up Complete ---');
+  } catch (error) {
+    console.error('Error running startup catch-up job:', error);
+  }
+};
+
 export const runDeductionJob = async () => {
   console.log('Running automatic savings deduction job...');
   try {
