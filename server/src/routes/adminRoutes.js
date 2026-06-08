@@ -23,7 +23,6 @@ import {
   getSystemStatus,
   getTransactionDebug, 
   getRecentTransfers, 
-  getFinancialReport,
   deleteTestPayment 
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';

@@ -1,6 +1,5 @@
-import cashFlowService from '../services/cashFlowService.js';
 import { createNotification } from '../models/notificationModel.js';
-import { sendTermiiSMS } from '../../server/src/utils/termiiService.js';
+import { sendTermiiSMS } from '../utils/termiiService.js';
 
 /**
  * Settle any outstanding penalties (defaults) for a user before applying credit.
@@ -453,22 +452,6 @@ export const processCompletedPayment = async (
           '[CLEARANCE PAYMENT PROCESSED]'
         );
       }
-    }         'cash',
-                'pending'
-              )
-            `,
-            [
-              completedTx.user_id,
-              completedTx.plan_id,
-              expectedAmount
-            ]
-          );
-        }
-
-        console.log(
-          '[CLEARANCE PAYMENT PROCESSED]'
-        );
-      }
     }
 
     // =====================================================
@@ -477,12 +460,6 @@ export const processCompletedPayment = async (
 
     await client.query('COMMIT');
 
-    // Record transaction in cash‑flow aggregates
-    try {
-      await cashFlowService.recordTransaction(completedTx);
-    } catch (e) {
-      console.error('[transactionModel] cashFlowService error', e);
-    }
 
     console.log(
       '[PAYMENT PROCESS COMPLETED SUCCESSFULLY]'
