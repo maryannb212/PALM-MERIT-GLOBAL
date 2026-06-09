@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import sgMail from '@sendgrid/mail';
+import axios from 'axios';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -21,10 +22,30 @@ const transporter = nodemailer.createTransport({
  * Send a generic email
  */
 export const sendEmail = async ({ to, subject, text, html }) => {
-  const from = `"${process.env.EMAIL_FROM_NAME || 'Palm Merit Global'}" <${process.env.EMAIL_FROM || 'info@palmmeritglobal.com'}>`;
+  const fromName = process.env.EMAIL_FROM_NAME || 'Palm Merit Global';
+  const defaultFromEmail = process.env.EMAIL_FROM || 'info@palmmeritglobal.com';
+  const brevoEmail = process.env.BREVO_SENDER_EMAIL || defaultFromEmail;
+  const from = `"${fromName}" <${defaultFromEmail}>`;
   
   try {
-    if (process.env.NODE_ENV === 'production' && process.env.SENDGRID_API_KEY) {
+    if (process.env.NODE_ENV === 'production' && process.env.BREVO_API_KEY) {
+      const payload = {
+        sender: { name: fromName, email: brevoEmail },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: html,
+        textContent: text
+      };
+      const response = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'accept': 'application/json',
+          'content-type': 'application/json'
+        }
+      });
+      console.log(`Email sent via Brevo to ${to}`);
+      return { success: true, messageId: response.data.messageId };
+    } else if (process.env.NODE_ENV === 'production' && process.env.SENDGRID_API_KEY) {
       const msg = { to, from, subject, text, html };
       await sgMail.send(msg);
       console.log(`Email sent via SendGrid to ${to}`);
@@ -35,7 +56,7 @@ export const sendEmail = async ({ to, subject, text, html }) => {
       return info;
     }
   } catch (error) {
-    console.error('Error sending email:', error.response?.body || error.message);
+    console.error('Error sending email:', error.response?.data || error.message);
     if (process.env.NODE_ENV === 'production') {
       throw new Error('Email sending failed');
     }

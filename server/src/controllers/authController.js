@@ -328,20 +328,19 @@ export const logoutUser = async (req, res) => {
 
 export const forgotPassword = async (req, res) => {
   try {
-    const identifier = req.body.identifier || req.body.phone;
+    const identifier = req.body.identifier || req.body.email;
 
     if (!identifier) {
-      return res.status(400).json({ message: 'Phone number or email is required' });
+      return res.status(400).json({ message: 'Email address is required' });
     }
 
-    let normalizedIdentifier = identifier.trim();
-    const isPhone = /^[+\d\s]+$/.test(normalizedIdentifier);
-
-    if (isPhone) {
-      normalizedIdentifier = normalizePhone(normalizedIdentifier);
-    } else {
-      normalizedIdentifier = normalizedIdentifier.toLowerCase();
-    }
+    let normalizedIdentifier = identifier.trim().toLowerCase();
+    
+    // -- Phone implementation commented out per request --
+    // const isPhone = /^[+\d\s]+$/.test(normalizedIdentifier);
+    // if (isPhone) {
+    //   normalizedIdentifier = normalizePhone(normalizedIdentifier);
+    // }
 
     const user = await findUserByEmailOrPhone(normalizedIdentifier);
 
@@ -353,20 +352,16 @@ export const forgotPassword = async (req, res) => {
     const otp = await createAndSaveOTP(user.id, 'reset');
     
     // Send OTP via SMS and/or Email (Non-blocking)
-    if (user.phone && isPhone) {
-      sendOTP(user.phone, otp.code).catch(err => {
-        console.error('[Auth Service] Background Password Reset OTP delivery failed (SMS):', err.message);
-      });
-    }
+    // if (user.phone && isPhone) { ... }
 
-    if (user.email && (!isPhone || !user.phone)) {
+    if (user.email) {
       sendOTPEmail(user.email, otp.code, 'Password Reset').catch(err => {
         console.error('[Auth Service] Background Password Reset OTP delivery failed (Email):', err.message);
       });
     }
 
     res.json({ 
-      message: `Password reset code sent to your ${isPhone ? 'phone' : 'email'}`,
+      message: `Password reset code sent to your email`,
       identifier: normalizedIdentifier,
       mockOtp: process.env.NODE_ENV !== 'production' ? otp.code : undefined 
     });
@@ -378,24 +373,23 @@ export const forgotPassword = async (req, res) => {
 
 export const resetPassword = async (req, res) => {
   try {
-    const { token, password, phone, identifier, otp } = req.body;
+    const { token, password, email, identifier, otp } = req.body;
     
     if (!password) {
       return res.status(400).json({ message: 'New password is required' });
     }
 
-    const loginIdentifier = identifier || phone;
+    const loginIdentifier = identifier || email;
 
     // Path 1: OTP-based reset (identifier + otp + password)
     if (loginIdentifier && otp) {
-      let normalizedIdentifier = loginIdentifier.trim();
-      const isPhone = /^[+\d\s]+$/.test(normalizedIdentifier);
-
-      if (isPhone) {
-        normalizedIdentifier = normalizePhone(normalizedIdentifier);
-      } else {
-        normalizedIdentifier = normalizedIdentifier.toLowerCase();
-      }
+      let normalizedIdentifier = loginIdentifier.trim().toLowerCase();
+      
+      // -- Phone implementation commented out per request --
+      // const isPhone = /^[+\d\s]+$/.test(normalizedIdentifier);
+      // if (isPhone) {
+      //   normalizedIdentifier = normalizePhone(normalizedIdentifier);
+      // }
 
       const user = await findUserByEmailOrPhone(normalizedIdentifier);
       if (!user) {

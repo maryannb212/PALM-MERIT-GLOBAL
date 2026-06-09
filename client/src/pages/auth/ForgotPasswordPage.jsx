@@ -109,7 +109,7 @@ const ForgotPasswordPage = () => {
           <h2>Forgot Password</h2>
           <p>
             {step === 1
-              ? 'Enter your registered phone number or email to receive a reset code.'
+              ? 'Enter your registered email address to receive a reset code.'
               : 'Enter the verification code and your new password.'}
           </p>
         </div>
@@ -123,13 +123,13 @@ const ForgotPasswordPage = () => {
         {step === 1 ? (
           <form onSubmit={handleSendOTP} className="auth-form">
             <div className="form-group">
-              <label htmlFor="identifier">Phone Number or Email</label>
+              <label htmlFor="identifier">Email Address</label>
               <input
                 type="text"
                 id="identifier"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="e.g. 08012345678 or name@example.com"
+                placeholder="name@example.com"
                 required
               />
             </div>
@@ -220,7 +220,7 @@ const ForgotPasswordPage = () => {
                 onClick={() => { setStep(1); setMessage({ type: '', text: '' }); }}
                 style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline' }}
               >
-                ← Change phone number or email
+                ← Change email address
               </button>
             </div>
           </form>
