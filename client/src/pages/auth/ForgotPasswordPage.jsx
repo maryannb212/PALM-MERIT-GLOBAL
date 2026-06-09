@@ -4,7 +4,7 @@ import { forgotPassword, resetPassword } from '../../services/api';
 import './Auth.css';
 
 const ForgotPasswordPage = () => {
-  const [phone, setPhone] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [step, setStep] = useState(1); // 1=phone, 2=otp+new password
@@ -37,7 +37,7 @@ const ForgotPasswordPage = () => {
     setMockOtp('');
 
     try {
-      const { data } = await forgotPassword({ phone: phone.trim() });
+      const { data } = await forgotPassword({ identifier: identifier.trim() });
       setMessage({ type: 'success', text: data.message || 'OTP sent successfully! Check your phone.' });
       if (data.mockOtp) {
         setMockOtp(data.mockOtp);
@@ -87,7 +87,7 @@ const ForgotPasswordPage = () => {
 
     try {
       const { data } = await resetPassword({ 
-        phone: phone.trim(), 
+        identifier: identifier.trim(), 
         otp: trimmedOtp, 
         password: newPassword 
       });
@@ -109,8 +109,8 @@ const ForgotPasswordPage = () => {
           <h2>Forgot Password</h2>
           <p>
             {step === 1
-              ? 'Enter your registered phone number to receive an OTP.'
-              : 'Enter the OTP and your new password.'}
+              ? 'Enter your registered phone number or email to receive a reset code.'
+              : 'Enter the verification code and your new password.'}
           </p>
         </div>
 
@@ -123,13 +123,13 @@ const ForgotPasswordPage = () => {
         {step === 1 ? (
           <form onSubmit={handleSendOTP} className="auth-form">
             <div className="form-group">
-              <label htmlFor="phone">Phone Number</label>
+              <label htmlFor="identifier">Phone Number or Email</label>
               <input
-                type="tel"
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 08012345678"
+                type="text"
+                id="identifier"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="e.g. 08012345678 or name@example.com"
                 required
               />
             </div>
@@ -220,7 +220,7 @@ const ForgotPasswordPage = () => {
                 onClick={() => { setStep(1); setMessage({ type: '', text: '' }); }}
                 style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline' }}
               >
-                ← Change phone number
+                ← Change phone number or email
               </button>
             </div>
           </form>
