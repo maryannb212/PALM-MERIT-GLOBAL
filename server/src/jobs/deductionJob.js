@@ -139,7 +139,10 @@ export const runDeductionJob = async () => {
     const sql = `SELECT * FROM savings_plans WHERE status = 'active'`;
     const { rows: activePlans } = await query(sql);
 
-    const todayDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+    // Use explicit local timezone (Africa/Lagos) for date calculation
+    const watDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+    const todayDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][watDate.getDay()];
+    const todayString = watDate.toDateString();
 
     for (const plan of activePlans) {
       const config = PLAN_CONFIG[plan.plan_name];
@@ -148,59 +151,80 @@ export const runDeductionJob = async () => {
       const isDaily = config.isDaily;
       const expectedAmount = config.amount * (plan.number_of_accounts || 1);
 
-      // 2 & 3. Determine if due and Prevent Double Deduction
-      let isDue = false;
-
-      // Query the transactions table to find the last successful deduction for this plan
-      const checkLastDeductionSql = `
-        SELECT created_at FROM transactions
-        WHERE plan_id = $1 
-          AND type = 'savings' 
-          AND status = 'completed'
-        ORDER BY created_at DESC LIMIT 1
-      `;
-      const { rows: existingTransactions } = await query(checkLastDeductionSql, [plan.id]);
-      const lastDeductionDate = existingTransactions.length > 0 ? existingTransactions[0].created_at : null;
-
-      if (isDaily) {
-        // Daily Plans: Due if no deduction exists for today
-        if (!lastDeductionDate || (new Date(lastDeductionDate).toDateString() !== new Date().toDateString())) {
-          isDue = true;
-        } else {
-          console.log(`Plan ${plan.id} (${plan.plan_name}) already had a daily deduction today. Skipping.`);
-        }
-      } else {
-        // Weekly Plans
-        if (!lastDeductionDate) {
-          // Never deducted via cron before. Due if today is their preferred day.
-          if (plan.preferred_day && plan.preferred_day.toLowerCase() === todayDayName.toLowerCase()) {
-            isDue = true;
-          }
-        } else {
-          // Deducted before. Calculate days since last successful deduction
-          const daysSinceLast = Math.floor((new Date() - new Date(lastDeductionDate)) / (1000 * 60 * 60 * 24));
-          
-          if (daysSinceLast >= 7) {
-            // It has been a full week or more, so they missed their day (e.g., server was down). We must catch up and deduct now!
-            isDue = true;
-            console.log(`Plan ${plan.id} (${plan.plan_name}) missed its preferred day. Catching up now (Days since last: ${daysSinceLast}).`);
-          } else if (daysSinceLast >= 6 && plan.preferred_day && plan.preferred_day.toLowerCase() === todayDayName.toLowerCase()) {
-            // It's their preferred day again, and it's been ~6-7 days.
-            isDue = true;
-          } else {
-            console.log(`Plan ${plan.id} (${plan.plan_name}) already had a weekly deduction in the last ${daysSinceLast} days. Skipping to prevent double-charge.`);
-          }
-        }
-      }
-
-      if (!isDue) {
-        continue;
-      }
-
-      // 4. Attempt Deduction using a Transaction Block
+      // Attempt Deduction using a Transaction Block
       const client = await getClient();
       try {
         await client.query('BEGIN');
+
+        // Lock the savings plan row to prevent concurrent workers from processing it
+        const { rows: lockedPlans } = await client.query('SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE', [plan.id]);
+        if (lockedPlans.length === 0) {
+          await client.query('ROLLBACK');
+          continue;
+        }
+
+        // Query the transactions table to find the last successful deduction for this plan
+        const checkLastDeductionSql = `
+          SELECT created_at FROM transactions
+          WHERE plan_id = $1 
+            AND type = 'savings' 
+            AND status = 'completed'
+          ORDER BY created_at DESC LIMIT 1
+        `;
+        const { rows: existingTransactions } = await client.query(checkLastDeductionSql, [plan.id]);
+        const lastDeductionDate = existingTransactions.length > 0 ? existingTransactions[0].created_at : null;
+
+        // 2 & 3. Determine if due and Prevent Double Deduction
+        let isDue = false;
+
+        if (isDaily) {
+          // Daily Plans: Due if no deduction exists for today
+          if (!lastDeductionDate) {
+            isDue = true;
+          } else {
+            const lastWatDate = new Date(new Date(lastDeductionDate).toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+            if (lastWatDate.toDateString() !== todayString) {
+              isDue = true;
+            } else {
+              console.log(`Plan ${plan.id} (${plan.plan_name}) already had a daily deduction today. Skipping.`);
+            }
+          }
+        } else {
+          // Weekly Plans
+          if (!lastDeductionDate) {
+            // Never deducted via cron before. Due if today is their preferred day.
+            if (plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
+              isDue = true;
+            } else {
+              const startDate = new Date(plan.start_date);
+              const daysSinceStart = Math.floor((watDate - startDate) / (1000 * 60 * 60 * 24));
+              if (daysSinceStart >= 7) {
+                isDue = true;
+                console.log(`Plan ${plan.id} never deducted and it's been ${daysSinceStart} days. Catching up.`);
+              }
+            }
+          } else {
+            // Deducted before. Calculate days since last successful deduction
+            const timeDiff = watDate - new Date(lastDeductionDate);
+            const daysSinceLast = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+            
+            if (daysSinceLast >= 7) {
+              // It has been a full week or more, so they missed their day (e.g., server was down). We must catch up and deduct now!
+              isDue = true;
+              console.log(`Plan ${plan.id} (${plan.plan_name}) missed its preferred day. Catching up now (Days since last: ${daysSinceLast}).`);
+            } else if (daysSinceLast >= 6 && plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
+              // It's their preferred day again, and it's been ~6-7 days.
+              isDue = true;
+            } else {
+              console.log(`Plan ${plan.id} (${plan.plan_name}) already had a weekly deduction in the last ${daysSinceLast} days. Skipping to prevent double-charge.`);
+            }
+          }
+        }
+
+        if (!isDue) {
+          await client.query('ROLLBACK');
+          continue;
+        }
 
         // Lock the user row
         const { rows: users } = await client.query('SELECT id, available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
