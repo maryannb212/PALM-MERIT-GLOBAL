@@ -535,7 +535,7 @@ export const updateTransactionStatus = async (reference, status) => {
  */
 export const getUserTransactions = async (userId) => {
   const sql = `
-    SELECT t.*, p.plan_name
+    SELECT t.*, COALESCE(p.plan_name, t.type) AS plan_name
     FROM transactions t
     LEFT JOIN savings_plans p ON t.plan_id = p.id
     WHERE t.user_id = $1
