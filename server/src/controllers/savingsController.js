@@ -2,6 +2,7 @@ import { createSavingsPlan, getUserSavingsPlans } from '../models/savingsModel.j
 import { getClient, query } from '../config/db.js';
 import { createWalletLedgerEntry } from '../models/transactionModel.js';
 import { isReferrerEligibleForMultiplier } from '../helpers/referralHelper.js';
+import { createReferralCodeForPlan } from '../models/referralModel.js';
 
 export const subscribeToPlan = async (req, res) => {
   try {
@@ -98,7 +99,7 @@ export const subscribeToPlan = async (req, res) => {
       // Create the plan
       const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, autoPreferredDay, client);
 
-      // Adjust referral dates based on plan type
+      // Adjust referral dates based on plan type (Legacy columns logic kept for backward compatibility)
       if (planName === 'SILVER') {
         // SILVER plans unlock referrals automatically and expire in 90 days
         await client.query(
@@ -109,6 +110,9 @@ export const subscribeToPlan = async (req, res) => {
           [userId]
         );
       }
+
+      // NEW LOGIC: Generate specific single-use referral code for this plan
+      await createReferralCodeForPlan(client, userId, plan.id, planName);
 
       // Set the initial current_amount of the savings plan to initialSavingsTotal
       await client.query(
