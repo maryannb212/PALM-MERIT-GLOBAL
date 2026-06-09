@@ -15,8 +15,9 @@ const Referrals = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     downlines: [],
+    myCodes: [],
     activeQualifiedCount: 0,
-    eligibilityRequiredCount: 2,
+    eligibilityRequiredCount: 1,
     isEligible: false
   });
   const [error, setError] = useState('');
@@ -41,66 +42,21 @@ const Referrals = () => {
     fetchReferrals();
   }, []);
 
-  const referralCode = user?.referralCode || 'NOT-AVAILABLE';
-  const referralLink = `${window.location.origin}/register?ref=${referralCode}`;
+  const legacyCode = user?.referralCode || 'NOT-AVAILABLE';
+  const codesToDisplay = stats.myCodes && stats.myCodes.length > 0 
+    ? stats.myCodes 
+    : (user?.referralCode ? [{
+        code: legacyCode,
+        plan_name: 'Legacy Account',
+        status: isLocked ? 'locked' : isExpired ? 'expired' : 'available',
+        unlock_date: unlockTimestamp ? new Date(unlockTimestamp).toISOString() : null
+      }] : []);
 
-  // Parse Unlock Date
-  const unlockTimestamp = (() => {
-    if (user?.referral_unlock_date) return new Date(user.referral_unlock_date).getTime();
-    if (user?.referralUnlockDate) return new Date(user.referralUnlockDate).getTime();
-    if (user?.createdAt) {
-      const created = new Date(user.createdAt);
-      // 30 days lock period
-      return created.getTime() + 30 * 24 * 60 * 60 * 1000;
-    }
-    return null;
-  })();
-  // If no unlock timestamp (shouldn't happen), treat as unlocked; otherwise compare now
-  const [isLocked, setIsLocked] = useState(() => unlockTimestamp ? Date.now() < unlockTimestamp : false);
-  // Store the date object for display purposes
-  const unlockDate = unlockTimestamp ? new Date(unlockTimestamp) : null;
-
-  // Parse Expiry Date
-  const expiryTimestamp = (() => {
-    if (user?.referral_expiry_date) return new Date(user.referral_expiry_date).getTime();
-    if (user?.referralExpiryDate) return new Date(user.referralExpiryDate).getTime();
-    return null;
-  })();
-  const [isExpired, setIsExpired] = useState(() => expiryTimestamp ? Date.now() > expiryTimestamp : false);
-  const expiryDate = expiryTimestamp ? new Date(expiryTimestamp) : null;
-
-  // Calculate Countdown
-  const [timeLeft, setTimeLeft] = useState('');
-  useEffect(() => {
-    if (!unlockTimestamp) return;
-    if (!isLocked) return;
-
-    const updateCountdown = () => {
-      const diff = unlockTimestamp - Date.now();
-      if (diff <= 0) {
-        setTimeLeft('');
-        setIsLocked(false);
-        return;
-      }
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      if (days > 0) {
-        setTimeLeft(`${days} days, ${hours} hours`);
-      } else {
-        setTimeLeft(`${hours} hours left`);
-      }
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 60000);
-    return () => clearInterval(interval);
-  }, [unlockTimestamp, isLocked]);
-
-  const handleCopyLink = () => {
-    if (isLocked) return;
-    navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyLink = (code) => {
+    const link = `${window.location.origin}/register?ref=${code}`;
+    navigator.clipboard.writeText(link);
+    setCopied(code);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const getStatusBadge = (status) => {
@@ -151,51 +107,63 @@ const Referrals = () => {
           <h2>Referral Hub</h2>
           <p>Invite your network to grow together and unlock exclusive cooperative bonuses.</p>
           
-          <div className="ref-glass-card">
-            {isLocked ? (
-              <div className="ref-locked-state">
-                <FaLock className="lock-icon-hero" />
-                <h3>Referral Link Locked</h3>
-                <p>To prevent fraud and maintain cooperative stability, all referral links are temporarily locked for 1 month from registration.</p>
-                
-                <div className="ref-countdown">{timeLeft || 'Calculating...'}</div>
-                <p className="text-muted" style={{fontSize: '0.9rem'}}>Unlocks on {unlockDate ? unlockDate.toLocaleDateString(undefined, { dateStyle: 'long' }) : 'N/A'}</p>
-                
-                <div className="ref-input-wrapper mt-3">
-                  <input type="text" value="https://palmmeritglobal.com/ref/LOCKED..." disabled />
-                  <button disabled className="ref-copy-btn"><FaCopy /> Copy</button>
-                </div>
-              </div>
-            ) : isExpired ? (
-              <div className="ref-locked-state">
-                <FaTimesCircle className="lock-icon-hero" style={{color: '#ef4444'}} />
-                <h3>Referral Link Expired</h3>
-                <p>Your referral link has expired and is no longer active for new registrations.</p>
-                <p className="text-muted" style={{fontSize: '0.9rem'}}>Expired on {expiryDate ? expiryDate.toLocaleDateString(undefined, { dateStyle: 'long' }) : 'N/A'}</p>
-                
-                <div className="ref-input-wrapper mt-3">
-                  <input type="text" value="EXPIRED" disabled />
-                  <button disabled className="ref-copy-btn"><FaCopy /> Copy</button>
-                </div>
+          <div className="ref-codes-list" style={{ marginTop: '30px' }}>
+            {codesToDisplay.length === 0 ? (
+              <div className="ref-glass-card" style={{ textAlign: 'center', padding: '30px' }}>
+                <FaInfoCircle style={{ fontSize: '2rem', color: '#cbd5e1', marginBottom: '15px' }} />
+                <h4 style={{ color: '#fff', marginBottom: '10px' }}>No Referral Codes Yet</h4>
+                <p style={{ color: '#94a3b8' }}>Subscribe to a Silver or Crest savings plan to generate your referral codes.</p>
               </div>
             ) : (
-              <div className="ref-unlocked-state">
-                <FaUnlock className="lock-icon-hero" style={{color: '#10b981'}} />
-                <h3>Your Invitation Link is Active!</h3>
-                <p>Share this personalized link with colleagues, friends, or family. When they register and start saving actively, you increase your eligibility for premium payout bonuses during maturity review!</p>
-                {expiryDate && (
-                  <p className="text-muted mt-2" style={{fontSize: '0.9rem'}}>
-                    <strong>Note:</strong> This link expires on {expiryDate.toLocaleDateString(undefined, { dateStyle: 'long' })}.
-                  </p>
-                )}
-                
-                <div className="ref-input-wrapper mt-3">
-                  <input type="text" value={referralLink} readOnly onClick={(e) => e.target.select()} />
-                  <button className={`ref-copy-btn ${copied ? 'copied' : ''}`} onClick={handleCopyLink}>
-                    {copied ? <><FaCheckCircle /> Copied</> : <><FaCopy /> Copy</>}
-                  </button>
+              codesToDisplay.map((c) => (
+                <div key={c.code} className="ref-glass-card" style={{ marginBottom: '20px', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
+                    <h4 style={{ margin: 0, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FaStar style={{color: '#facc15'}} /> {c.plan_name} Account
+                    </h4>
+                    {c.status === 'locked' && <span className="badge-status pending" style={{margin: 0}}><FaLock /> Locked 🔒</span>}
+                    {c.status === 'used' && <span className="badge-status disqualified" style={{margin: 0}}><FaTimesCircle /> Used</span>}
+                    {c.status === 'expired' && <span className="badge-status disqualified" style={{margin: 0}}><FaTimesCircle /> Expired</span>}
+                    {c.status === 'available' && <span className="badge-status active" style={{margin: 0}}><FaCheckCircle /> Available</span>}
+                  </div>
+                  
+                  {c.status === 'locked' ? (
+                    <div className="ref-locked-state" style={{ padding: 0, background: 'none' }}>
+                      <p style={{ margin: '0 0 10px 0' }}>This referral code unlocks on {c.unlock_date ? new Date(c.unlock_date).toLocaleDateString(undefined, { dateStyle: 'long' }) : 'N/A'}</p>
+                      <div className="ref-input-wrapper">
+                        <input type="text" value={`Code: ${c.code} (LOCKED)`} disabled style={{ backgroundColor: 'rgba(0,0,0,0.2)' }} />
+                        <button disabled className="ref-copy-btn" style={{ opacity: 0.5 }}><FaCopy /> Copy</button>
+                      </div>
+                    </div>
+                  ) : c.status === 'used' ? (
+                    <div className="ref-locked-state" style={{ padding: 0, background: 'none' }}>
+                      <p style={{ margin: '0 0 10px 0', color: '#cbd5e1' }}>This referral code has already been used and cannot be reused.</p>
+                      <div className="ref-input-wrapper">
+                        <input type="text" value={`Code: ${c.code} (USED)`} disabled style={{ backgroundColor: 'rgba(0,0,0,0.2)', textDecoration: 'line-through' }} />
+                        <button disabled className="ref-copy-btn" style={{ opacity: 0.5 }}><FaCopy /> Copy</button>
+                      </div>
+                    </div>
+                  ) : c.status === 'expired' ? (
+                    <div className="ref-locked-state" style={{ padding: 0, background: 'none' }}>
+                      <p style={{ margin: '0 0 10px 0', color: '#ef4444' }}>This referral code has expired.</p>
+                      <div className="ref-input-wrapper">
+                        <input type="text" value={`Code: ${c.code} (EXPIRED)`} disabled style={{ backgroundColor: 'rgba(0,0,0,0.2)' }} />
+                        <button disabled className="ref-copy-btn" style={{ opacity: 0.5 }}><FaCopy /> Copy</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="ref-unlocked-state" style={{ padding: 0, background: 'none' }}>
+                      <p style={{ margin: '0 0 10px 0' }}>Share this link to invite a partner. <strong>Status: Active</strong></p>
+                      <div className="ref-input-wrapper">
+                        <input type="text" value={`${window.location.origin}/register?ref=${c.code}`} readOnly onClick={(e) => e.target.select()} style={{ backgroundColor: 'rgba(0,0,0,0.3)' }} />
+                        <button className={`ref-copy-btn ${copied === c.code ? 'copied' : ''}`} onClick={() => handleCopyLink(c.code)}>
+                          {copied === c.code ? <><FaCheckCircle /> Copied</> : <><FaCopy /> Copy</>}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ))
             )}
           </div>
         </div>
@@ -250,7 +218,7 @@ const Referrals = () => {
               <div className="ref-timeline-icon"><FaUserFriends /></div>
               <div className="ref-timeline-content">
                 <h4>2. Invite Partners</h4>
-                <p>Invite at least 2 partners. They must start active plans.</p>
+                <p>Invite at least 1 partner with a Silver Plan. They must start an active plan.</p>
               </div>
             </div>
             <div className="ref-timeline-step">
@@ -289,6 +257,7 @@ const Referrals = () => {
                 <thead>
                   <tr>
                     <th>Name</th>
+                    <th>Code Used</th>
                     <th>Joined Date</th>
                     <th>Active Programs</th>
                     <th>Status</th>
@@ -300,6 +269,7 @@ const Referrals = () => {
                     return (
                       <tr key={downline.id}>
                         <td style={{fontWeight: '600'}}>{downline.firstName} {downline.lastName}</td>
+                        <td><span style={{background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#475569'}}>{downline.usedSpecificCode}</span></td>
                         <td>{new Date(downline.createdAt).toLocaleDateString()}</td>
                         <td>
                           {downline.plans.length === 0 ? (

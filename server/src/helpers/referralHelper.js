@@ -14,26 +14,22 @@ export const calculateDownlineStatus = (user, plans) => {
     return 'disqualified';
   }
 
-  // Filter plans
-  const totalPlansCount = plans.length;
-  const goldenBasketPlans = plans.filter(p => p.plan_name === 'GOLDEN_BASKET');
-  const standardPlans = plans.filter(p => p.plan_name !== 'GOLDEN_BASKET');
-
-  if (totalPlansCount === 0) {
+  if (plans.length === 0) {
     return 'inactive';
   }
 
-  // If they ONLY have Golden Basket subscriptions, they are marked as disqualified from referral bonuses
-  if (goldenBasketPlans.length > 0 && standardPlans.length === 0) {
-    return 'disqualified';
+  // A referred member is "Active" (qualified) if they have activated their Silver Plan and completed the required payment
+  const silverPlans = plans.filter(p => p.plan_name === 'SILVER');
+  
+  if (silverPlans.length > 0) {
+    const totalSilverPaid = silverPlans.reduce((sum, p) => sum + parseFloat(p.current_amount || p.total_paid || 0), 0);
+    // Silver initial payment is 4000 (1500 savings + 2500 reg fee) per account, but as long as current_amount > 0 they paid
+    if (totalSilverPaid > 0) {
+      return 'active'; // This is equivalent to 'qualified' in old logic
+    }
   }
 
-  // Check contributions in standard plans
-  const totalStandardPaid = standardPlans.reduce((sum, p) => sum + parseFloat(p.current_amount || p.total_paid || 0), 0);
-  if (totalStandardPaid > 0) {
-    return 'qualified';
-  }
-
+  // If no paid silver plan, they are pending
   return 'pending';
 };
 
@@ -42,10 +38,11 @@ export const calculateDownlineStatus = (user, plans) => {
  */
 export const getReferredDownlines = async (userId) => {
   const sql = `
-    SELECT id, first_name, last_name, email, phone, status, created_at, referral_code, referral_unlock_date, referral_expiry_date
-    FROM users
-    WHERE referred_by = $1
-    ORDER BY created_at DESC
+    SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at, u.referral_code, u.referral_unlock_date, u.referral_expiry_date, r.code as used_specific_code
+    FROM users u
+    LEFT JOIN referral_codes r ON u.id = r.used_by_user_id
+    WHERE u.referred_by = $1
+    ORDER BY u.created_at DESC
   `;
   const { rows: downlines } = await query(sql, [userId]);
 
@@ -80,7 +77,8 @@ export const getReferredDownlines = async (userId) => {
         numberOfAccounts: p.number_of_accounts,
         createdAt: p.created_at
       })),
-      referralStatus: status // locked, inactive, pending, active, qualified, disqualified
+      referralStatus: status, // locked, inactive, pending, active, disqualified
+      usedSpecificCode: downline.used_specific_code || 'Legacy'
     });
   }
 
@@ -92,7 +90,7 @@ export const getReferredDownlines = async (userId) => {
  */
 export const getActiveQualifiedCount = async (userId) => {
   const downlines = await getReferredDownlines(userId);
-  return downlines.filter(d => d.referralStatus === 'qualified').length;
+  return downlines.filter(d => d.referralStatus === 'active').length;
 };
 
 /**
@@ -101,5 +99,5 @@ export const getActiveQualifiedCount = async (userId) => {
  */
 export const isReferrerEligibleForMultiplier = async (userId) => {
   const activeCount = await getActiveQualifiedCount(userId);
-  return activeCount >= 2;
+  return activeCount >= 1;
 };

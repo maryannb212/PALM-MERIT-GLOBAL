@@ -8,6 +8,7 @@ import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/ot
 import { sendWelcomeEmail, sendPasswordResetEmail, sendOTPEmail } from '../utils/emailService.js';
 import { createVirtualAccount } from '../services/virtualAccountService.js';
 import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
+import { getUserReferralCodes } from '../models/referralModel.js';
 import admin from '../config/firebaseAdmin.js';
 
 dotenv.config();
@@ -55,13 +56,7 @@ export const registerUser = async (req, res) => {
       validationPromises.push(Promise.resolve({ rows: [] }));
     }
 
-    if (referredByCode && referredByCode.trim()) {
-      validationPromises.push(query('SELECT id, referral_unlock_date, referral_expiry_date FROM users WHERE referral_code = $1', [referredByCode.trim()]));
-    } else {
-      validationPromises.push(Promise.resolve({ rows: [] }));
-    }
-
-    const [phoneMatchRes, emailMatchRes, referrerRes] = await Promise.all(validationPromises);
+    const [phoneMatchRes, emailMatchRes] = await Promise.all(validationPromises);
 
     const phoneMatch = phoneMatchRes.rows;
     if (phoneMatch.length > 0) {
@@ -77,24 +72,44 @@ export const registerUser = async (req, res) => {
 
     // Validate Referred By Code if provided
     let referredById = null;
-    const referrerRows = referrerRes.rows;
-    if (referredByCode && referredByCode.trim()) {
-      if (referrerRows.length === 0) {
-        return res.status(400).json({ message: 'Invalid referral code' });
-      }
+    let usedReferralCodeId = null;
 
-      const referrer = referrerRows[0];
-      const unlockDate = referrer.referral_unlock_date ? new Date(referrer.referral_unlock_date) : null;
-      if (unlockDate && unlockDate > new Date()) {
-        return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
-      }
+    if (referredByCode && referredByCode.trim()) {
+      const codeStr = referredByCode.trim();
+      const { rows: refCodes } = await query('SELECT id, user_id, status, unlock_date FROM referral_codes WHERE code = $1', [codeStr]);
       
-      const expiryDate = referrer.referral_expiry_date ? new Date(referrer.referral_expiry_date) : null;
-      if (expiryDate && expiryDate < new Date()) {
-        return res.status(400).json({ message: 'This referral code has expired' });
+      if (refCodes.length > 0) {
+        const rc = refCodes[0];
+        if (rc.status === 'used') {
+          return res.status(400).json({ message: 'This referral code has already been used' });
+        }
+        if (rc.status === 'locked' || (rc.unlock_date && new Date(rc.unlock_date) > new Date())) {
+          return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
+        }
+        
+        referredById = rc.user_id;
+        usedReferralCodeId = rc.id;
+      } else {
+        // Fallback to legacy user code
+        const { rows: referrerRows } = await query('SELECT id, referral_unlock_date, referral_expiry_date FROM users WHERE referral_code = $1', [codeStr]);
+        
+        if (referrerRows.length === 0) {
+          return res.status(400).json({ message: 'Invalid referral code' });
+        }
+
+        const referrer = referrerRows[0];
+        const unlockDate = referrer.referral_unlock_date ? new Date(referrer.referral_unlock_date) : null;
+        if (unlockDate && unlockDate > new Date()) {
+          return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
+        }
+        
+        const expiryDate = referrer.referral_expiry_date ? new Date(referrer.referral_expiry_date) : null;
+        if (expiryDate && expiryDate < new Date()) {
+          return res.status(400).json({ message: 'This referral code has expired' });
+        }
+        
+        referredById = referrer.id;
       }
-      
-      referredById = referrer.id;
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -143,6 +158,11 @@ export const registerUser = async (req, res) => {
       createdDate
     ]);
     const user = newUser[0];
+
+    // If they used a plan-specific referral code, mark it as used
+    if (usedReferralCodeId && user) {
+      await query('UPDATE referral_codes SET status = $1, used_by_user_id = $2 WHERE id = $3', ['used', user.id, usedReferralCodeId]);
+    }
 
     if (user) {
       // Save KYC details
@@ -542,11 +562,14 @@ export const getMyReferrals = async (req, res) => {
     const userId = req.user.id;
     const downlines = await getReferredDownlines(userId);
     const activeQualifiedCount = await getActiveQualifiedCount(userId);
+    const myCodes = await getUserReferralCodes(userId);
+    
     res.json({
       downlines,
+      myCodes,
       activeQualifiedCount,
-      eligibilityRequiredCount: 2,
-      isEligible: activeQualifiedCount >= 2
+      eligibilityRequiredCount: 1,
+      isEligible: activeQualifiedCount >= 1
     });
   } catch (error) {
     console.error('Error fetching referrals:', error);
