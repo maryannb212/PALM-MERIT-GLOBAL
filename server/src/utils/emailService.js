@@ -134,11 +134,11 @@ export const sendPasswordResetEmail = async (email, resetToken) => {
 /**
  * Send Login OTP Email
  */
-export const sendOTPEmail = async (email, code) => {
-  const subject = 'Your Palm Merit Login OTP';
+export const sendOTPEmail = async (email, code, context = 'Login') => {
+  const subject = `Your Palm Merit ${context} Verification Code`;
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 10px;">
-      <h2 style="color: #0A6847; text-align: center;">Verification Code</h2>
+      <h2 style="color: #0A6847; text-align: center;">${context} Verification Code</h2>
       <p>Your verification code for Palm Merit Global is:</p>
       <div style="text-align: center; margin: 30px 0;">
         <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #0A6847; background-color: #f4f7f6; padding: 10px 20px; border-radius: 5px; border: 1px dashed #0A6847;">

@@ -1,11 +1,11 @@
 import bcrypt from 'bcryptjs';
 import jsonwebtoken from 'jsonwebtoken';
 import crypto from 'crypto';
-import { createUser, findUserByEmail, findUserByPhone, findUserById, findUserByEmailOrPhone } from '../models/userModel.js';
+import { createUser, findUserByEmail, findUserByPhone, findUserById, findUserByEmailOrPhone, normalizePhone } from '../models/userModel.js';
 import { query } from '../config/db.js';
 import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
-import { sendWelcomeEmail, sendPasswordResetEmail } from '../utils/emailService.js';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendOTPEmail } from '../utils/emailService.js';
 import { createVirtualAccount } from '../services/virtualAccountService.js';
 import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
 import admin from '../config/firebaseAdmin.js';
@@ -40,12 +40,7 @@ export const registerUser = async (req, res) => {
     }
 
     // Normalize phone
-    let normalizedPhone = phone.trim();
-    if (normalizedPhone.startsWith('0')) {
-      normalizedPhone = '+234' + normalizedPhone.substring(1);
-    } else if (!normalizedPhone.startsWith('+')) {
-      normalizedPhone = '+234' + normalizedPhone;
-    }
+    const normalizedPhone = normalizePhone(phone);
 
     const normalizedEmail = (email && email.trim() !== '') ? email.trim().toLowerCase() : null;
 
@@ -333,37 +328,46 @@ export const logoutUser = async (req, res) => {
 
 export const forgotPassword = async (req, res) => {
   try {
-    const { phone } = req.body;
+    const identifier = req.body.identifier || req.body.phone;
 
-    if (!phone) {
-      return res.status(400).json({ message: 'Phone number is required' });
+    if (!identifier) {
+      return res.status(400).json({ message: 'Phone number or email is required' });
     }
 
-    // Normalize phone before lookup (handles 080... -> +234...)
-    let normalizedPhone = phone.trim();
-    if (normalizedPhone.startsWith('0')) {
-      normalizedPhone = '+234' + normalizedPhone.substring(1);
-    } else if (!normalizedPhone.startsWith('+')) {
-      normalizedPhone = '+234' + normalizedPhone;
+    let normalizedIdentifier = identifier.trim();
+    const isPhone = /^[+\d\s]+$/.test(normalizedIdentifier);
+
+    if (isPhone) {
+      normalizedIdentifier = normalizePhone(normalizedIdentifier);
+    } else {
+      normalizedIdentifier = normalizedIdentifier.toLowerCase();
     }
 
-    const user = await findUserByPhone(normalizedPhone);
+    const user = await findUserByEmailOrPhone(normalizedIdentifier);
 
     if (!user) {
-      return res.status(404).json({ message: 'User with this phone number does not exist' });
+      return res.status(404).json({ message: 'User with this identifier does not exist' });
     }
 
     // Generate and save OTP for password reset
     const otp = await createAndSaveOTP(user.id, 'reset');
     
-    // Send OTP via SMS (Non-blocking)
-    sendOTP(user.phone, otp.code).catch(err => {
-      console.error('[Auth Service] Background Password Reset OTP delivery failed:', err.message);
-    });
+    // Send OTP via SMS and/or Email (Non-blocking)
+    if (user.phone && isPhone) {
+      sendOTP(user.phone, otp.code).catch(err => {
+        console.error('[Auth Service] Background Password Reset OTP delivery failed (SMS):', err.message);
+      });
+    }
+
+    if (user.email && (!isPhone || !user.phone)) {
+      sendOTPEmail(user.email, otp.code, 'Password Reset').catch(err => {
+        console.error('[Auth Service] Background Password Reset OTP delivery failed (Email):', err.message);
+      });
+    }
 
     res.json({ 
-      message: 'Password reset OTP sent to your phone',
-      phone: user.phone,
+      message: `Password reset code sent to your ${isPhone ? 'phone' : 'email'}`,
+      identifier: normalizedIdentifier,
       mockOtp: process.env.NODE_ENV !== 'production' ? otp.code : undefined 
     });
   } catch (error) {
@@ -374,29 +378,33 @@ export const forgotPassword = async (req, res) => {
 
 export const resetPassword = async (req, res) => {
   try {
-    const { token, password, phone, otp } = req.body;
+    const { token, password, phone, identifier, otp } = req.body;
     
     if (!password) {
       return res.status(400).json({ message: 'New password is required' });
     }
 
-    // Path 1: OTP-based reset (phone + otp + password)
-    if (phone && otp) {
-      let normalizedPhone = phone.trim();
-      if (normalizedPhone.startsWith('0')) {
-        normalizedPhone = '+234' + normalizedPhone.substring(1);
-      } else if (!normalizedPhone.startsWith('+')) {
-        normalizedPhone = '+234' + normalizedPhone;
+    const loginIdentifier = identifier || phone;
+
+    // Path 1: OTP-based reset (identifier + otp + password)
+    if (loginIdentifier && otp) {
+      let normalizedIdentifier = loginIdentifier.trim();
+      const isPhone = /^[+\d\s]+$/.test(normalizedIdentifier);
+
+      if (isPhone) {
+        normalizedIdentifier = normalizePhone(normalizedIdentifier);
+      } else {
+        normalizedIdentifier = normalizedIdentifier.toLowerCase();
       }
 
-      const user = await findUserByPhone(normalizedPhone);
+      const user = await findUserByEmailOrPhone(normalizedIdentifier);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
 
       const isValid = await checkOTP(user.id, otp, 'reset');
       if (!isValid) {
-        return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one.' });
+        return res.status(400).json({ message: 'Invalid or expired code. Please request a new one.' });
       }
 
       await processPasswordReset(user.id, password, res);

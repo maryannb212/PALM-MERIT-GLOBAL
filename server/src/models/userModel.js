@@ -20,7 +20,7 @@ export const findUserByEmail = async (email) => {
  * Normalize a phone number to +234 international format.
  * Handles inputs like: 08012345678, 8012345678, +2348012345678, 2348012345678
  */
-const normalizePhone = (phone) => {
+export const normalizePhone = (phone) => {
   if (!phone) return phone;
   let p = phone.trim();
   if (p.startsWith('0')) {
