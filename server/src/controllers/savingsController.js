@@ -70,9 +70,10 @@ export const subscribeToPlan = async (req, res) => {
     const regFeeTotal = config.regFee * requestedAccounts;
     const totalFirstPayment = initialSavingsTotal + regFeeTotal;
 
-    // Set preferred day automatically to today's day name (the day payment is made)
+    // Set preferred day automatically to the previous day name (e.g., if joined Monday, deduct Sunday)
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const autoPreferredDay = daysOfWeek[new Date().getDay()];
+    const currentDayIndex = new Date().getDay();
+    const autoPreferredDay = daysOfWeek[(currentDayIndex + 6) % 7];
 
     const client = await getClient();
     try {
