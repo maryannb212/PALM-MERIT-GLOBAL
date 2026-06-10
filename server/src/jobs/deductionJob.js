@@ -73,16 +73,25 @@ export const runStartupCatchupDeductions = async () => {
       const expectedInstallment = config.amount * (plan.number_of_accounts || 1);
       const expectedCount = countExpectedContributions(plan.start_date, plan.preferred_day, config.isDaily);
       const expectedTotal = expectedCount * expectedInstallment;
-      const currentAmount = parseFloat(plan.current_amount || 0);
 
-      // If they are behind on their contributions (time has passed, but funds not added)
-      if (currentAmount < expectedTotal) {
-        const owedAmount = expectedTotal - currentAmount;
-        console.log(`Plan ${plan.id} (${plan.plan_name}) is behind. Expected: ₦${expectedTotal}, Actual: ₦${currentAmount}. Catching up ₦${owedAmount}...`);
+      const client = await getClient();
+      try {
+        await client.query('BEGIN');
+        
+        // 1. Lock the savings plan row to prevent concurrent worker race conditions
+        const { rows: lockedPlans } = await client.query('SELECT current_amount FROM savings_plans WHERE id = $1 FOR UPDATE', [plan.id]);
+        if (lockedPlans.length === 0) {
+          await client.query('ROLLBACK');
+          continue;
+        }
 
-        const client = await getClient();
-        try {
-          await client.query('BEGIN');
+        const currentAmount = parseFloat(lockedPlans[0].current_amount || 0);
+
+        // 2. If they are behind on their contributions
+        if (currentAmount < expectedTotal) {
+          const owedAmount = expectedTotal - currentAmount;
+          console.log(`Plan ${plan.id} (${plan.plan_name}) is behind. Expected: ₦${expectedTotal}, Actual: ₦${currentAmount}. Catching up ₦${owedAmount}...`);
+
           const { rows: users } = await client.query('SELECT id, available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
           if (users.length === 0) throw new Error('User not found');
           
@@ -127,12 +136,15 @@ export const runStartupCatchupDeductions = async () => {
             console.log(`Plan ${plan.id} missed deductions, but user has insufficient funds (₦${availableBalance}) to catch up ₦${owedAmount}.`);
             await client.query('ROLLBACK');
           }
-        } catch (err) {
+        } else {
+          // Already caught up (or another worker just did it)
           await client.query('ROLLBACK');
-          console.error(`Error processing catch-up for plan ${plan.id}:`, err);
-        } finally {
-          client.release();
         }
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(`Error processing catch-up for plan ${plan.id}:`, err);
+      } finally {
+        client.release();
       }
     }
     console.log('--- Startup Catch-up Complete ---');
