@@ -39,13 +39,22 @@ export const countExpectedContributions = (startDate, preferredDay, isDaily) => 
   let count = 0;
   const cursor = new Date(start);
 
-  while (cursor.getDay() !== targetDayIndex) {
-    cursor.setDate(cursor.getDate() + 1);
+  // If the target day is different from the start day, the initial payment
+  // happens on the start day, and the first renewal happens on the target day.
+  // We need to count the start day as the first payment.
+  if (cursor.getDay() !== targetDayIndex) {
+    count = 1; // Count the initial payment
+    // Move cursor to the target day
+    while (cursor.getDay() !== targetDayIndex) {
+      cursor.setDate(cursor.getDate() + 1);
+      cursor.setHours(0, 0, 0, 0); // Safety against DST transitions
+    }
   }
 
   while (cursor < today) {
     count++;
     cursor.setDate(cursor.getDate() + 7);
+    cursor.setHours(0, 0, 0, 0); // Safety against DST transitions
   }
 
   return count;
@@ -135,16 +144,28 @@ export const runStartupCatchupDeductions = async () => {
 export const runDeductionJob = async () => {
   console.log('Running automatic savings deduction job...');
   try {
-    // 1. Fetch all active savings plans
-    const sql = `SELECT * FROM savings_plans WHERE status = 'active'`;
-    const { rows: activePlans } = await query(sql);
+    const BATCH_SIZE = 500;
+    let lastId = 0;
+    let hasMore = true;
 
     // Use explicit local timezone (Africa/Lagos) for date calculation
     const watDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
     const todayDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][watDate.getDay()];
     const todayString = watDate.toDateString();
 
-    for (const plan of activePlans) {
+    let totalProcessed = 0;
+
+    while (hasMore) {
+      const sql = `SELECT * FROM savings_plans WHERE status = 'active' AND id > $1 ORDER BY id ASC LIMIT $2`;
+      const { rows: batchPlans } = await query(sql, [lastId, BATCH_SIZE]);
+
+      if (batchPlans.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const plan of batchPlans) {
+        lastId = Math.max(lastId, plan.id);
       const config = PLAN_CONFIG[plan.plan_name];
       if (!config) continue;
 
@@ -299,9 +320,10 @@ export const runDeductionJob = async () => {
       } finally {
         client.release();
       }
-    }
+    } // End of for loop
+    } // End of while loop
 
-    return { success: true, message: 'Deduction job completed' };
+    return { success: true, message: `Deduction job completed. Processed active plans.` };
   } catch (error) {
     console.error('Error running deduction job:', error);
     throw error;
@@ -309,15 +331,17 @@ export const runDeductionJob = async () => {
 };
 
 export const startDeductionJob = () => {
-  // Run daily at 11:30 PM (23:30)
-  // This runs slightly before the midnight penalty job (0 0 * * *), giving the deduction
-  // a chance to process and update the plan's current_amount before penalties are assessed.
-  cron.schedule('30 23 * * *', async () => {
+  // Run daily at 6:00 PM (18:00) WAT
+  // Using explicit timezone 'Africa/Lagos' ensures the execution happens
+  // at 6 PM Nigerian time regardless of the server's native timezone.
+  cron.schedule('0 18 * * *', async () => {
     console.log('--- Starting Daily Automatic Deductions ---');
     try {
       await runDeductionJob();
     } catch (error) {
       console.error('Error in deduction cron execution:', error);
     }
+  }, {
+    timezone: 'Africa/Lagos'
   });
 };

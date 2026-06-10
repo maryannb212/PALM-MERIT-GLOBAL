@@ -48,8 +48,8 @@ const Referrals = () => {
     : (user?.referralCode ? [{
         code: legacyCode,
         plan_name: 'Legacy Account',
-        status: isLocked ? 'locked' : isExpired ? 'expired' : 'available',
-        unlock_date: unlockTimestamp ? new Date(unlockTimestamp).toISOString() : null
+        status: 'available',
+        unlock_date: null
       }] : []);
 
   const handleCopyLink = (code) => {
