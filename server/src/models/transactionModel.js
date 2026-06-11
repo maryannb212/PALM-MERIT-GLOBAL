@@ -1,3 +1,4 @@
+import { query, getClient } from '../config/db.js';
 import { createNotification } from '../models/notificationModel.js';
 import { sendTermiiSMS } from '../utils/termiiService.js';
 

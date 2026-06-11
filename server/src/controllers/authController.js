@@ -228,6 +228,12 @@ export const loginUser = async (req, res) => {
       const accessToken = generateAccessToken(user.id);
       const refreshToken = await generateRefreshToken(user.id);
 
+      const { rows: defaultRows } = await query(
+        `SELECT COALESCE(SUM(penalty_amount), 0) as outstanding_balance, COUNT(*) as default_count
+         FROM defaults WHERE user_id = $1 AND resolved = FALSE`,
+        [user.id]
+      );
+
       res.json({
         id: user.id,
         firstName: user.first_name,
@@ -244,7 +250,10 @@ export const loginUser = async (req, res) => {
         virtual_account_name: user.virtual_account_name,
         token: accessToken,
         refreshToken: refreshToken,
-        requiresOTP: false
+        requiresOTP: false,
+        savingsStatus: defaultRows[0].default_count > 0 ? 'defaulted' : 'active',
+        outstandingDefault: parseFloat(defaultRows[0].outstanding_balance),
+        defaultCount: parseInt(defaultRows[0].default_count)
       });
     } else {
       res.status(401).json({ message: 'Invalid phone/email or password' });
@@ -514,6 +523,16 @@ export const getUserProfile = async (req, res) => {
       }
     }
 
+    // Get default info
+    const { rows: defaultRows } = await query(
+      `SELECT COALESCE(SUM(penalty_amount), 0) as outstanding_balance, COUNT(*) as default_count
+       FROM defaults WHERE user_id = $1 AND resolved = FALSE`,
+      [userId]
+    );
+    const defaultInfo = defaultRows[0];
+
+    const hasDefault = defaultInfo.default_count > 0;
+
     res.json({
       id: user.id,
       firstName: user.first_name,
@@ -549,7 +568,10 @@ export const getUserProfile = async (req, res) => {
         accountNumber: user.account_number,
         bankName: user.bank_name,
         bankCode: user.bank_code
-      } : null
+      } : null,
+      savingsStatus: hasDefault ? 'defaulted' : 'active',
+      outstandingDefault: parseFloat(defaultInfo.outstanding_balance),
+      defaultCount: parseInt(defaultInfo.default_count)
     });
   } catch (error) {
     console.error('Error in getUserProfile:', error);

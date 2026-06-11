@@ -140,6 +140,29 @@ const Subscriptions = () => {
           </div>
         )}
 
+        {/* ─── Default Warning Banner ─── */}
+        {user?.savingsStatus === 'defaulted' && user?.outstandingDefault > 0 && (
+          <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px', borderLeft: '4px solid #dc2626', background: 'rgba(220, 38, 38, 0.1)' }}>
+            <div className="tshirt-content">
+              <div className="tshirt-icon">⚠️</div>
+              <div className="tshirt-text">
+                <h4 style={{ color: '#ef4444' }}>Payment Default Notice</h4>
+                <p>
+                  You have outstanding default(s) totaling <strong>₦{Number(user.outstandingDefault).toLocaleString()}</strong>.
+                  Please fund your wallet to cover upcoming deductions. Outstanding defaults must be cleared before you can process clearance payouts.
+                </p>
+              </div>
+            </div>
+            <button 
+              className="tshirt-btn" 
+              onClick={() => navigate('/dashboard/wallet')}
+              style={{ background: '#dc2626', color: 'white', border: 'none' }}
+            >
+              Fund Wallet
+            </button>
+          </div>
+        )}
+
         <div className="my-subscriptions-header">
           <h3>My Subscriptions</h3>
           <button className="btn btn-primary add-sub-btn" onClick={() => navigate('/dashboard/packages')}>
@@ -187,10 +210,13 @@ const Subscriptions = () => {
               };
 
               return (
-                <div key={plan.id} className="active-sub-card">
+                <div key={plan.id} className="active-sub-card" style={user?.savingsStatus === 'defaulted' ? { borderLeft: '4px solid #dc2626' } : {}}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
                     <h4 style={{ margin: 0 }}>{plan.plan_name} Programme {plan.number_of_accounts > 1 && <span className="text-muted" style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>({plan.number_of_accounts} accounts)</span>}</h4>
-                    {getStatusBadge(plan.status)}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {user?.savingsStatus === 'defaulted' && <span className="badge" style={{ background: '#dc2626', color: 'white', fontSize: '0.7rem' }}>DEFAULT</span>}
+                      {getStatusBadge(plan.status)}
+                    </div>
                   </div>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '15px', fontSize: '0.9rem' }}>

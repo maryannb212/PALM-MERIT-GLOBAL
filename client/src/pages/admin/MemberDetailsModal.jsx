@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FaTimes, FaUser, FaWallet, FaRegAddressCard, FaPiggyBank, 
-  FaUniversity, FaFileImage, FaExternalLinkAlt, FaInfoCircle, FaShieldAlt 
+  FaUniversity, FaFileImage, FaExternalLinkAlt, FaInfoCircle, FaShieldAlt,
+  FaExclamationCircle, FaCircle
 } from 'react-icons/fa';
 import { getAdminUserById } from '../../services/api';
 import './Admin.css';
@@ -348,6 +349,62 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 0', color: '#64748b', textAlign: 'center', gap: '10px' }}>
                       <FaPiggyBank size={24} />
                       <p style={{ margin: 0, fontSize: '0.85rem' }}>This member has not subscribed to any cooperative savings programmes.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Defaults / Penalty Section */}
+                <div style={{ background: details.default_count > 0 ? 'rgba(220, 38, 38, 0.08)' : 'rgba(255, 255, 255, 0.02)', border: `1px solid ${details.default_count > 0 ? 'rgba(220, 38, 38, 0.3)' : 'rgba(255, 255, 255, 0.05)'}`, borderRadius: '12px', padding: '20px' }}>
+                  <h3 style={{ color: details.default_count > 0 ? '#ef4444' : '#d4af37', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.05rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '10px', marginBottom: '15px' }}>
+                    <FaExclamationCircle size={16} /> Defaults & Penalties
+                  </h3>
+                  <div style={{ display: 'flex', gap: '15px', marginBottom: details.defaults?.length ? '15px' : '0', flexWrap: 'wrap' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '8px', flex: 1, minWidth: '140px' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Status</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                        <FaCircle size={8} color={details.default_count > 0 ? '#dc2626' : '#10b981'} />
+                        <strong style={{ color: details.default_count > 0 ? '#ef4444' : '#10b981', fontSize: '0.95rem' }}>
+                          {details.savings_status === 'defaulted' ? 'DEFAULTED' : 'ACTIVE'}
+                        </strong>
+                      </div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '8px', flex: 1, minWidth: '140px' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Default Count</span>
+                      <strong style={{ color: 'white', fontSize: '1.1rem', display: 'block', marginTop: '4px' }}>{details.default_count || 0}</strong>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '8px', flex: 1, minWidth: '140px' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Outstanding Balance</span>
+                      <strong style={{ color: '#ef4444', fontSize: '1.1rem', display: 'block', marginTop: '4px' }}>{formatCurrency(details.outstanding_default)}</strong>
+                    </div>
+                  </div>
+                  {details.defaults && details.defaults.length > 0 && (
+                    <div className="table-responsive">
+                      <table className="admin-table" style={{ fontSize: '0.85rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Missed Date</th>
+                            <th className="text-right">Penalty Amount</th>
+                            <th className="text-right">Resolved</th>
+                            <th className="text-right">Resolved At</th>
+                            <th className="text-right">Created</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {details.defaults.map((d) => (
+                            <tr key={d.id} style={{ background: 'rgba(255,255,255,0.01)' }}>
+                              <td>{formatDate(d.missed_date)}</td>
+                              <td className="text-right" style={{ color: '#ef4444', fontWeight: 'bold' }}>{formatCurrency(d.penalty_amount)}</td>
+                              <td className="text-right">
+                                <span className={`badge-status ${d.resolved ? 'status-verified' : 'status-unverified'}`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                                  {d.resolved ? 'YES' : 'NO'}
+                                </span>
+                              </td>
+                              <td className="text-right">{d.resolved ? formatDate(d.resolved_at) : '—'}</td>
+                              <td className="text-right">{formatDate(d.created_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

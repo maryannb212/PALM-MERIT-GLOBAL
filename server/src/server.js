@@ -6,6 +6,8 @@ import pool from './config/db.js';
 import logger from './utils/logger.js';
 import { exec } from 'child_process';
 import util from 'util';
+import { startDeductionJob, runStartupCatchupDeductions } from './jobs/deductionJob.js';
+import { startCronJobs } from './jobs/penaltyJob.js';
 
 const execPromise = util.promisify(exec);
 
@@ -46,6 +48,15 @@ const startServer = async (retries = 5) => {
         logger.info(`[startup] Mode: ${process.env.NODE_ENV || 'development'}`);
         logger.info(`[startup] Port: ${PORT}`);
         logger.info(`[startup] Ready to accept connections`);
+
+        // Start scheduled cron jobs
+        startDeductionJob();
+        startCronJobs();
+
+        // Run startup catch-up for missed deductions (non-blocking)
+        runStartupCatchupDeductions().catch(err => {
+          logger.error('[startup] Catch-up deductions failed:', err);
+        });
       });
 
       // Graceful shutdown

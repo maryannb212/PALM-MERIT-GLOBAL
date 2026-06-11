@@ -407,6 +407,25 @@
   color: #64748b;
 }
 
+/* Savings Plans Section */
+.ref-plans-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ref-plans-table th:nth-child(1),
+.ref-plans-table td:nth-child(1) { min-width: 120px; }
+.ref-plans-table th:nth-child(2),
+.ref-plans-table th:nth-child(3),
+.ref-plans-table td:nth-child(2),
+.ref-plans-table td:nth-child(3) { min-width: 110px; }
+.ref-plans-table th:nth-child(4) { min-width: 100px; }
+.ref-plans-table th:nth-child(5),
+.ref-plans-table td:nth-child(5) { min-width: 100px; }
+.ref-plans-table th:nth-child(6) { min-width: 160px; }
+.ref-plans-table th:nth-child(7) { min-width: 100px; }
+
 /* Responsiveness */
 @media (max-width: 768px) {
   .ref-metrics-row {
@@ -437,5 +456,14 @@
   .ref-timeline-icon {
     margin: 0;
     flex-shrink: 0;
+  }
+
+  .ref-plans-table {
+    font-size: 0.85rem;
+  }
+
+  .ref-plans-table th,
+  .ref-plans-table td {
+    padding: 10px 12px;
   }
 }

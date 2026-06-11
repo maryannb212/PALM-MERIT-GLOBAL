@@ -3,121 +3,106 @@ import { query } from '../config/db.js';
 import { applyDailyInterest } from '../services/interestEngine.js';
 import { createNotification } from '../models/notificationModel.js';
 
-// Plan rates configuration
 const PLAN_CONFIG = {
-  'CREST': { weekly: 4000, penalty: 500 },
-  'SILVER': { weekly: 1500, penalty: 200 },
-  'GOLDEN_BASKET': { weekly: 2000, penalty: 300 },
-  'ISUSU': { daily: 500, penalty: 50 }
-};
-
-/**
- * Count how many contribution days have occurred between a start date and today.
- * - For weekly plans: counts how many times the preferred_day has occurred since start_date.
- * - For daily plans (ISUSU): counts the number of calendar days elapsed.
- */
-const countExpectedContributions = (startDate, preferredDay, isDaily) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
-
-  if (start >= today) return 0;
-
-  if (isDaily) {
-    const diffTime = today - start;
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  }
-
-  // Weekly: count occurrences of preferredDay since start_date
-  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const targetDayIndex = daysOfWeek.findIndex(d => d.toLowerCase() === (preferredDay || '').toLowerCase());
-
-  if (targetDayIndex === -1) {
-    // Fallback: if no preferred_day is set, use simple week count
-    const diffTime = today - start;
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-  }
-
-  let count = 0;
-  const cursor = new Date(start);
-
-  // Move cursor to the first occurrence of the target day on or after start
-  while (cursor.getDay() !== targetDayIndex) {
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  // Count each occurrence up to (but not including) today
-  while (cursor < today) {
-    count++;
-    cursor.setDate(cursor.getDate() + 7);
-  }
-
-  return count;
+  'CREST': { weekly: 4000, penalty: 8000 },
+  'SILVER': { weekly: 1500, penalty: 3000 },
+  'GOLDEN_BASKET': { weekly: 2000, penalty: 4000 },
+  'ISUSU': { daily: 500, penalty: 1000 }
 };
 
 export const runPenaltyCheck = async () => {
   console.log('Running penalty check job...');
   try {
-    // Find all active savings plans
-    const sql = `SELECT * FROM savings_plans WHERE status = 'active'`;
-    const { rows: activePlans } = await query(sql);
+    const { rows: activePlans } = await query("SELECT * FROM savings_plans WHERE status = 'active'");
 
     for (const plan of activePlans) {
       const config = PLAN_CONFIG[plan.plan_name];
       if (!config) continue;
 
       const isDaily = !!config.daily;
-      const contributionAmount = config.weekly || config.daily;
-      const accounts = plan.number_of_accounts || 1;
+      const expectedInstallment = (config.weekly || config.daily) * (plan.number_of_accounts || 1);
+      const penaltyAmount = config.penalty;
 
-      // Calculate expected amount based on actual contribution days
-      const expectedContributions = countExpectedContributions(
-        plan.start_date,
-        plan.preferred_day,
-        isDaily
-      );
+      const { rows: todaySavings } = await query(`
+        SELECT id FROM transactions
+        WHERE plan_id = $1 AND type = 'savings' AND status = 'completed'
+          AND created_at >= CURRENT_DATE LIMIT 1
+      `, [plan.id]);
 
-      // Expected total = contributions × per-contribution amount × number of accounts
-      // We add the initial savings (first contribution) which is already recorded at plan creation
-      const expectedAmount = expectedContributions * contributionAmount * accounts;
+      const { rows: todayDefault } = await query(`
+        SELECT id FROM defaults
+        WHERE plan_id = $1 AND missed_date = CURRENT_DATE LIMIT 1
+      `, [plan.id]);
 
-      // If the current amount is less than expected, it's a default
-      if (parseFloat(plan.current_amount) < expectedAmount) {
-        const penaltyAmount = config.penalty;
+      if (todaySavings.length > 0 || todayDefault.length > 0) continue;
 
-        // Check if we already recorded a default for today
-        const checkDefaultSql = `
-          SELECT * FROM defaults
-          WHERE plan_id = $1 AND missed_date = CURRENT_DATE
-        `;
-        const existingDefault = await query(checkDefaultSql, [plan.id]);
+      const { rows: lastTx } = await query(`
+        SELECT created_at FROM transactions
+        WHERE plan_id = $1 AND type = 'savings' AND status = 'completed'
+        ORDER BY created_at DESC LIMIT 1
+      `, [plan.id]);
 
-        if (existingDefault.rows.length === 0) {
-          console.log(`Applying penalty of ${penaltyAmount} to plan ${plan.id} (${plan.plan_name}) - Expected: ${expectedAmount}, Actual: ${plan.current_amount}`);
+      let isDue = false;
 
-          // Record default
-          await query(`
-            INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
-            VALUES ($1, $2, CURRENT_DATE, $3)
-          `, [plan.user_id, plan.id, penaltyAmount]);
+      if (isDaily) {
+        isDue = true;
+      } else {
+        const todayDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
 
-          // Create penalty transaction
-          await query(`
-            INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-            VALUES ($1, $2, 'penalty', $3, 'completed', $4)
-          `, [plan.user_id, plan.id, penaltyAmount, `PEN-${Date.now()}`]);
-
-          // Send a notification
-          await createNotification(
-            plan.user_id,
-            'ALERT',
-            'Penalty Applied',
-            `A penalty of ₦${penaltyAmount.toLocaleString()} has been applied to your ${plan.plan_name} plan due to missed contributions. (Expected: ₦${expectedAmount.toLocaleString()}, Current: ₦${parseFloat(plan.current_amount).toLocaleString()})`
-          );
+        if (lastTx.length === 0) {
+          if (plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
+            isDue = true;
+          } else {
+            const daysSinceStart = Math.floor((new Date() - new Date(plan.start_date)) / (1000 * 60 * 60 * 24));
+            if (daysSinceStart >= 7) isDue = true;
+          }
+        } else {
+          const daysSinceLast = Math.floor((new Date() - new Date(lastTx[0].created_at)) / (1000 * 60 * 60 * 24));
+          if (daysSinceLast >= 7) isDue = true;
         }
       }
+
+      if (!isDue) continue;
+
+      const { rows: users } = await query('SELECT available_balance FROM users WHERE id = $1', [plan.user_id]);
+      if (users.length === 0) continue;
+
+      if (parseFloat(users[0].available_balance) >= expectedInstallment) {
+        const ref = `AUTOSAV-PEN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        await query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [expectedInstallment, plan.user_id]);
+        await query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [expectedInstallment, plan.id]);
+        await query(`
+          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+          VALUES ($1, $2, 'savings', $3, 'completed', $4)
+        `, [plan.user_id, plan.id, expectedInstallment, ref]);
+        console.log(`Penalty job: caught-up deduction of N${expectedInstallment} for plan ${plan.id} (${plan.plan_name})`);
+        continue;
+      }
+
+      console.log(`Applying default of N${penaltyAmount} to plan ${plan.id} (${plan.plan_name})`);
+
+      const failedRef = `AUTOSAV-${Date.now()}`;
+      const penRef = `PEN-${Date.now()}`;
+
+      await query(`
+        INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
+        VALUES ($1, $2, CURRENT_DATE, $3)
+      `, [plan.user_id, plan.id, penaltyAmount]);
+
+      await query(`
+        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+        VALUES ($1, $2, 'savings', $3, 'failed', $4)
+      `, [plan.user_id, plan.id, expectedInstallment, failedRef]);
+
+      await query(`
+        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+        VALUES ($1, $2, 'penalty', $3, 'completed', $4)
+      `, [plan.user_id, plan.id, penaltyAmount, penRef]);
+
+      await createNotification(
+        plan.user_id, 'ALERT', 'Default Charge Applied',
+        `Your savings deduction of N${expectedInstallment.toLocaleString()} for ${plan.plan_name} failed due to insufficient funds. A default charge of N${penaltyAmount.toLocaleString()} has been applied. Please fund your wallet.`
+      );
     }
     return { success: true, message: 'Penalty check completed' };
   } catch (error) {
@@ -127,18 +112,13 @@ export const runPenaltyCheck = async () => {
 };
 
 export const startCronJobs = () => {
-  // Run daily at midnight (0 0 * * *)
   cron.schedule('0 0 * * *', async () => {
     console.log('--- Starting Daily Scheduled Tasks ---');
-
-    // 1. Apply Daily Interest
     try {
       await applyDailyInterest();
     } catch (error) {
       console.error('Error applying interest:', error);
     }
-
-    // 2. Penalty Checks
     try {
       await runPenaltyCheck();
     } catch (error) {

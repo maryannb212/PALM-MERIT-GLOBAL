@@ -4,6 +4,7 @@ import { protect, admin } from '../middleware/authMiddleware.js';
 // Import extracted job logic
 import { applyDailyInterest } from '../services/interestEngine.js';
 import { runPenaltyCheck } from '../jobs/penaltyJob.js';
+import { runDeductionJob } from '../jobs/deductionJob.js';
 import { runMaturityCheck } from '../jobs/maturityCron.js';
 import { runStaffDeactivation } from '../jobs/staffDeactivationJob.js';
 
@@ -21,6 +22,18 @@ router.post('/interest', async (req, res) => {
     res.json({ message: 'Daily interest calculation triggered successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to trigger interest calculation', error: error.message });
+  }
+});
+
+/**
+ * Trigger Deduction Check
+ */
+router.post('/deductions', async (req, res) => {
+  try {
+    const result = await runDeductionJob();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to trigger deduction check', error: error.message });
   }
 });
 

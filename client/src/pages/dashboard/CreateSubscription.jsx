@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { subscribeToPlan } from '../../services/api';
+import { toast } from 'react-toastify';
 
 import './Dashboard.css';
 
@@ -74,7 +75,13 @@ const CreateSubscription = () => {
       setMessage('Subscription successful! Redirecting to dashboard...');
       setTimeout(() => navigate('/dashboard'), 2000);
     } catch (err) {
-      setMessage(err.response?.data?.message || 'Failed to create subscription. Please try again.');
+      const data = err.response?.data;
+      if (data?.requiresMembership) {
+        toast.error('Membership fee required. Please pay the membership fee first.');
+        setTimeout(() => navigate('/dashboard'), 2000);
+      } else {
+        setMessage(data?.message || 'Failed to create subscription. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

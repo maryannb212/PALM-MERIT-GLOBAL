@@ -100,6 +100,25 @@ export const subscribeToPlan = async (req, res) => {
       // Create the plan
       const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, autoPreferredDay, client);
 
+      // Calculate end_date based on plan duration
+      const planDurations = {
+        CREST: { weeks: 12 },
+        SILVER: { weeks: 50 },
+        GOLDEN_BASKET: { weeks: 50 },
+        ISUSU: { days: 30 }
+      };
+      const duration = planDurations[planName];
+      const endDate = new Date(plan.start_date || plan.created_at);
+      if (duration) {
+        if (duration.weeks) endDate.setDate(endDate.getDate() + duration.weeks * 7);
+        if (duration.days) endDate.setDate(endDate.getDate() + duration.days);
+      }
+
+      await client.query(
+        'UPDATE savings_plans SET end_date = $1, maturity_date = $1 WHERE id = $2',
+        [endDate, plan.id]
+      );
+
       // Adjust referral dates based on plan type (Legacy columns logic kept for backward compatibility)
       if (planName === 'SILVER') {
         // SILVER plans unlock referrals automatically and expire in 90 days
@@ -178,6 +197,15 @@ export const payClearanceFee = async (req, res) => {
     try {
       await client.query('BEGIN');
       
+      // Check for outstanding defaults
+      const { rows: defaultRows } = await client.query(
+        `SELECT COALESCE(SUM(penalty_amount), 0) as outstanding FROM defaults WHERE user_id = $1 AND resolved = FALSE`,
+        [userId]
+      );
+      if (parseFloat(defaultRows[0].outstanding) > 0) {
+        throw new Error(`Clearance cannot be processed because there are outstanding default charges of ₦${parseFloat(defaultRows[0].outstanding).toLocaleString()} on this account. Please clear all defaults before requesting clearance.`);
+      }
+
       const { rows: plans } = await client.query('SELECT * FROM savings_plans WHERE id = $1 AND user_id = $2 FOR UPDATE', [planId, userId]);
       if (plans.length === 0) throw new Error('Plan not found or unauthorized');
       const plan = plans[0];

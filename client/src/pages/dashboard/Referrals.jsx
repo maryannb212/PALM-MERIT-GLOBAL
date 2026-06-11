@@ -4,15 +4,73 @@ import { useAuth } from '../../context/AuthContext';
 import { 
   FaLock, FaUnlock, FaCopy, FaCheckCircle, FaUserFriends, 
   FaUserCheck, FaTimesCircle, FaExclamationTriangle,
-  FaShieldAlt, FaInfoCircle, FaCalendarAlt, FaStar, FaChartLine
+  FaShieldAlt, FaInfoCircle, FaCalendarAlt, FaStar, FaChartLine,
+  FaMoneyBillWave, FaCoins, FaArrowRight
 } from 'react-icons/fa';
 import './Dashboard.css';
 import './Referrals.css';
+
+const PLAN_CONFIG = {
+  CREST: { amount: 4000, isDaily: false, color: '#800020', label: 'CREST' },
+  SILVER: { amount: 1500, isDaily: false, color: '#64748b', label: 'SILVER' },
+  GOLDEN_BASKET: { amount: 2000, isDaily: false, color: '#d97706', label: 'GOLDEN BASKET' },
+  ISUSU: { amount: 500, isDaily: true, color: '#059669', label: 'ISUSU' }
+};
+
+const getNextPaymentDate = (plan) => {
+  const config = PLAN_CONFIG[plan.plan_name];
+  if (!config) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (config.isDaily) {
+    const next = new Date(today);
+    next.setDate(next.getDate() + 1);
+    return next;
+  }
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const targetDay = plan.preferred_day || daysOfWeek[(new Date(plan.start_date).getDay() + 6) % 7];
+  const targetIndex = daysOfWeek.findIndex(d => d.toLowerCase() === targetDay.toLowerCase());
+  if (targetIndex === -1) return null;
+  const next = new Date(today);
+  next.setDate(next.getDate() + ((targetIndex + 7 - next.getDay()) % 7));
+  if (next <= today) next.setDate(next.getDate() + 7);
+  return next;
+};
+
+const countContributions = (startDate, preferredDay, isDaily) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  if (start >= today) return 0;
+  if (isDaily) {
+    return Math.floor((today - start) / (1000 * 60 * 60 * 24));
+  }
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const targetDayIndex = daysOfWeek.findIndex(d => d.toLowerCase() === (preferredDay || '').toLowerCase());
+  if (targetDayIndex === -1) {
+    return Math.floor((today - start) / (1000 * 60 * 60 * 24 * 7));
+  }
+  let count = 0;
+  const cursor = new Date(start);
+  if (cursor.getDay() !== targetDayIndex) {
+    count = 1;
+    while (cursor.getDay() !== targetDayIndex) {
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+  while (cursor < today) {
+    count++;
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return count;
+};
 
 const Referrals = () => {
   const { user, refreshProfile } = useAuth();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [plans, setPlans] = useState([]);
   const [stats, setStats] = useState({
     downlines: [],
     myCodes: [],
@@ -27,19 +85,28 @@ const Referrals = () => {
     if (refreshProfile) {
       refreshProfile();
     }
-    const fetchReferrals = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await API.get('/auth/referrals');
-        setStats(res.data);
+        const refRes = await API.get('/auth/referrals');
+        setStats(refRes.data);
       } catch (err) {
         console.error('Error fetching referrals:', err);
-        setError('Failed to load referrals. Please verify your connection or try again.');
-      } finally {
-        setLoading(false);
+        setError('Failed to load data. Please verify your connection or try again.');
       }
+      try {
+        const plansRes = await API.get('/savings/my-plans');
+        setPlans(plansRes.data || []);
+      } catch (err) {
+        if (err.response?.status === 403) {
+          setPlans([]);
+        } else {
+          console.error('Error fetching savings plans:', err);
+        }
+      }
+      setLoading(false);
     };
-    fetchReferrals();
+    fetchData();
   }, []);
 
   const legacyCode = user?.referralCode || 'NOT-AVAILABLE';
@@ -53,8 +120,7 @@ const Referrals = () => {
       }] : []);
 
   const handleCopyLink = (code) => {
-    const link = `${window.location.origin}/register?ref=${code}`;
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(code);
     setCopied(code);
     setTimeout(() => setCopied(null), 2000);
   };
@@ -153,9 +219,9 @@ const Referrals = () => {
                     </div>
                   ) : (
                     <div className="ref-unlocked-state" style={{ padding: 0, background: 'none' }}>
-                      <p style={{ margin: '0 0 10px 0' }}>Share this link to invite a partner. <strong>Status: Active</strong></p>
+                      <p style={{ margin: '0 0 10px 0' }}>Share this code with a partner. <strong>Status: Active</strong></p>
                       <div className="ref-input-wrapper">
-                        <input type="text" value={`${window.location.origin}/register?ref=${c.code}`} readOnly onClick={(e) => e.target.select()} style={{ backgroundColor: 'rgba(0,0,0,0.3)' }} />
+                        <input type="text" value={c.code} readOnly onClick={(e) => e.target.select()} style={{ backgroundColor: 'rgba(0,0,0,0.3)', fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: '700', letterSpacing: '2px', textTransform: 'uppercase', textAlign: 'center' }} />
                         <button className={`ref-copy-btn ${copied === c.code ? 'copied' : ''}`} onClick={() => handleCopyLink(c.code)}>
                           {copied === c.code ? <><FaCheckCircle /> Copied</> : <><FaCopy /> Copy</>}
                         </button>
@@ -196,6 +262,114 @@ const Referrals = () => {
               {stats.isEligible ? <span className="pill-qualified">BONUS</span> : <span className="pill-standard">BASE</span>}
             </h4>
           </div>
+        </div>
+      </div>
+
+      {/* My Savings Plans Section */}
+      <div className="ref-plans-section">
+        <div className="ref-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <FaCoins color="#800020" /> My Savings Plans
+            </h3>
+            <span style={{ background: '#f1f5f9', padding: '4px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>
+              {plans.length} Plan{plans.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {plans.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <FaMoneyBillWave style={{ fontSize: '3rem', color: '#cbd5e1', margin: '0 auto 15px', display: 'block' }} />
+              <h4 style={{ color: '#64748b' }}>No active savings plans</h4>
+              <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Subscribe to a savings plan to see your plans here.</p>
+            </div>
+          ) : (
+            <div className="ref-table-wrapper">
+              <table className="ref-premium-table ref-plans-table">
+                <thead>
+                  <tr>
+                    <th>Plan</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Cycle</th>
+                    <th>Next Payment</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.map((plan) => {
+                    const config = PLAN_CONFIG[plan.plan_name];
+                    const installmentAmount = (config?.amount || 0) * (plan.number_of_accounts || 1);
+                    const isDaily = config?.isDaily || false;
+                    const contributions = countContributions(plan.start_date || plan.created_at, plan.preferred_day, isDaily);
+                    const nextPayDate = getNextPaymentDate(plan);
+                    const progress = plan.target_amount > 0 ? ((plan.current_amount / plan.target_amount) * 100).toFixed(1) : 0;
+                    const status = plan.status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    return (
+                      <tr key={plan.id}>
+                        <td>
+                          <span className="plan-pill" style={{
+                            background: config?.color ? `${config.color}15` : '#f1f5f9',
+                            color: config?.color || '#475569',
+                            fontWeight: '700'
+                          }}>
+                            {plan.plan_name === 'GOLDEN_BASKET' ? 'Golden Basket' : plan.plan_name?.charAt(0) + plan.plan_name?.slice(1).toLowerCase()}
+                          </span>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {new Date(plan.start_date || plan.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {plan.maturity_date || plan.end_date
+                            ? new Date(plan.maturity_date || plan.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : <span style={{ color: '#94a3b8' }}>—</span>}
+                        </td>
+                        <td>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <FaCalendarAlt style={{ color: '#64748b', fontSize: '0.8rem' }} />
+                            <span><strong style={{ color: '#800020' }}>#{contributions}</strong> {isDaily ? 'Daily' : plan.preferred_day || 'Weekly'}</span>
+                          </span>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {nextPayDate ? (
+                            <span title={nextPayDate.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}>
+                              ₦{installmentAmount.toLocaleString()} <br />
+                              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                {nextPayDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                              </span>
+                            </span>
+                          ) : <span style={{ color: '#94a3b8' }}>—</span>}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontWeight: '600', color: '#0f172a' }}>
+                              ₦{Number(plan.current_amount || 0).toLocaleString()} <span style={{ color: '#94a3b8', fontWeight: '400' }}>/ ₦{Number(plan.target_amount || 0).toLocaleString()}</span>
+                            </span>
+                            <div style={{ width: '100%', height: '4px', background: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
+                              <div style={{
+                                width: `${Math.min(progress, 100)}%`,
+                                height: '100%',
+                                background: config?.color || '#800020',
+                                borderRadius: '2px',
+                                transition: 'width 0.3s ease'
+                              }} />
+                            </div>
+                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{progress}%</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`badge-status ${plan.status === 'active' ? 'active' : plan.status === 'completed' || plan.status === 'matured' ? 'qualified' : plan.status === 'cancelled' ? 'disqualified' : 'pending'}`}>
+                            {status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 

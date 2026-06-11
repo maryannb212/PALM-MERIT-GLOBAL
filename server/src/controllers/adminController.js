@@ -11,9 +11,18 @@ import * as withdrawalController from './withdrawalController.js';
 export const getAllUsers = async (req, res) => {
   try {
     const sql = `
-      SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance, created_at
-      FROM users 
-      ORDER BY created_at DESC;
+      SELECT 
+        u.id, u.first_name, u.last_name, u.email, u.phone, u.role, 
+        u.has_paid_membership, u.kyc_status, u.wallet_balance, u.available_balance, u.held_balance, u.created_at,
+        COALESCE(d.outstanding, 0) as outstanding_default,
+        COALESCE(d.cnt, 0) as default_count
+      FROM users u
+      LEFT JOIN (
+        SELECT user_id, SUM(penalty_amount) as outstanding, COUNT(*) as cnt
+        FROM defaults WHERE resolved = FALSE
+        GROUP BY user_id
+      ) d ON u.id = d.user_id
+      ORDER BY u.created_at DESC;
     `;
     const result = await query(sql);
     res.json(result.rows);
@@ -46,7 +55,6 @@ export const getUserById = async (req, res) => {
     
     const user = userResult.rows[0];
     
-    // 2. Fetch KYC details
     const kycSql = `
       SELECT first_name, last_name, middle_name, phone, email, address, gender, dob, bvn, 
              bank_name, account_number, id_type, id_number, document_url, document_back_url, selfie_url, submitted_at
@@ -56,7 +64,6 @@ export const getUserById = async (req, res) => {
     const kycResult = await query(kycSql, [id]);
     user.kyc = kycResult.rows[0] || null;
     
-    // 3. Fetch all Bank Accounts
     const bankSql = `
       SELECT account_name, account_number, bank_name, is_primary
       FROM bank_accounts
@@ -66,7 +73,6 @@ export const getUserById = async (req, res) => {
     const bankResult = await query(bankSql, [id]);
     user.bank_accounts = bankResult.rows;
     
-    // 4. Fetch Savings Plans
     const plansSql = `
       SELECT id, plan_name, status, start_date, end_date, target_amount, current_amount, 
              interest_rate, number_of_accounts, clearance_required, clearance_paid, maturity_date
@@ -76,6 +82,24 @@ export const getUserById = async (req, res) => {
     `;
     const plansResult = await query(plansSql, [id]);
     user.savings_plans = plansResult.rows;
+
+    const defaultsSql = `
+      SELECT id, plan_id, missed_date, penalty_amount, resolved, resolved_at, created_at
+      FROM defaults
+      WHERE user_id = $1
+      ORDER BY created_at DESC;
+    `;
+    const defaultsResult = await query(defaultsSql, [id]);
+    user.defaults = defaultsResult.rows;
+
+    const { rows: defaultSummary } = await query(
+      `SELECT COALESCE(SUM(penalty_amount), 0) as outstanding_balance, COUNT(*) as default_count
+       FROM defaults WHERE user_id = $1 AND resolved = FALSE`,
+      [id]
+    );
+    user.outstanding_default = parseFloat(defaultSummary[0].outstanding_balance);
+    user.default_count = parseInt(defaultSummary[0].default_count);
+    user.savings_status = user.default_count > 0 ? 'defaulted' : 'active';
     
     res.json(user);
   } catch (error) {

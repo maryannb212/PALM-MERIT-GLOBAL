@@ -140,6 +140,7 @@ const MembersPage = () => {
                   <th>System Role</th>
                   <th>Membership</th>
                   <th>Identity Verification</th>
+                  <th>Defaults</th>
                   <th className="text-right"><FaCalendarAlt /> Access Date</th>
                   <th className="text-right">Actions</th>
                 </tr>
@@ -188,6 +189,24 @@ const MembersPage = () => {
                       }`}>
                         {member.kyc_status?.toUpperCase() || 'UNVERIFIED'}
                       </span>
+                    </td>
+                    <td>
+                      {member.default_count > 0 ? (
+                        <div className="status-dot">
+                          <FaCircle size={10} color="#dc2626" />
+                          <span style={{ fontWeight: 600, color: '#dc2626' }}>
+                            {member.default_count} Default{member.default_count > 1 ? 's' : ''}
+                          </span>
+                          <span style={{ fontSize: '0.8rem', color: '#991b1b', marginLeft: 4 }}>
+                            (₦{Number(member.outstanding_default).toLocaleString()})
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="status-dot">
+                          <FaCircle size={10} color="#10b981" />
+                          <span style={{ fontWeight: 600 }}>CLEAN</span>
+                        </div>
+                      )}
                     </td>
                     <td className="text-right date-cell">
                       {new Date(member.created_at).toLocaleDateString('en-US', {

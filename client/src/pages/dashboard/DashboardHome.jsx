@@ -322,6 +322,23 @@ const DashboardHome = () => {
               )}
             </div>
           </div>
+          <div className="stat-card count-card" style={{
+            background: user?.savingsStatus === 'defaulted' ? 'linear-gradient(135deg, #dc2626, #991b1b)' : 'linear-gradient(135deg, #059669, #047857)',
+            color: 'white'
+          }}>
+            <div className="stat-icon" style={{ background: 'rgba(255,255,255,0.2)' }}>
+              {user?.savingsStatus === 'defaulted' ? '⚠️' : '✅'}
+            </div>
+            <h3 style={{ color: '#FFD700' }}>Savings Status</h3>
+            <div className="stat-count" style={{ color: '#FFFFFF', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+              {user?.savingsStatus === 'defaulted' ? 'Defaulted' : 'Active'}
+            </div>
+            {user?.outstandingDefault > 0 && (
+              <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem', opacity: 0.9 }}>
+                Outstanding Default: ₦{Number(user.outstandingDefault).toLocaleString()}
+              </p>
+            )}
+          </div>
           <div className="stat-card count-card">
             <div className="stat-icon">📈</div>
             <h3>My Contributions (7 Days)</h3>
