@@ -128,6 +128,7 @@ export const runDeductionJob = async () => {
     const watDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
     const todayDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][watDate.getDay()];
     const todayString = watDate.toDateString();
+    const watDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
 
     const { rows: activePlans } = await query("SELECT * FROM savings_plans WHERE status = 'active'");
 
@@ -149,9 +150,19 @@ export const runDeductionJob = async () => {
 
         const { rows: existingTransactions } = await client.query(`
           SELECT created_at FROM transactions
-          WHERE plan_id = $1 AND type = 'savings' AND status = 'completed'
+          WHERE plan_id = $1 AND type IN ('savings', 'penalty') AND status = 'completed'
           ORDER BY created_at DESC LIMIT 1
         `, [plan.id]);
+
+        const { rows: todayDefault } = await client.query(`
+          SELECT id FROM defaults
+          WHERE plan_id = $1 AND missed_date = $2::date LIMIT 1
+        `, [plan.id, watDateStr]);
+
+        if (todayDefault.length > 0) {
+          await client.query('ROLLBACK');
+          continue;
+        }
 
         const lastDeductionDate = existingTransactions.length > 0 ? existingTransactions[0].created_at : null;
 
@@ -224,8 +235,8 @@ export const runDeductionJob = async () => {
 
           await client.query(`
             INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
-            VALUES ($1, $2, CURRENT_DATE, $3)
-          `, [user.id, plan.id, defaultAmount]);
+            VALUES ($1, $2, $3::date, $4)
+          `, [user.id, plan.id, watDateStr, defaultAmount]);
 
           await client.query(`
             INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
