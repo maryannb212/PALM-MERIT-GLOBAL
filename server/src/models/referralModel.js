@@ -16,32 +16,34 @@ export const generateUniqueReferralCode = async (planName) => {
   return code;
 };
 
-export const createReferralCodeForPlan = async (client, userId, planId, planName) => {
+export const createReferralCodeForPlan = async (client, userId, planId, planName, numberOfAccounts = 1) => {
   let status = 'available';
-  let unlockDate = null;
+  let baseUnlockDate = null;
 
   if (planName === 'CREST') {
     status = 'locked';
     const d = new Date();
     d.setDate(d.getDate() + 30);
-    unlockDate = d.toISOString();
+    baseUnlockDate = d.toISOString();
   } else if (planName === 'SILVER') {
     status = 'available';
-    unlockDate = new Date().toISOString();
+    baseUnlockDate = new Date().toISOString();
   } else {
-    // Only Silver and Crest generate codes based on the new rules
     return null;
   }
 
-  const code = await generateUniqueReferralCode(planName);
-
-  const sql = `
-    INSERT INTO referral_codes (user_id, plan_id, code, status, unlock_date)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING *;
-  `;
-  const { rows } = await client.query(sql, [userId, planId, code, status, unlockDate]);
-  return rows[0];
+  const codes = [];
+  for (let i = 0; i < numberOfAccounts; i++) {
+    const code = await generateUniqueReferralCode(planName);
+    const { rows } = await client.query(
+      `INSERT INTO referral_codes (user_id, plan_id, code, status, unlock_date)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *;`,
+      [userId, planId, code, status, baseUnlockDate]
+    );
+    codes.push(rows[0]);
+  }
+  return codes;
 };
 
 export const getUserReferralCodes = async (userId) => {
