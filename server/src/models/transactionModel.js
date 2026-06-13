@@ -346,6 +346,7 @@ export const processCompletedPayment = async (
             'Wallet Top-up'
           );
         }
+
       }
     } else if (
       completedTx.type === 'membership'

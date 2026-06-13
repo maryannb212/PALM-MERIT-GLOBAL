@@ -202,54 +202,47 @@ export const runDeductionJob = async () => {
           continue;
         }
 
-        const { rows: users } = await client.query('SELECT id, available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
+        const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
         if (users.length === 0) throw new Error('User not found');
 
-        const user = users[0];
-        const availableBalance = parseFloat(user.available_balance);
-        const reference = `AUTOSAV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const balance = Math.floor(parseFloat(users[0].available_balance));
+        const ref = `AUTOSAV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-        if (availableBalance >= expectedAmount) {
-          await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [expectedAmount, user.id]);
-          await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [expectedAmount, plan.id]);
-          await client.query(`
-            INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-            VALUES ($1, $2, 'savings', $3, 'completed', $4)
-          `, [user.id, plan.id, expectedAmount, reference]);
-          await createWalletLedgerEntry(client, user.id, 'debit', expectedAmount, reference, `Automatic savings deduction for ${plan.plan_name}`);
+        // ── Per-account granularity ──
+        const perAccountAmount = config.amount;
+        const numAccounts = plan.number_of_accounts || 1;
+        const fullDue = perAccountAmount * numAccounts;
+        const payableAccounts = Math.floor(balance / perAccountAmount);
+        const payableAmount = payableAccounts * perAccountAmount;
+        const savingsAmount = Math.min(payableAmount, fullDue);
+
+        if (savingsAmount > 0) {
+          await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
+          await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [savingsAmount, plan.id]);
+          await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'savings', $3, 'completed', $4)`, [plan.user_id, plan.id, savingsAmount, ref]);
+          await createWalletLedgerEntry(client, plan.user_id, 'debit', savingsAmount, ref, `Automatic savings deduction for ${plan.plan_name}`);
+
           await client.query('COMMIT');
 
-          await createNotification(
-            user.id, 'SYSTEM', 'Savings Deduction Successful',
-            `Your automatic savings deduction of N${expectedAmount.toLocaleString()} for your ${plan.plan_name} plan was successful.`
-          );
-          console.log(`Successfully deducted ${expectedAmount} for plan ${plan.id}`);
+          let msg = `Your automatic savings deduction of N${savingsAmount.toLocaleString()} for your ${plan.plan_name} plan was successful`;
+          if (savingsAmount < fullDue) {
+            const paidAccounts = savingsAmount / perAccountAmount;
+            msg += ` (${paidAccounts} of ${numAccounts} accounts paid)`;
+          }
+          msg += '.';
+          await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
+          console.log(`Plan ${plan.id}: saved N${savingsAmount}.`);
         } else {
-          const defaultAmount = expectedAmount * 2;
-          const defaultRef = `DEF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-          await client.query(`
-            INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-            VALUES ($1, $2, 'savings', $3, 'failed', $4)
-          `, [user.id, plan.id, expectedAmount, reference]);
-
-          await client.query(`
-            INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
-            VALUES ($1, $2, $3::date, $4)
-          `, [user.id, plan.id, watDateStr, defaultAmount]);
-
-          await client.query(`
-            INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-            VALUES ($1, $2, 'penalty', $3, 'completed', $4)
-          `, [user.id, plan.id, defaultAmount, defaultRef]);
-
+          // ── Insufficient funds — create a default ──
+          const defaultPenalty = perAccountAmount * numAccounts;
+          await client.query(`INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount) VALUES ($1, $2, $3::date, $4)`, [plan.user_id, plan.id, watDateStr, defaultPenalty]);
           await client.query('COMMIT');
 
           await createNotification(
-            user.id, 'ALERT', 'Default Charge Applied',
-            `Your automatic savings deduction of N${expectedAmount.toLocaleString()} for your ${plan.plan_name} plan failed due to insufficient funds. A default charge of N${defaultAmount.toLocaleString()} has been applied. Please fund your wallet to avoid further penalties.`
+            plan.user_id, 'ALERT', 'Savings Default Recorded',
+            `Your ${plan.plan_name} plan missed the contribution of N${defaultPenalty.toLocaleString()} due to insufficient wallet balance. A default has been recorded for ${watDateStr}.`
           );
-          console.log(`Defaulted N${defaultAmount} for plan ${plan.id} (${plan.plan_name}) due to insufficient funds.`);
+          console.log(`Plan ${plan.id}: insufficient funds (N${balance}) — defaulted N${defaultPenalty}.`);
         }
       } catch (err) {
         await client.query('ROLLBACK');

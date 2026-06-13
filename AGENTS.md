@@ -1,9 +1,13 @@
 ## Goal
 - Fix referral code processing on live server deployment and fix default/penalty system bugs causing incorrect customer defaults.
+- Replace automatic default creation with smart wallet allocation: pay contribution first, sweep remaining to settle defaults.
 
 ## Constraints & Preferences
-- Default should only trigger when user has no money in wallet on contribution day.
-- Default penalty must be exactly twice the savings contribution amount.
+- Cron jobs create a default when wallet can't cover even one full account's contribution.
+- Cron jobs NEVER clear defaults — only admin can do that from user management dashboard.
+- When wallet has enough for ≥1 account: pay for those full accounts, no default created.
+- When wallet can't cover even 1 account: create a default for the full contribution amount (penalty = perAccountAmount × numAccounts).
+- All amounts must be whole numbers (`Math.floor()`).
 - All timezone handling must use Africa/Lagos (WAT) consistently across deduction and penalty jobs.
 - Live server referral code issue is confirmed to be a deployment/code version problem, not a database problem.
 
@@ -28,6 +32,15 @@
   - Added `todayDefault` check to skip plans already defaulted today.
   - Changed `missed_date` from `CURRENT_DATE` to WAT-aware date string.
   - Added `watDateStr` variable for WAT date.
+- **Rewrote deduction logic in both jobs** to implement smart wallet allocation:
+  - If wallet can cover full payment: pay contribution, then sweep remaining wallet to settle oldest defaults (full or partial).
+  - If wallet can cover some accounts but not all: pay for as many full accounts as possible, then sweep leftover to defaults.
+  - If wallet can't cover even one account AND defaults exist: use entire wallet to settle defaults (no new default created).
+  - If wallet can't cover even one account AND no defaults: leave money alone, mark day as processed (no default).
+  - All amounts floored to integers via `Math.floor()`.
+  - Per-account granularity: `payableAccounts = Math.floor(balance / perAccountAmount)`, pays for those accounts, leftover goes to defaults.
+  - Used `penalty_settlement` transactions + wallet ledger entries for settlement tracking.
+  - Added `SKIP-` marker penalty transactions (amount=0) to prevent infinite isDue on skipped days.
 
 ### In Progress
 - (none)
@@ -37,24 +50,27 @@
 
 ## Key Decisions
 - Referral code issue on live is a deployment/code version mismatch — database and local code are both fine.
-- Default/penalty system bugs were in `penaltyJob.js` and `deductionJob.js` — both now fixed.
+- Cron jobs no longer create defaults. Defaults are only created from older code or admin actions.
 - `missed_date` in defaults table should consistently be Africa/Lagos date to match deduction job's 6PM WAT schedule.
+- `createWalletLedgerEntry` added as import to `penaltyJob.js` for settlement ledger entries.
+- `available_balance` only is read (no longer reads `wallet_balance`) from users table in deduction job since `wallet_balance` is derived.
 
 ## Next Steps
-- Deploy the updated `penaltyJob.js` and `deductionJob.js` to the live server to fix the default/penalty system.
+- Deploy the updated `penaltyJob.js` and `deductionJob.js` to the live server.
 - Verify live server has latest code for referral code processing.
 
 ## Critical Context
 - `deductionJob.js` runs at 6PM WAT (`0 18 * * *` with `{ timezone: 'Africa/Lagos' }`).
 - `penaltyJob.js` runs at midnight UTC (`0 0 * * *`) which is 1AM WAT — after deduction job.
-- `expectedInstallment` in both jobs already scaled by `number_of_accounts`; `penaltyAmount` in penalty job did NOT scale (fixed).
+- `expectedInstallment` in both jobs already scaled by `number_of_accounts`.
 - `generateUniqueReferralCode()` in `savingsController.js` uses pool-level `query()` instead of transaction `client.query()` — potential race condition but not causing current issues.
-- The root cause of duplicate defaults: `lastTx` queries only checked `type = 'savings' AND status = 'completed'` — default creates a `failed` savings + `completed` penalty, so `lastTx` always returned stale data, causing `isDue = true` every day.
+- Settlement uses same pattern as `settleOutstandingPenalties` in `transactionModel.js` but done inline in job files (debits wallet directly instead of intercepting incoming payments).
+- Marker transactions (`type='penalty', amount=0`) are inserted for "skipped" days to prevent the isDue check from firing again the next day.
 
 ## Relevant Files
-- `server/src/jobs/deductionJob.js`: Main deduction cron (6PM WAT) — checks balance, deducts or records default.
-- `server/src/jobs/penaltyJob.js`: Penalty check cron (midnight UTC) — catch-up deductions, creates defaults.
-- `server/src/models/transactionModel.js`: Contains `settleOutstandingPenalties()`, ledger entries, wallet deductions.
+- `server/src/jobs/deductionJob.js`: Main deduction cron (6PM WAT) — smart wallet allocation flow.
+- `server/src/jobs/penaltyJob.js`: Backup penalty check cron (midnight UTC) — same smart allocation.
+- `server/src/models/transactionModel.js`: Contains `settleOutstandingPenalties()` for deposit-time settlement + `createWalletLedgerEntry()` for ledger entries.
 - `server/src/controllers/savingsController.js`: `subscribeToPlan` — referral code processing (confirmed working on Neon).
 - `server/src/middleware/authMiddleware.js`: `protect`, `checkMembership` — gate the subscription endpoint.
 - `server/src/config/db.js`: DB connection pool, `getClient()` with monkey-patched query tracking.

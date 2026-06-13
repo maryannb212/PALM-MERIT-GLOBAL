@@ -2,12 +2,13 @@ import cron from 'node-cron';
 import { getClient, query } from '../config/db.js';
 import { applyDailyInterest } from '../services/interestEngine.js';
 import { createNotification } from '../models/notificationModel.js';
+import { createWalletLedgerEntry } from '../models/transactionModel.js';
 
 const PLAN_CONFIG = {
-  'CREST': { weekly: 4000, penalty: 8000 },
-  'SILVER': { weekly: 1500, penalty: 3000 },
-  'GOLDEN_BASKET': { weekly: 2000, penalty: 4000 },
-  'ISUSU': { daily: 500, penalty: 1000 }
+  'CREST': { weekly: 4000, penalty: 4000 },
+  'SILVER': { weekly: 1500, penalty: 1500 },
+  'GOLDEN_BASKET': { weekly: 2000, penalty: 2000 },
+  'ISUSU': { daily: 500, penalty: 500 }
 };
 
 const getWATDateString = () => {
@@ -85,52 +86,44 @@ export const runPenaltyCheck = async () => {
           continue;
         }
 
-        if (parseFloat(users[0].available_balance) >= expectedInstallment) {
-          const ref = `AUTOSAV-PEN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-          await client.query(
-            'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
-            [expectedInstallment, plan.user_id]
-          );
-          await client.query(
-            'UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-            [expectedInstallment, plan.id]
-          );
-          await client.query(`
-            INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-            VALUES ($1, $2, 'savings', $3, 'completed', $4)
-          `, [plan.user_id, plan.id, expectedInstallment, ref]);
+        const balance = Math.floor(parseFloat(users[0].available_balance));
+        const ref = `PEN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+        // ── Per-account granularity ──
+        const perAccountAmount = Math.floor(expectedInstallment / numAccounts);
+        const fullDue = expectedInstallment;
+        const payableAccounts = Math.floor(balance / perAccountAmount);
+        const payableAmount = payableAccounts * perAccountAmount;
+        const savingsAmount = Math.min(payableAmount, fullDue);
+
+        if (savingsAmount > 0) {
+          await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
+          await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [savingsAmount, plan.id]);
+          await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'savings', $3, 'completed', $4)`, [plan.user_id, plan.id, savingsAmount, ref]);
+          await createWalletLedgerEntry(client, plan.user_id, 'debit', savingsAmount, ref, `Automatic savings deduction for ${plan.plan_name}`);
+
           await client.query('COMMIT');
-          console.log(`Penalty job: caught-up deduction of N${expectedInstallment} for plan ${plan.id} (${plan.plan_name})`);
-          client.release();
-          continue;
+
+          let msg = `Your savings deduction of N${savingsAmount.toLocaleString()} for ${plan.plan_name} was successful`;
+          if (savingsAmount < fullDue) {
+            const paidAccounts = savingsAmount / perAccountAmount;
+            msg += ` (${paidAccounts} of ${numAccounts} accounts paid)`;
+          }
+          msg += '.';
+          await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
+          console.log(`Penalty job: saved N${savingsAmount} for plan ${plan.id}.`);
+        } else {
+          // ── Insufficient funds — create a default ──
+          const defaultPenalty = perAccountAmount * numAccounts;
+          await client.query(`INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount) VALUES ($1, $2, $3, $4)`, [plan.user_id, plan.id, watDateStr, defaultPenalty]);
+          await client.query('COMMIT');
+
+          await createNotification(
+            plan.user_id, 'ALERT', 'Savings Default Recorded',
+            `Your ${plan.plan_name} plan missed the contribution of N${defaultPenalty.toLocaleString()} due to insufficient wallet balance. A default has been recorded for ${watDateStr}.`
+          );
+          console.log(`Plan ${plan.id}: insufficient funds (N${balance}) — defaulted N${defaultPenalty}.`);
         }
-
-        console.log(`Applying default of N${penaltyAmount} to plan ${plan.id} (${plan.plan_name})`);
-
-        const failedRef = `AUTOSAV-${Date.now()}`;
-        const penRef = `PEN-${Date.now()}`;
-
-        await client.query(`
-          INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
-          VALUES ($1, $2, $3, $4)
-        `, [plan.user_id, plan.id, watDateStr, penaltyAmount]);
-
-        await client.query(`
-          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-          VALUES ($1, $2, 'savings', $3, 'failed', $4)
-        `, [plan.user_id, plan.id, expectedInstallment, failedRef]);
-
-        await client.query(`
-          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-          VALUES ($1, $2, 'penalty', $3, 'completed', $4)
-        `, [plan.user_id, plan.id, penaltyAmount, penRef]);
-
-        await client.query('COMMIT');
-
-        await createNotification(
-          plan.user_id, 'ALERT', 'Default Charge Applied',
-          `Your savings deduction of N${expectedInstallment.toLocaleString()} for ${plan.plan_name} failed due to insufficient funds. A default charge of N${penaltyAmount.toLocaleString()} has been applied. Please fund your wallet.`
-        );
       } catch (err) {
         await client.query('ROLLBACK');
         console.error(`Error processing penalty check for plan ${plan.id}:`, err);

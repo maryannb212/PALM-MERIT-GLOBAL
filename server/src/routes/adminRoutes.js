@@ -23,7 +23,10 @@ import {
   getSystemStatus,
   getTransactionDebug, 
   getRecentTransfers, 
-  deleteTestPayment 
+  deleteTestPayment,
+  getUserDefaults,
+  updateDefault,
+  resolveUserDefaults
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -68,6 +71,10 @@ router.get('/system-status', getSystemStatus);
 router.get('/transaction-debug/:reference', getTransactionDebug);
 router.get('/transactions/recent', getRecentTransfers);
 router.delete('/payments/:id', deleteTestPayment);
+// User Defaults
+router.get('/users/:userId/defaults', getUserDefaults);
+router.put('/defaults/:id', updateDefault);
+router.post('/users/:userId/resolve-defaults', resolveUserDefaults);
 // Security Locks
 router.get('/security/locks', getPageLocks);
 router.put('/security/locks', updatePageLock);
