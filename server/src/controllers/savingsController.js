@@ -356,6 +356,159 @@ export const payTshirtFee = async (req, res) => {
   }
 };
 
+export const getMyDefaults = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { rows } = await query(`
+      SELECT
+        sp.id AS plan_id,
+        sp.plan_name,
+        sp.number_of_accounts,
+        sp.status AS plan_status,
+        COALESCE(SUM(d.penalty_amount), 0) AS total_default_amount,
+        COUNT(d.id) AS default_count,
+        json_agg(
+          json_build_object(
+            'id', d.id,
+            'missed_date', d.missed_date,
+            'penalty_amount', d.penalty_amount,
+            'resolved', d.resolved,
+            'resolved_at', d.resolved_at,
+            'created_at', d.created_at
+          )
+          ORDER BY d.missed_date DESC
+        ) FILTER (WHERE d.id IS NOT NULL) AS defaults
+      FROM savings_plans sp
+      LEFT JOIN defaults d ON d.plan_id = sp.id AND d.user_id = sp.user_id
+      WHERE sp.user_id = $1
+      GROUP BY sp.id, sp.plan_name, sp.number_of_accounts, sp.status
+      ORDER BY sp.created_at DESC
+    `, [userId]);
+
+    const planConfig = {
+      CREST: { weekly: 4000, penalty: 4000 },
+      SILVER: { weekly: 1500, penalty: 1500 },
+      GOLDEN_BASKET: { weekly: 2000, penalty: 2000 },
+      ISUSU: { daily: 500, penalty: 500 }
+    };
+
+    const result = rows.map(r => ({
+      ...r,
+      total_default_amount: parseFloat(r.total_default_amount),
+      default_count: parseInt(r.default_count),
+      weekly_amount: planConfig[r.plan_name]?.weekly || planConfig[r.plan_name]?.daily || 0,
+      penalty_per_account: planConfig[r.plan_name]?.penalty || 0,
+      defaults: r.defaults || []
+    }));
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error in getMyDefaults:', error);
+    res.status(500).json({ message: 'Server error fetching defaults' });
+  }
+};
+
+export const getPlanDefaultsDetail = async (req, res) => {
+  try {
+    const { planId } = req.params;
+    const userId = req.user.id;
+
+    const { rows: plans } = await query(
+      `SELECT * FROM savings_plans WHERE id = $1 AND user_id = $2`,
+      [planId, userId]
+    );
+    if (plans.length === 0) {
+      return res.status(404).json({ message: 'Plan not found' });
+    }
+    const plan = plans[0];
+
+    const { rows: defaults } = await query(
+      `SELECT * FROM defaults WHERE plan_id = $1 AND user_id = $2 ORDER BY missed_date DESC`,
+      [planId, userId]
+    );
+
+    const { rows: transactions } = await query(
+      `SELECT t.*, COALESCE(p.plan_name, t.type) AS plan_name
+       FROM transactions t
+       LEFT JOIN savings_plans p ON t.plan_id = p.id
+       WHERE t.plan_id = $1 AND t.user_id = $2
+       ORDER BY t.created_at DESC LIMIT 20`,
+      [planId, userId]
+    );
+
+    const { rows: unreconciled } = await query(
+      `SELECT COALESCE(SUM(penalty_amount), 0) as outstanding, COUNT(*) as count
+       FROM defaults WHERE plan_id = $1 AND user_id = $2 AND resolved = FALSE`,
+      [planId, userId]
+    );
+
+    const planConfig = {
+      CREST: { weekly: 4000, penalty: 4000, duration: '12 weeks', target: 96000 },
+      SILVER: { weekly: 1500, penalty: 1500, duration: '50 weeks', target: 150000 },
+      GOLDEN_BASKET: { weekly: 2000, penalty: 2000, duration: '50 weeks', target: 200000 },
+      ISUSU: { daily: 500, penalty: 500, duration: '30 days', target: 15000 }
+    };
+    const config = planConfig[plan.plan_name] || {};
+
+    const isDaily = !!config.daily;
+    const perAccountAmount = config.weekly || config.daily || 0;
+
+    let totalExpected = 0;
+    if (isDaily) {
+      totalExpected = config.daily * (plan.number_of_accounts || 1) * 30;
+    } else {
+      totalExpected = config.weekly * (plan.number_of_accounts || 1) * 12;
+      if (plan.plan_name === 'SILVER' || plan.plan_name === 'GOLDEN_BASKET') {
+        totalExpected = config.weekly * (plan.number_of_accounts || 1) * 50;
+      }
+    }
+
+    const lastTransaction = transactions.length > 0 ? transactions[0] : null;
+
+    res.json({
+      plan: {
+        id: plan.id,
+        plan_name: plan.plan_name,
+        number_of_accounts: plan.number_of_accounts || 1,
+        status: plan.status,
+        start_date: plan.start_date,
+        end_date: plan.end_date,
+        maturity_date: plan.maturity_date,
+        current_amount: parseFloat(plan.current_amount || 0),
+        target_amount: parseFloat(plan.target_amount || totalExpected),
+        preferred_day: plan.preferred_day,
+        clearance_required: plan.clearance_required,
+        clearance_paid: plan.clearance_paid,
+        refund_only: plan.refund_only,
+        created_at: plan.created_at
+      },
+      config: {
+        per_account_amount: perAccountAmount,
+        penalty_per_account: config.penalty || 0,
+        is_daily: isDaily,
+        duration: config.duration || ''
+      },
+      defaults,
+      transactions,
+      summary: {
+        outstanding_defaults: parseFloat(unreconciled[0].outstanding),
+        default_count: parseInt(unreconciled[0].count),
+        total_saved: parseFloat(plan.current_amount || 0),
+        total_transactions: transactions.length,
+        last_payment: lastTransaction ? {
+          amount: parseFloat(lastTransaction.amount),
+          type: lastTransaction.type,
+          status: lastTransaction.status,
+          date: lastTransaction.created_at
+        } : null
+      }
+    });
+  } catch (error) {
+    console.error('Error in getPlanDefaultsDetail:', error);
+    res.status(500).json({ message: 'Server error fetching plan defaults detail' });
+  }
+};
+
 export const cancelSubscription = async (req, res) => {
   try {
     const { planId } = req.params;

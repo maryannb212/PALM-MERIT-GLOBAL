@@ -53,6 +53,12 @@ const AdminSecurity = () => {
       setFormData(initialForm);
     } catch (error) {
       console.error('Error fetching page locks:', error);
+      // Initialize forms anyway so UI doesn't crash
+      const fallback = {};
+      ADMIN_PAGES.forEach(page => {
+        fallback[page.id] = { username: '', password: '' };
+      });
+      setFormData(fallback);
     } finally {
       setLoading(false);
     }

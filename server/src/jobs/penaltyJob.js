@@ -1,18 +1,24 @@
 import cron from 'node-cron';
-import { query } from '../config/db.js';
+import { getClient, query } from '../config/db.js';
 import { applyDailyInterest } from '../services/interestEngine.js';
 import { createNotification } from '../models/notificationModel.js';
+import { createWalletLedgerEntry } from '../models/transactionModel.js';
 
 const PLAN_CONFIG = {
-  'CREST': { weekly: 4000, penalty: 8000 },
-  'SILVER': { weekly: 1500, penalty: 3000 },
-  'GOLDEN_BASKET': { weekly: 2000, penalty: 4000 },
-  'ISUSU': { daily: 500, penalty: 1000 }
+  'CREST': { weekly: 4000, penalty: 4000 },
+  'SILVER': { weekly: 1500, penalty: 1500 },
+  'GOLDEN_BASKET': { weekly: 2000, penalty: 2000 },
+  'ISUSU': { daily: 500, penalty: 500 }
+};
+
+const getWATDateString = () => {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
 };
 
 export const runPenaltyCheck = async () => {
   console.log('Running penalty check job...');
   try {
+    const watDateStr = getWATDateString();
     const { rows: activePlans } = await query("SELECT * FROM savings_plans WHERE status = 'active'");
 
     for (const plan of activePlans) {
@@ -20,25 +26,27 @@ export const runPenaltyCheck = async () => {
       if (!config) continue;
 
       const isDaily = !!config.daily;
-      const expectedInstallment = (config.weekly || config.daily) * (plan.number_of_accounts || 1);
-      const penaltyAmount = config.penalty;
+      const numAccounts = plan.number_of_accounts || 1;
+      const expectedInstallment = (config.weekly || config.daily) * numAccounts;
+      const penaltyAmount = config.penalty * numAccounts;
 
       const { rows: todaySavings } = await query(`
         SELECT id FROM transactions
         WHERE plan_id = $1 AND type = 'savings' AND status = 'completed'
-          AND created_at >= CURRENT_DATE LIMIT 1
-      `, [plan.id]);
+          AND DATE(created_at AT TIME ZONE 'Africa/Lagos') = $2
+        LIMIT 1
+      `, [plan.id, watDateStr]);
 
       const { rows: todayDefault } = await query(`
         SELECT id FROM defaults
-        WHERE plan_id = $1 AND missed_date = CURRENT_DATE LIMIT 1
-      `, [plan.id]);
+        WHERE plan_id = $1 AND missed_date = $2 LIMIT 1
+      `, [plan.id, watDateStr]);
 
       if (todaySavings.length > 0 || todayDefault.length > 0) continue;
 
       const { rows: lastTx } = await query(`
         SELECT created_at FROM transactions
-        WHERE plan_id = $1 AND type = 'savings' AND status = 'completed'
+        WHERE plan_id = $1 AND type IN ('savings', 'penalty') AND status = 'completed'
         ORDER BY created_at DESC LIMIT 1
       `, [plan.id]);
 
@@ -64,45 +72,64 @@ export const runPenaltyCheck = async () => {
 
       if (!isDue) continue;
 
-      const { rows: users } = await query('SELECT available_balance FROM users WHERE id = $1', [plan.user_id]);
-      if (users.length === 0) continue;
+      const client = await getClient();
+      try {
+        await client.query('BEGIN');
 
-      if (parseFloat(users[0].available_balance) >= expectedInstallment) {
-        const ref = `AUTOSAV-PEN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        await query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [expectedInstallment, plan.user_id]);
-        await query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [expectedInstallment, plan.id]);
-        await query(`
-          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-          VALUES ($1, $2, 'savings', $3, 'completed', $4)
-        `, [plan.user_id, plan.id, expectedInstallment, ref]);
-        console.log(`Penalty job: caught-up deduction of N${expectedInstallment} for plan ${plan.id} (${plan.plan_name})`);
-        continue;
+        const { rows: users } = await client.query(
+          'SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE',
+          [plan.user_id]
+        );
+        if (users.length === 0) {
+          await client.query('ROLLBACK');
+          client.release();
+          continue;
+        }
+
+        const balance = Math.floor(parseFloat(users[0].available_balance));
+        const ref = `PEN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+        // ── Per-account granularity ──
+        const perAccountAmount = Math.floor(expectedInstallment / numAccounts);
+        const fullDue = expectedInstallment;
+        const payableAccounts = Math.floor(balance / perAccountAmount);
+        const payableAmount = payableAccounts * perAccountAmount;
+        const savingsAmount = Math.min(payableAmount, fullDue);
+
+        if (savingsAmount > 0) {
+          await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
+          await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [savingsAmount, plan.id]);
+          await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'savings', $3, 'completed', $4)`, [plan.user_id, plan.id, savingsAmount, ref]);
+          await createWalletLedgerEntry(client, plan.user_id, 'debit', savingsAmount, ref, `Automatic savings deduction for ${plan.plan_name}`);
+
+          await client.query('COMMIT');
+
+          let msg = `Your savings deduction of N${savingsAmount.toLocaleString()} for ${plan.plan_name} was successful`;
+          if (savingsAmount < fullDue) {
+            const paidAccounts = savingsAmount / perAccountAmount;
+            msg += ` (${paidAccounts} of ${numAccounts} accounts paid)`;
+          }
+          msg += '.';
+          await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
+          console.log(`Penalty job: saved N${savingsAmount} for plan ${plan.id}.`);
+        } else {
+          // ── Insufficient funds — create a default ──
+          const defaultPenalty = perAccountAmount * numAccounts;
+          await client.query(`INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount) VALUES ($1, $2, $3, $4)`, [plan.user_id, plan.id, watDateStr, defaultPenalty]);
+          await client.query('COMMIT');
+
+          await createNotification(
+            plan.user_id, 'ALERT', 'Savings Default Recorded',
+            `Your ${plan.plan_name} plan missed the contribution of N${defaultPenalty.toLocaleString()} due to insufficient wallet balance. A default has been recorded for ${watDateStr}.`
+          );
+          console.log(`Plan ${plan.id}: insufficient funds (N${balance}) — defaulted N${defaultPenalty}.`);
+        }
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(`Error processing penalty check for plan ${plan.id}:`, err);
+      } finally {
+        client.release();
       }
-
-      console.log(`Applying default of N${penaltyAmount} to plan ${plan.id} (${plan.plan_name})`);
-
-      const failedRef = `AUTOSAV-${Date.now()}`;
-      const penRef = `PEN-${Date.now()}`;
-
-      await query(`
-        INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
-        VALUES ($1, $2, CURRENT_DATE, $3)
-      `, [plan.user_id, plan.id, penaltyAmount]);
-
-      await query(`
-        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-        VALUES ($1, $2, 'savings', $3, 'failed', $4)
-      `, [plan.user_id, plan.id, expectedInstallment, failedRef]);
-
-      await query(`
-        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-        VALUES ($1, $2, 'penalty', $3, 'completed', $4)
-      `, [plan.user_id, plan.id, penaltyAmount, penRef]);
-
-      await createNotification(
-        plan.user_id, 'ALERT', 'Default Charge Applied',
-        `Your savings deduction of N${expectedInstallment.toLocaleString()} for ${plan.plan_name} failed due to insufficient funds. A default charge of N${penaltyAmount.toLocaleString()} has been applied. Please fund your wallet.`
-      );
     }
     return { success: true, message: 'Penalty check completed' };
   } catch (error) {

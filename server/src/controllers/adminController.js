@@ -938,3 +938,75 @@ export const getAllPayments = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch all payments' });
   }
 };;
+
+/**
+ * Get all defaults for a specific user (admin view)
+ * GET /api/admin/users/:userId/defaults
+ */
+export const getUserDefaults = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { rows } = await query(`
+      SELECT d.*, sp.plan_name, sp.number_of_accounts
+      FROM defaults d
+      JOIN savings_plans sp ON d.plan_id = sp.id
+      WHERE d.user_id = $1
+      ORDER BY d.missed_date DESC
+    `, [userId]);
+    const { rows: summary } = await query(`
+      SELECT COALESCE(SUM(penalty_amount), 0) as total_outstanding, COUNT(*) as count
+      FROM defaults WHERE user_id = $1 AND resolved = FALSE
+    `, [userId]);
+    res.json({ defaults: rows, summary: { outstanding: parseFloat(summary[0].total_outstanding), count: parseInt(summary[0].count) } });
+  } catch (error) {
+    console.error('Error fetching user defaults:', error);
+    res.status(500).json({ message: 'Server error fetching user defaults' });
+  }
+};
+
+/**
+ * Update a single default record (edit penalty_amount or mark resolved)
+ * PUT /api/admin/defaults/:id
+ */
+export const updateDefault = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { penalty_amount, resolved } = req.body;
+    const { rows } = await query(`
+      UPDATE defaults
+      SET penalty_amount = COALESCE($1, penalty_amount),
+          resolved = COALESCE($2, resolved),
+          resolved_at = CASE WHEN $2 = TRUE THEN CURRENT_TIMESTAMP ELSE resolved_at END
+      WHERE id = $3
+      RETURNING *
+    `, [penalty_amount ?? null, resolved ?? null, id]);
+    if (rows.length === 0) return res.status(404).json({ message: 'Default not found' });
+    await logAudit(req.user.id, 'UPDATE_DEFAULT', 'defaults', id, { penalty_amount, resolved });
+    res.json({ message: 'Default updated', default: rows[0] });
+  } catch (error) {
+    console.error('Error updating default:', error);
+    res.status(500).json({ message: 'Server error updating default' });
+  }
+};
+
+/**
+ * Resolve all outstanding defaults for a user
+ * POST /api/admin/users/:userId/resolve-defaults
+ */
+export const resolveUserDefaults = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { rows } = await query(`
+      UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP
+      WHERE user_id = $1 AND resolved = FALSE
+      RETURNING *
+    `, [userId]);
+    await logAudit(req.user.id, 'RESOLVE_USER_DEFAULTS', 'defaults', userId, { count: rows.length });
+    await createNotification(userId, 'SYSTEM', 'Defaults Cleared',
+      `Admin has cleared all ${rows.length} outstanding default(s) on your account.`);
+    res.json({ message: `Resolved ${rows.length} default(s)`, count: rows.length, defaults: rows });
+  } catch (error) {
+    console.error('Error resolving user defaults:', error);
+    res.status(500).json({ message: 'Server error resolving defaults' });
+  }
+};

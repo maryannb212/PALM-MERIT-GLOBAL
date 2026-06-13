@@ -77,6 +77,8 @@ export const getMyPlans = () => API.get('/savings/my-plans');
 export const payClearanceFee = (data) => API.post('/savings/pay-clearance', data);
 export const payTshirtFee = () => API.post('/savings/pay-tshirt');
 export const cancelSubscription = (planId) => API.delete(`/savings/cancel/${planId}`);
+export const getMyDefaults = () => API.get('/savings/my-defaults');
+export const getPlanDefaults = (planId) => API.get(`/savings/plan-defaults/${planId}`);
 
 // Transaction endpoints
 export const initializeTransaction = (data) => API.post('/transactions/initialize', data);
@@ -155,6 +157,11 @@ export const getAmbassadors = () => API.get('/ambassadors');
 export const addAmbassador = (data) => API.post('/ambassadors', data);
 export const updateAmbassador = (id, data) => API.put(`/ambassadors/${id}`, data);
 export const deleteAmbassador = (id) => API.delete(`/ambassadors/${id}`);
+
+// Admin Defaults
+export const getUserDefaults = (userId) => API.get(`/admin/users/${userId}/defaults`);
+export const updateDefault = (id, data) => API.put(`/admin/defaults/${id}`, data);
+export const resolveUserDefaults = (userId) => API.post(`/admin/users/${userId}/resolve-defaults`);
 
 // Admin Security & Page Locks
 export const getPageLocks = () => API.get('/admin/security/locks');

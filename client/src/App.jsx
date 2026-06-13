@@ -34,6 +34,8 @@ const BankDetails = lazy(() => import('./pages/dashboard/BankDetails'));
 const WithdrawPage = lazy(() => import('./pages/dashboard/WithdrawPage'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
 const Referrals = lazy(() => import('./pages/dashboard/Referrals'));
+const Defaults = lazy(() => import('./pages/dashboard/Defaults'));
+const DefaultDetail = lazy(() => import('./pages/dashboard/DefaultDetail'));
 const VerifyMembership = lazy(() => import('./pages/VerifyMembership'));
 const VerifyDeposit = lazy(() => import('./pages/VerifyDeposit'));
 
@@ -103,6 +105,8 @@ const AppLayout = () => {
               <Route path="withdraw" element={<WithdrawPage />} />
               <Route path="settings" element={<Settings />} />
               <Route path="referrals" element={<Referrals />} />
+              <Route path="defaults/:planId" element={<DefaultDetail />} />
+              <Route path="defaults" element={<Defaults />} />
             </Route>
 
             {/* Admin Routes */}

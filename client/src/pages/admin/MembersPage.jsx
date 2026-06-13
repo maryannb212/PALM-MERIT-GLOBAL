@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser } from '../../services/api';
-import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye } from 'react-icons/fa';
+import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle } from 'react-icons/fa';
 import EditMemberModal from './EditMemberModal';
 import MemberDetailsModal from './MemberDetailsModal';
+import UserDefaultsModal from './UserDefaultsModal';
 import '../dashboard/Dashboard.css';
 import './Admin.css';
 
@@ -16,6 +17,9 @@ const MembersPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedDetailsUserId, setSelectedDetailsUserId] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [defaultsUserId, setDefaultsUserId] = useState(null);
+  const [defaultsUserName, setDefaultsUserName] = useState('');
+  const [isDefaultsModalOpen, setIsDefaultsModalOpen] = useState(false);
 
   const avatarColors = ['#800020', '#D4AF37', '#1e293b', '#475569', '#64748b'];
 
@@ -192,9 +196,10 @@ const MembersPage = () => {
                     </td>
                     <td>
                       {member.default_count > 0 ? (
-                        <div className="status-dot">
-                          <FaCircle size={10} color="#dc2626" />
-                          <span style={{ fontWeight: 600, color: '#dc2626' }}>
+                        <div className="status-dot" style={{ cursor: 'pointer' }}
+                          onClick={() => { setDefaultsUserId(member.id); setDefaultsUserName(`${member.first_name || 'Unknown'} ${member.last_name || ''}`); setIsDefaultsModalOpen(true); }}>
+                          <FaExclamationTriangle size={12} color="#dc2626" />
+                          <span style={{ fontWeight: 600, color: '#dc2626', textDecoration: 'underline', textDecorationColor: '#dc2626' }}>
                             {member.default_count} Default{member.default_count > 1 ? 's' : ''}
                           </span>
                           <span style={{ fontSize: '0.8rem', color: '#991b1b', marginLeft: 4 }}>
@@ -272,6 +277,12 @@ const MembersPage = () => {
         isOpen={isDetailsModalOpen}
         onClose={() => { setIsDetailsModalOpen(false); setSelectedDetailsUserId(null); }}
         userId={selectedDetailsUserId}
+      />
+      <UserDefaultsModal
+        isOpen={isDefaultsModalOpen}
+        onClose={() => { setIsDefaultsModalOpen(false); setDefaultsUserId(null); }}
+        userId={defaultsUserId}
+        userName={defaultsUserName}
       />
     </div>
   );
