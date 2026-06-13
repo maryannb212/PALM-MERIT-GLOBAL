@@ -211,34 +211,7 @@ const Defaults = () => {
 
                   {expandedPlan === plan.plan_id && (
                     <div className="defaults-plan-details">
-                      {/* Clearing explanation */}
-                      {inDefault && (
-                        <div className="defaults-clearing-info">
-                          <h5><FaInfoCircle /> How to Clear This Default</h5>
-                          <div className="defaults-clearing-steps">
-                            <div className="clearing-step">
-                              <div className="clearing-step-num">1</div>
-                              <div className="clearing-step-text">
-                                <strong>Pay {periodRef(plan)} contribution first:</strong> {formatCurrency(totalContributionDue)} needed
-                                for {periodTitle(plan)}'s contribution across {plan.number_of_accounts || 1} account{(plan.number_of_accounts || 1) > 1 ? 's' : ''}.
-                              </div>
-                            </div>
-                            <div className="clearing-step">
-                              <div className="clearing-step-num">2</div>
-                              <div className="clearing-step-text">
-                                <strong>Extra clears defaults:</strong> Any amount beyond the {isDailyPlan ? 'daily' : 'weekly'} contribution automatically
-                                reduces your outstanding default balance of {formatCurrency(plan.total_default_amount)}.
-                              </div>
-                            </div>
-                            <div className="clearing-example">
-                              <strong>Example:</strong> If you pay {formatCurrency(totalContributionDue * 3)},
-                              the system uses {formatCurrency(totalContributionDue)} for {periodTitle(plan)}
-                              and the remaining {formatCurrency(totalContributionDue * 2)} clears
-                              2 outstanding defaults.
-                            </div>
-                          </div>
-                        </div>
-                      )}
+
 
                       {/* Individual Defaults */}
                       {plan.defaults && plan.defaults.length > 0 && (
