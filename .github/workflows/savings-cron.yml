@@ -33,6 +33,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify database secret
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL GitHub Actions secret is missing."
+            exit 1
+          fi
+
       - name: Run deduction job
         run: npm run cron:deduction
 
