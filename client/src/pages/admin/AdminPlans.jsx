@@ -112,7 +112,7 @@ const AdminPlans = () => {
         <div className="rules-list">
           <div className="rule-item">
             <FaArrowRight size={12} />
-            <p><strong>Crest-Silver Ratio:</strong> Users must maintain 1 SILVER account for every 20 CREST accounts.</p>
+            <p><strong>Account Limits:</strong> Users can create up to 100 accounts per month across all plan types.</p>
           </div>
           <div className="rule-item">
             <FaArrowRight size={12} />

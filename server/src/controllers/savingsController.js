@@ -21,30 +21,7 @@ export const subscribeToPlan = async (req, res) => {
     const clearanceRequired = ['CREST', 'SILVER'].includes(planName);
     const requestedAccounts = numberOfAccounts || 1;
 
-    // 1. Check Crest-Silver Linking Rule
-    if (planName === 'CREST') {
-      const { rows: crestRows } = await query(
-        `SELECT COALESCE(SUM(number_of_accounts), 0) as total FROM savings_plans WHERE user_id = $1 AND plan_name = 'CREST'`,
-        [userId]
-      );
-      const totalCrest = parseInt(crestRows[0].total, 10);
-
-      const { rows: silverRows } = await query(
-        `SELECT COALESCE(SUM(number_of_accounts), 0) as total FROM savings_plans WHERE user_id = $1 AND plan_name = 'SILVER'`,
-        [userId]
-      );
-      const totalSilver = parseInt(silverRows[0].total, 10);
-
-      // For every 20 CREST, 1 SILVER is required
-      const requiredSilver = Math.floor(totalCrest / 20);
-      if (totalSilver < requiredSilver) {
-        return res.status(403).json({ 
-          message: `Business Rule Exception: You have ${totalCrest} CREST accounts and ${totalSilver} SILVER accounts. You must open a SILVER account before creating more CREST accounts (Requirement: 1 Silver per 20 Crest).` 
-        });
-      }
-    }
-
-    // 2. Check Bulk Account Monthly Limit (100 accounts per month)
+    // Check Bulk Account Monthly Limit (100 accounts per month)
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
     const { rows: monthlyPlanRows } = await query(
       `SELECT COALESCE(SUM(number_of_accounts), 0) as total FROM savings_plans WHERE user_id = $1 AND created_at >= $2`,
