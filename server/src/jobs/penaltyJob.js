@@ -139,7 +139,7 @@ export const runPenaltyCheck = async () => {
 };
 
 export const startCronJobs = () => {
-  cron.schedule('0 0 * * *', async () => {
+  cron.schedule('0 18 * * *', async () => {
     console.log('--- Starting Daily Scheduled Tasks ---');
     try {
       await applyDailyInterest();
@@ -151,5 +151,5 @@ export const startCronJobs = () => {
     } catch (error) {
       console.error('Error in penalty cron execution:', error);
     }
-  });
+  }, { timezone: 'Africa/Lagos' });
 };
