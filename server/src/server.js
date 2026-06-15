@@ -49,14 +49,17 @@ const startServer = async (retries = 5) => {
         logger.info(`[startup] Port: ${PORT}`);
         logger.info(`[startup] Ready to accept connections`);
 
-        // Start scheduled cron jobs
-        startDeductionJob();
-        startCronJobs();
+        // Start scheduled cron jobs only when explicitly enabled.
+        // Production scheduling can be handled by GitHub Actions or Render Cron.
+        if (process.env.ENABLE_INTERNAL_CRON === 'true') {
+          startDeductionJob();
+          startCronJobs();
 
-        // Run startup catch-up for missed deductions (non-blocking)
-        runStartupCatchupDeductions().catch(err => {
-          logger.error('[startup] Catch-up deductions failed:', err);
-        });
+          // Run startup catch-up for missed deductions (non-blocking)
+          runStartupCatchupDeductions().catch(err => {
+            logger.error('[startup] Catch-up deductions failed:', err);
+          });
+        }
       });
 
       // Graceful shutdown
