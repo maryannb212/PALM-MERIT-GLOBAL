@@ -10,14 +10,14 @@ jobs:
     name: Run deduction and penalty jobs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     defaults:
       run:
         working-directory: server
-
-    env:
-      NODE_ENV: production
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
       - name: Checkout repository
