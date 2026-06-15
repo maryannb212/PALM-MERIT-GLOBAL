@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyPlans, payClearanceFee, cancelSubscription } from '../../services/api';
+import { getMyPlans, payClearanceFee } from '../../services/api';
 
 import './Dashboard.css';
-import { FaPlus, FaCheckCircle, FaClock, FaExclamationCircle, FaHandHoldingUsd, FaTrash } from 'react-icons/fa';
+import { FaPlus, FaCheckCircle, FaClock, FaExclamationCircle, FaHandHoldingUsd } from 'react-icons/fa';
 
 const Subscriptions = () => {
   const navigate = useNavigate();
@@ -51,20 +51,6 @@ const Subscriptions = () => {
     }
   };
 
-  const handleCancelSubscription = async (planId) => {
-    if (!window.confirm('Are you sure you want to delete this subscription? Any saved funds will be refunded to your wallet balance.')) return;
-    
-    setActionLoading(true);
-    try {
-      await cancelSubscription(planId);
-      alert('Subscription cancelled successfully.');
-      fetchPlans();
-    } catch (error) {
-      alert(error.response?.data?.message || 'Failed to cancel subscription.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -229,21 +215,13 @@ const Subscriptions = () => {
                   </div>
                   
                   {plan.status === 'active' && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px' }}>
-                      <div className="progress-bar-container" style={{ flex: 1, marginRight: '15px', marginBottom: 0 }}>
+                    <div style={{ marginTop: '10px' }}>
+                      <div className="progress-bar-container" style={{ marginBottom: 0 }}>
                         <div 
                           className="progress-bar" 
                           style={{ width: `${Math.min(100, (parseFloat(plan.current_amount || 0) / parseFloat(plan.target_amount || 1)) * 100)}%` }}
                         ></div>
                       </div>
-                      <button 
-                        className="btn btn-secondary btn-sm" 
-                        style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '5px' }}
-                        onClick={() => handleCancelSubscription(plan.id)}
-                        disabled={actionLoading}
-                      >
-                        <FaTrash /> Delete
-                      </button>
                     </div>
                   )}
 
