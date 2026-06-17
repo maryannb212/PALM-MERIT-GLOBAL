@@ -142,90 +142,102 @@ export const initializeTransaction = async (req, res) => {
     // Create pending record
     const transaction = await createTransaction(userId, planId || null, type || 'deposit', Number(amount), reference, provider);
 
-    let authorization_url = `https://mock-payment-gateway.com/pay/${reference}`;
+    let authorization_url = null;
 
-    if (!isMockMode()) {
-      if (provider === 'paystack') {
-        try {
-          const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
-          const callback_url = `${baseUrl}/verify-deposit?reference=${reference}`;
+    if (isMockMode()) {
+      return res.status(201).json({ message: 'Transaction initialized (mock)', transaction, authorization_url: null });
+    }
 
-          const paystackRes = await axios.post('https://api.paystack.co/transaction/initialize', {
-            email,
-            amount: Math.round(Number(amount) * 100),
-            reference,
-            callback_url,
-            metadata: { userId, planId, type }
-          }, {
-            headers: { 
-              Authorization: `Bearer ${getPaystackSecret()}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          authorization_url = paystackRes.data.data.authorization_url;
-        } catch (error) {
-          console.error('[initializeTransaction] Paystack Error:', error.response?.data || error.message);
-          throw error;
-        }
-      } else if (provider === 'flutterwave') {
-        try {
-          const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
-          const redirect_url = `${baseUrl}/verify-deposit?reference=${reference}`;
+    if (provider === 'paystack') {
+      try {
+        const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+        const callback_url = `${baseUrl}/verify-deposit?reference=${reference}`;
 
-          const flutterwaveRes = await axios.post('https://api.flutterwave.com/v3/payments', {
-            tx_ref: reference,
-            amount: Number(amount),
-            currency: 'NGN',
-            redirect_url,
-            customer: { 
-              email, 
-              name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
-              phone_number: req.user.phone || ''
-            },
-            customizations: { 
-              title: 'Palm Merit Global', 
-              description: `Payment for ${type || 'deposit'}`,
-              logo: 'https://palmmeritglobal.com/logo.png' 
-            },
-            payment_options: 'card,account,ussd,banktransfer'
-          }, {
-            headers: { 
-              Authorization: `Bearer ${getFlutterwaveSecret()}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          authorization_url = flutterwaveRes.data.data.link;
-        } catch (error) {
-          console.error('[initializeTransaction] Flutterwave Error:', error.response?.data || error.message);
-          throw error;
-        }
-      } else if (provider === 'lotus') {
-        try {
-          const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
-          const returnUrl = `${baseUrl}/verify-deposit?reference=${reference}`;
-
-          const lotusRes = await axios.post('https://partnerhub.lotusbank.com/api/v1/checkout/initialize', {
-            amount: Math.round(Number(amount)),
-            currency: 'NGN',
-            returnUrl,
-            walletId: getLotusWalletId() || 'master',
-            metadata: { userId, planId, type, reference }
-          }, {
-            headers: { 
-              Authorization: getLotusMerchantKey(),
-              'Content-Type': 'application/json'
-            },
-            timeout: 15000
-          });
-          authorization_url = lotusRes.data?.data?.authorization_url;
-          if (!authorization_url) {
-            throw new Error('Lotus Bank did not return an authorization_url');
+        const paystackRes = await axios.post('https://api.paystack.co/transaction/initialize', {
+          email,
+          amount: Math.round(Number(amount) * 100),
+          reference,
+          callback_url,
+          metadata: { userId, planId, type }
+        }, {
+          headers: { 
+            Authorization: `Bearer ${getPaystackSecret()}`,
+            'Content-Type': 'application/json'
           }
-        } catch (error) {
-          console.error('[initializeTransaction] Lotus Error:', error.response?.data || error.message);
-          throw error;
-        }
+        });
+        authorization_url = paystackRes.data.data.authorization_url;
+      } catch (error) {
+        console.error('[initializeTransaction] Paystack Error:', error.response?.data || error.message);
+        throw error;
       }
+    } else if (provider === 'flutterwave') {
+      try {
+        const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+        const redirect_url = `${baseUrl}/verify-deposit?reference=${reference}`;
+
+        const flutterwaveRes = await axios.post('https://api.flutterwave.com/v3/payments', {
+          tx_ref: reference,
+          amount: Number(amount),
+          currency: 'NGN',
+          redirect_url,
+          customer: { 
+            email, 
+            name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
+            phone_number: req.user.phone || ''
+          },
+          customizations: { 
+            title: 'Palm Merit Global', 
+            description: `Payment for ${type || 'deposit'}`,
+            logo: 'https://palmmeritglobal.com/logo.png' 
+          },
+          payment_options: 'card,account,ussd,banktransfer'
+        }, {
+          headers: { 
+            Authorization: `Bearer ${getFlutterwaveSecret()}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        authorization_url = flutterwaveRes.data.data.link;
+      } catch (error) {
+        console.error('[initializeTransaction] Flutterwave Error:', error.response?.data || error.message);
+        throw error;
+      }
+    } else if (provider === 'lotus') {
+      const merchantKey = getLotusMerchantKey();
+      if (!merchantKey) {
+        throw new Error('Lotus Bank is not configured. Please contact support.');
+      }
+      try {
+        const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+        const returnUrl = `${baseUrl}/verify-deposit?reference=${reference}`;
+
+        const lotusRes = await axios.post('https://partnerhub.lotusbank.com/api/v1/checkout/initialize', {
+          amount: Math.round(Number(amount)),
+          currency: 'NGN',
+          returnUrl,
+          walletId: getLotusWalletId() || 'master',
+          metadata: { userId, planId, type, reference }
+        }, {
+          headers: { 
+            Authorization: merchantKey,
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000
+        });
+        authorization_url = lotusRes.data?.data?.authorization_url;
+        if (!authorization_url) {
+          throw new Error('Lotus Bank did not return an authorization_url');
+        }
+      } catch (error) {
+        console.error('[initializeTransaction] Lotus Error:', error.response?.data || error.message);
+        throw error;
+      }
+    } else {
+      throw new Error(`Unsupported payment provider: ${provider}`);
+    }
+
+    if (!authorization_url) {
+      throw new Error('Failed to initialize payment. No authorization URL returned.');
     }
 
     return res.status(201).json({ message: 'Transaction initialized', transaction, authorization_url });

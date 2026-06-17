@@ -37,19 +37,20 @@ export const initializeMembershipPayment = async (req, res) => {
       }
     };
 
-    let authorization_url = `https://mock-payment-gateway.com/pay/${reference}?amount=${amount}`;
+    let authorization_url = null;
 
-    // Only make the real call if we have a real secret key
     const isMockMode = () => process.env.PAYMENT_MODE === 'mock';
-    if (!isMockMode()) {
-      const response = await axios.post('https://api.paystack.co/transaction/initialize', paystackData, {
-        headers: {
-          Authorization: `Bearer ${paystackSecret}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      authorization_url = response.data.data.authorization_url;
+    if (isMockMode()) {
+      return res.status(201).json({ message: 'Membership payment initialized (mock)', transaction, authorization_url: null });
     }
+
+    const response = await axios.post('https://api.paystack.co/transaction/initialize', paystackData, {
+      headers: {
+        Authorization: `Bearer ${paystackSecret}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    authorization_url = response.data.data.authorization_url;
 
     res.status(201).json({
       message: 'Membership payment initialized',
@@ -69,9 +70,8 @@ export const initializeMembershipPayment = async (req, res) => {
 export const verifyMembershipPayment = async (req, res) => {
   try {
     const { reference } = req.params;
-    const isMockMode = process.env.PAYMENT_MODE === 'mock';
 
-    if (isMockMode) {
+    if (process.env.PAYMENT_MODE === 'mock') {
       const { transaction } = await processCompletedPayment(reference);
       return res.json({
         message: 'Membership payment verified (mock). You now have access to the dashboard.',
