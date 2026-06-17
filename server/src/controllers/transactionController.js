@@ -33,10 +33,13 @@ import { query } from '../config/db.js';
 
 dotenv.config();
 
-const cleanKey = (key) => process.env[key]?.trim().replace(/^["']|["']$/g, '') || '';
+const cleanKey = (key) => (process.env[key] || '').trim().replace(/^["']|["']$/g, '') || '';
 
 const getPaystackSecret = () => cleanKey('PAYSTACK_SECRET_KEY');
 const getFlutterwaveSecret = () => cleanKey('FLUTTERWAVE_SECRET_KEY');
+const getLotusMerchantKey = () => cleanKey('LOTUS_MERCHANT_KEY');
+const getLotusXApiKey = () => cleanKey('LOTUS_X_API_KEY');
+const getLotusWalletId = () => cleanKey('LOTUS_WALLET_ID');
 
 if (process.env.NODE_ENV === 'production') {
   const flw = getFlutterwaveSecret();
@@ -194,6 +197,32 @@ export const initializeTransaction = async (req, res) => {
           authorization_url = flutterwaveRes.data.data.link;
         } catch (error) {
           console.error('[initializeTransaction] Flutterwave Error:', error.response?.data || error.message);
+          throw error;
+        }
+      } else if (provider === 'lotus') {
+        try {
+          const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+          const returnUrl = `${baseUrl}/verify-deposit?reference=${reference}`;
+
+          const lotusRes = await axios.post('https://partnerhub.lotusbank.com/api/v1/checkout/initialize', {
+            amount: Math.round(Number(amount)),
+            currency: 'NGN',
+            returnUrl,
+            walletId: getLotusWalletId() || 'master',
+            metadata: { userId, planId, type, reference }
+          }, {
+            headers: { 
+              Authorization: getLotusMerchantKey(),
+              'Content-Type': 'application/json'
+            },
+            timeout: 15000
+          });
+          authorization_url = lotusRes.data?.data?.authorization_url;
+          if (!authorization_url) {
+            throw new Error('Lotus Bank did not return an authorization_url');
+          }
+        } catch (error) {
+          console.error('[initializeTransaction] Lotus Error:', error.response?.data || error.message);
           throw error;
         }
       }
@@ -679,6 +708,175 @@ export const flutterwaveWebhook = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /api/transactions/webhook/lotus
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lotus Bank Webhook handler.
+ */
+export const lotusWebhook = async (req, res) => {
+  try {
+    // Dual-mode raw body handling (works with or without express.raw middleware)
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body.toString('utf8')
+      : JSON.stringify(req.body);
+
+    let payload;
+    try {
+      payload = Buffer.isBuffer(req.body) ? JSON.parse(rawBody) : req.body;
+    } catch {
+      return res.status(400).send('Invalid JSON payload');
+    }
+
+    const eventType = payload.event || payload.type || 'unknown';
+    const reference = payload.data?.reference || payload.reference || null;
+    const status = payload.data?.status || payload.status || '';
+
+    console.log('============== LOTUS WEBHOOK ==============');
+    console.log(JSON.stringify(payload, null, 2));
+
+    // Verify HMAC-SHA512 signature (as per Lotus docs)
+    const apiKey = getLotusXApiKey();
+    const signatureHeader = req.headers['signature'];
+    let signatureOk = false;
+    if (apiKey && signatureHeader) {
+      const hash = crypto.createHmac('sha512', apiKey).update(rawBody).digest('hex');
+      signatureOk = hash === signatureHeader;
+    }
+    if (!signatureOk) {
+      console.warn('[Lotus Webhook] Invalid HMAC signature');
+      await logWebhookEvent({
+        source: 'lotus',
+        reference,
+        eventType,
+        payload,
+        signatureOk: false,
+        status: 'rejected',
+        note: 'HMAC signature mismatch'
+      });
+      return res.status(401).send('Unauthorized');
+    }
+
+    if (!reference) {
+      await logWebhookEvent({
+        source: 'lotus',
+        reference: null,
+        eventType,
+        payload,
+        signatureOk: true,
+        status: 'rejected',
+        note: 'Missing reference'
+      });
+      return res.status(400).send('Missing reference');
+    }
+
+    // Only process successful payments
+    const successStatuses = ['successful', 'completed', 'paid', 'success', 'approved', 'succeeded'];
+    if (!successStatuses.includes(status.toLowerCase())) {
+      console.log('[Lotus Webhook] Ignored non-successful payment:', status);
+      await logWebhookEvent({
+        source: 'lotus',
+        reference,
+        eventType,
+        payload,
+        signatureOk: true,
+        status: 'ignored',
+        note: `Status: ${status}`
+      });
+      return res.status(200).send('Ignored');
+    }
+
+    // Verify with Lotus API
+    let verifiedAmount = payload.data?.amount || payload.amount || null;
+    let gatewayRef = payload.data?.reference || payload.reference || null;
+
+    if (!isMockMode()) {
+      try {
+        const statusRes = await axios.get(
+          `https://partnerhub.lotusbank.com/api/v1/checkout/status/${reference}`,
+          {
+            headers: { 'x-api-key': getLotusXApiKey() },
+            timeout: 10000
+          }
+        );
+        const verifyData = statusRes.data?.data;
+        if (verifyData && successStatuses.includes((verifyData.status || '').toLowerCase())) {
+          verifiedAmount = verifyData.amount || verifiedAmount;
+          gatewayRef = verifyData.reference || gatewayRef;
+        } else {
+          throw new Error(`Lotus verification returned status: ${verifyData?.status}`);
+        }
+      } catch (verifyErr) {
+        console.error('[Lotus Webhook] Verification failed:', verifyErr.message);
+        await logWebhookEvent({
+          source: 'lotus',
+          reference,
+          eventType,
+          payload,
+          signatureOk: true,
+          status: 'error',
+          note: `Verification failed: ${verifyErr.message}`
+        });
+        return res.status(503).send('Verification error — will retry');
+      }
+    }
+
+    const { isDuplicate, transaction } = await processCompletedPayment(
+      reference,
+      verifiedAmount ? Number(verifiedAmount) : null,
+      gatewayRef,
+      'lotus'
+    );
+
+    if (isDuplicate) {
+      console.info(`[Lotus Webhook] Duplicate — already processed reference=${reference}`);
+      await logWebhookEvent({
+        source: 'lotus',
+        reference,
+        eventType,
+        payload,
+        signatureOk: true,
+        status: 'duplicate',
+        note: 'Already processed'
+      });
+      return res.status(200).send('Duplicate');
+    }
+
+    await createNotification(
+      transaction.user_id,
+      'PAYMENT',
+      'Payment Successful (Lotus Bank)',
+      `Your Lotus Bank payment of ₦${Number(transaction.amount).toLocaleString('en-NG')} (ref: ${reference}) has been confirmed.`
+    ).catch(() => {});
+
+    await logWebhookEvent({
+      source: 'lotus',
+      reference,
+      eventType,
+      payload,
+      signatureOk: true,
+      status: 'processed',
+      note: `Credited ₦${transaction.amount} to user ${transaction.user_id}`
+    });
+
+    console.info(`[Lotus Webhook] Processed reference=${reference}`);
+    return res.status(200).send('Webhook processed');
+  } catch (error) {
+    console.error('[Lotus Webhook] Error:', error.message);
+    await logWebhookEvent({
+      source: 'lotus',
+      reference: req.body?.reference || null,
+      eventType: 'error',
+      payload: req.body,
+      signatureOk: true,
+      status: 'error',
+      note: error.message
+    }).catch(() => {});
+    return res.status(200).send('Error logged');
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/transactions/verify/:reference
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -717,6 +915,18 @@ export const verifyTransaction = async (req, res) => {
       if (data.status !== 'successful') throw new Error('Payment not successful');
       verifiedAmount = data.amount;
       gatewayRef = data.id.toString();
+    } else if (provider === 'lotus') {
+      const statusRes = await axios.get(`https://partnerhub.lotusbank.com/api/v1/checkout/status/${reference}`, {
+        headers: { 'x-api-key': getLotusXApiKey() }
+      });
+      const data = statusRes.data?.data;
+      if (!data) throw new Error('Empty Lotus verification response');
+      const successStatuses = ['successful', 'completed', 'paid', 'success', 'approved', 'succeeded'];
+      if (!successStatuses.includes((data.status || '').toLowerCase())) {
+        throw new Error(`Lotus payment status is '${data.status}'`);
+      }
+      verifiedAmount = data.amount;
+      gatewayRef = data.reference || reference;
     }
 
     const { isDuplicate, transaction } = await processCompletedPayment(reference, verifiedAmount, gatewayRef, provider);

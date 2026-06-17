@@ -3,7 +3,6 @@ import { protect, admin } from '../middleware/authMiddleware.js';
 
 // Import extracted job logic
 import { applyDailyInterest } from '../services/interestEngine.js';
-import { runPenaltyCheck } from '../jobs/penaltyJob.js';
 import { runDeductionJob } from '../jobs/deductionJob.js';
 import { runMaturityCheck } from '../jobs/maturityCron.js';
 import { runStaffDeactivation } from '../jobs/staffDeactivationJob.js';
@@ -38,11 +37,11 @@ router.post('/deductions', async (req, res) => {
 });
 
 /**
- * Trigger Penalty Check
+ * Trigger Penalty/Deduction Check (now consolidated under deductionJob)
  */
 router.post('/penalties', async (req, res) => {
   try {
-    const result = await runPenaltyCheck();
+    const result = await runDeductionJob();
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: 'Failed to trigger penalty check', error: error.message });
