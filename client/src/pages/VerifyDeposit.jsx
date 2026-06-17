@@ -10,7 +10,10 @@ const VerifyDeposit = () => {
   const [status, setStatus] = useState('verifying');
   const [error, setError] = useState('');
 
-  const reference = searchParams.get('reference');
+  const trxref = searchParams.get('trxref');
+  const allRefs = searchParams.getAll('reference');
+  const lotusRef = allRefs.length > 0 ? allRefs[allRefs.length - 1] : null;
+  const reference = trxref || searchParams.get('reference');
 
   useEffect(() => {
     const verify = async () => {
@@ -21,11 +24,10 @@ const VerifyDeposit = () => {
       }
 
       try {
-        const { data } = await verifyDeposit(reference);
+        const { data } = await verifyDeposit(reference, lotusRef);
 
         if (data.transaction.status === 'completed') {
           setStatus('success');
-          // Refresh profile to get updated balance
           await refreshProfile();
           setTimeout(() => navigate('/dashboard/wallet'), 2000);
         } else {
@@ -39,7 +41,7 @@ const VerifyDeposit = () => {
     };
 
     verify();
-  }, [reference, navigate]);
+  }, [reference, lotusRef, navigate]);
 
   return (
     <div className="verify-container" style={{

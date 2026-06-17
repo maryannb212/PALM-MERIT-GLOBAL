@@ -82,7 +82,10 @@ export const getPlanDefaults = (planId) => API.get(`/savings/plan-defaults/${pla
 
 // Transaction endpoints
 export const initializeTransaction = (data) => API.post('/transactions/initialize', data);
-export const verifyTransaction = (ref) => API.get(`/transactions/verify/${ref}`);
+export const verifyTransaction = (ref, lotusRef) => {
+  const params = lotusRef ? `?lotusRef=${encodeURIComponent(lotusRef)}` : '';
+  return API.get(`/transactions/verify/${ref}${params}`);
+};
 export const initializeDeposit = initializeTransaction; // alias
 export const verifyDeposit = verifyTransaction; // alias
 export const payWithLotus = (data) => API.post('/transactions/initialize', { ...data, payment_provider: 'lotus' });

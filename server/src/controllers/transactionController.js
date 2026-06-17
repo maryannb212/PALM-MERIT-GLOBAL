@@ -209,7 +209,7 @@ export const initializeTransaction = async (req, res) => {
       }
       try {
         const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
-        const returnUrl = `${baseUrl}/verify-deposit?reference=${reference}`;
+        const returnUrl = `${baseUrl}/verify-deposit?trxref=${reference}`;
 
         const lotusRes = await axios.post('https://partnerhub.lotusbank.com/api/v1/checkout/initialize', {
           amount: Math.round(Number(amount)),
@@ -928,7 +928,9 @@ export const verifyTransaction = async (req, res) => {
       verifiedAmount = data.amount;
       gatewayRef = data.id.toString();
     } else if (provider === 'lotus') {
-      const statusRes = await axios.get(`https://partnerhub.lotusbank.com/api/v1/checkout/status/${reference}`, {
+      const lotusRef = req.query.lotusRef;
+      const lookupRef = lotusRef || reference;
+      const statusRes = await axios.get(`https://partnerhub.lotusbank.com/api/v1/checkout/status/${lookupRef}`, {
         headers: { 'x-api-key': getLotusXApiKey() }
       });
       const data = statusRes.data?.data;
@@ -938,7 +940,7 @@ export const verifyTransaction = async (req, res) => {
         throw new Error(`Lotus payment status is '${data.status}'`);
       }
       verifiedAmount = data.amount;
-      gatewayRef = data.reference || reference;
+      gatewayRef = data.reference || lookupRef;
     }
 
     const { isDuplicate, transaction } = await processCompletedPayment(reference, verifiedAmount, gatewayRef, provider);
