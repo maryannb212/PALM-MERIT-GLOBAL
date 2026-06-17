@@ -7,7 +7,6 @@ import logger from './utils/logger.js';
 import { exec } from 'child_process';
 import util from 'util';
 import { startDeductionJob, runStartupCatchupDeductions } from './jobs/deductionJob.js';
-import { startCronJobs } from './jobs/penaltyJob.js';
 
 const execPromise = util.promisify(exec);
 
@@ -51,7 +50,6 @@ const startServer = async (retries = 5) => {
 
         // Start scheduled cron jobs
         startDeductionJob();
-        startCronJobs();
 
         // Run startup catch-up for missed deductions (non-blocking)
         runStartupCatchupDeductions().catch(err => {

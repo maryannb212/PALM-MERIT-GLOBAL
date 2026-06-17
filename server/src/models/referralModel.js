@@ -54,7 +54,7 @@ export const getUserReferralCodes = async (userId) => {
     FROM referral_codes r
     LEFT JOIN savings_plans s ON r.plan_id = s.id
     LEFT JOIN users u ON r.used_by_user_id = u.id
-    WHERE r.user_id = $1
+    WHERE r.user_id = $1 AND (s.status IS NULL OR s.status != 'cancelled')
     ORDER BY r.created_at DESC
   `;
   const { rows } = await query(sql, [userId]);

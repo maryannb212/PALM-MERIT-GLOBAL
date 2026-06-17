@@ -139,10 +139,11 @@ export const subscribeToPlan = async (req, res) => {
         if (duration.days) endDate.setDate(endDate.getDate() + duration.days);
       }
 
-      await client.query(
-        'UPDATE savings_plans SET end_date = $1, maturity_date = $1 WHERE id = $2',
+      const { rows: updatedPlanRows } = await client.query(
+        'UPDATE savings_plans SET end_date = $1, maturity_date = $1 WHERE id = $2 RETURNING *',
         [endDate, plan.id]
       );
+      Object.assign(plan, updatedPlanRows[0]);
 
       // Adjust referral dates based on plan type (Legacy columns logic kept for backward compatibility)
       if (planName === 'SILVER') {

@@ -7,7 +7,6 @@ import 'express-async-errors';
 import rateLimit from 'express-rate-limit';
 import logger from './utils/logger.js';
 
-import { startCronJobs } from './jobs/penaltyJob.js';
 import { startStaffDeactivationJob } from './jobs/staffDeactivationJob.js';
 import { startDeductionJob, runStartupCatchupDeductions } from './jobs/deductionJob.js';
 
@@ -85,9 +84,10 @@ const generalLimiter = rateLimit({
 // Global rate limiters can stay here
 app.use('/api/transactions/initiate', generalLimiter);
 
-// Raw body parser for Paystack webhook (must be before express.json())
+// Raw body parser for webhooks that need HMAC signature verification (must be before express.json())
 app.use('/api/transactions/webhook/paystack', express.raw({ type: 'application/json' }));
 app.use('/api/transactions/webhook/virtual-account', express.raw({ type: 'application/json' }));
+app.use('/api/transactions/webhook/lotus', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -156,7 +156,6 @@ runStartupCatchupDeductions();
 
 startMaturityJob();
 startDeductionJob();
-startCronJobs();
 startStaffDeactivationJob();
 
 export default app;
