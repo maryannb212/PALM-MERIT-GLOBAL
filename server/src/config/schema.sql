@@ -149,7 +149,7 @@ CREATE TABLE transactions (
     amount DECIMAL(12, 2) NOT NULL,
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'cancelled')),
     reference VARCHAR(100) UNIQUE,
-    payment_provider VARCHAR(20) CHECK (payment_provider IN ('paystack', 'flutterwave', 'lotus', 'system')),
+    payment_provider VARCHAR(20) CHECK (payment_provider IN ('paystack', 'lotus', 'system')),
     provider_reference VARCHAR(255),
     gateway_reference VARCHAR(255), -- Legacy/Alias for provider_reference
     receipt_url VARCHAR(255),

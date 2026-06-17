@@ -4,7 +4,7 @@
  * Handles:
  *  - Payment initialisation  (POST /api/transactions/initialize)
  *  - Paystack webhook        (POST /api/transactions/webhook/paystack)
- *  - Flutterwave webhook     (POST /api/transactions/webhook/flutterwave)
+ *  - Lotus webhook           (POST /api/transactions/webhook/lotus)
  *  - Manual verify callback  (GET  /api/transactions/verify/:reference)
  *  - User transaction list   (GET  /api/transactions/my-transactions)
  *  - Upload manual payment receipt (POST /api/transactions/upload-receipt)
@@ -36,15 +36,13 @@ dotenv.config();
 const cleanKey = (key) => (process.env[key] || '').trim().replace(/^["']|["']$/g, '') || '';
 
 const getPaystackSecret = () => cleanKey('PAYSTACK_SECRET_KEY');
-const getFlutterwaveSecret = () => cleanKey('FLUTTERWAVE_SECRET_KEY');
 const getLotusMerchantKey = () => cleanKey('LOTUS_MERCHANT_KEY');
 const getLotusXApiKey = () => cleanKey('LOTUS_X_API_KEY');
 const getLotusWalletId = () => cleanKey('LOTUS_WALLET_ID');
 
 if (process.env.NODE_ENV === 'production') {
-  const flw = getFlutterwaveSecret();
   const ps = getPaystackSecret();
-  console.log(`[Payment] Provider Keys - Flutterwave: ${flw.substring(0, 8)}..., Paystack: ${ps.substring(0, 8)}...`);
+  console.log(`[Payment] Provider Keys - Paystack: ${ps.substring(0, 8)}...`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,30 +74,6 @@ const verifyWithPaystack = async (reference, secret) => {
   };
 };
 
-/**
- * Verify a transaction with Flutterwave API.
- */
-const verifyWithFlutterwave = async (transactionId, secret) => {
-  const response = await axios.get(
-    `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
-    {
-      headers: { Authorization: `Bearer ${secret}` },
-      timeout: 10_000,
-    }
-  );
-
-  const data = response.data?.data;
-  if (!data) throw new Error('Empty Flutterwave verify response');
-  if (data.status !== 'successful') throw new Error(`Flutterwave status is '${data.status}'`);
-
-  return {
-    success: true,
-    amount: data.amount,
-    gatewayRef: data.id?.toString() || null,
-    reference: data.tx_ref,
-  };
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/transactions/initialize
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,7 +88,7 @@ export const initializeTransaction = async (req, res) => {
     const userId = req.user.id;
     // Fallback email for users who registered without one — payment gateways require a valid email
     const email = req.user.email || `user${userId}@palmmeritglobal.com`;
-    const provider = payment_provider || 'flutterwave';
+    const provider = payment_provider || 'lotus';
 
     if (!amount || Number(amount) <= 0) {
       return res.status(400).json({ message: 'A valid positive amount is required.' });
@@ -168,38 +142,6 @@ export const initializeTransaction = async (req, res) => {
         authorization_url = paystackRes.data.data.authorization_url;
       } catch (error) {
         console.error('[initializeTransaction] Paystack Error:', error.response?.data || error.message);
-        throw error;
-      }
-    } else if (provider === 'flutterwave') {
-      try {
-        const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
-        const redirect_url = `${baseUrl}/verify-deposit?reference=${reference}`;
-
-        const flutterwaveRes = await axios.post('https://api.flutterwave.com/v3/payments', {
-          tx_ref: reference,
-          amount: Number(amount),
-          currency: 'NGN',
-          redirect_url,
-          customer: { 
-            email, 
-            name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
-            phone_number: req.user.phone || ''
-          },
-          customizations: { 
-            title: 'Palm Merit Global', 
-            description: `Payment for ${type || 'deposit'}`,
-            logo: 'https://palmmeritglobal.com/logo.png' 
-          },
-          payment_options: 'card,account,ussd,banktransfer'
-        }, {
-          headers: { 
-            Authorization: `Bearer ${getFlutterwaveSecret()}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        authorization_url = flutterwaveRes.data.data.link;
-      } catch (error) {
-        console.error('[initializeTransaction] Flutterwave Error:', error.response?.data || error.message);
         throw error;
       }
     } else if (provider === 'lotus') {
@@ -429,297 +371,6 @@ export const paystackWebhook = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST /api/transactions/webhook/flutterwave
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Flutterwave Webhook handler.
- */
-export const flutterwaveWebhook = async (req, res) => {
-  const secret = getFlutterwaveSecret();
-
-  try {
-    // =====================================================
-    // GET WEBHOOK DATA
-    // =====================================================
-
-    const signature = req.headers['verif-hash'];
-    const payload = req.body;
-
-    console.log('============== FLUTTERWAVE WEBHOOK ==============');
-    console.log(JSON.stringify(payload, null, 2));
-
-    // =====================================================
-    // VERIFY SIGNATURE
-    // =====================================================
-
-    if (
-      !isMockMode() &&
-      process.env.FLUTTERWAVE_WEBHOOK_HASH &&
-      signature !== process.env.FLUTTERWAVE_WEBHOOK_HASH
-    ) {
-      console.warn('[Flutterwave Webhook] Invalid signature');
-
-      await logWebhookEvent({
-        source: 'flutterwave',
-        reference: null,
-        eventType: payload.event || 'webhook',
-        payload,
-        signatureOk: false,
-        status: 'rejected',
-        note: 'Invalid webhook signature'
-      });
-
-      return res.status(401).send('Unauthorized');
-    }
-
-    // =====================================================
-    // EXTRACT PAYMENT DETAILS
-    // =====================================================
-
-    const transactionId = payload.id || payload.data?.id;
-    const status = payload.status || payload.data?.status;
-    const amount = Number(payload.amount) || Number(payload.data?.amount) || 0;
-    const email = payload.customer?.email || payload.data?.customer?.email || null;
-    const flwRef = payload.flw_ref || payload.data?.flw_ref || null;
-    const txRef = payload.tx_ref || payload.data?.tx_ref || null;
-    const reference = txRef || flwRef || `FLW-${Date.now()}`;
-
-    console.log('REFERENCE:', reference);
-    console.log('TRANSACTION ID:', transactionId);
-    console.log('EMAIL:', email);
-    console.log('STATUS:', status);
-    console.log('AMOUNT:', amount);
-
-    // =====================================================
-    // ONLY PROCESS SUCCESSFUL PAYMENTS
-    // =====================================================
-
-    if (status !== 'successful') {
-      console.log('[Flutterwave Webhook] Ignored non-successful payment');
-
-      await logWebhookEvent({
-        source: 'flutterwave',
-        reference,
-        eventType: payload.event || 'webhook',
-        payload,
-        signatureOk: true,
-        status: 'ignored',
-        note: `Transaction status: ${status}`
-      });
-
-      return res.status(200).send('Ignored');
-    }
-
-    // =====================================================
-    // VERIFY PAYMENT WITH FLUTTERWAVE
-    // =====================================================
-
-    let verifiedAmount = amount;
-    let gatewayRef = flwRef;
-
-    if (!isMockMode()) {
-      const verified = await verifyWithFlutterwave(transactionId, secret);
-      verifiedAmount = Number(verified.amount);
-      gatewayRef = verified.gatewayRef || flwRef;
-    }
-
-    console.log('VERIFIED AMOUNT:', verifiedAmount);
-
-    // =====================================================
-    // CHECK IF ALREADY FULLY PROCESSED (idempotency)
-    // =====================================================
-
-    const { rows: existingTx } = await query(
-      `SELECT * FROM transactions WHERE reference = $1`,
-      [reference]
-    );
-
-    if (existingTx.length > 0 && existingTx[0].status === 'completed') {
-      console.log('[Flutterwave Webhook] Already completed — skipping');
-
-      await logWebhookEvent({
-        source: 'flutterwave',
-        reference,
-        eventType: payload.event || 'charge.completed',
-        payload,
-        signatureOk: true,
-        status: 'duplicate',
-        note: 'Transaction already completed'
-      });
-
-      return res.status(200).send('Already processed');
-    }
-
-    // =====================================================
-    // FIND USER
-    // =====================================================
-
-    let userId = null;
-
-    // UUID v4 validation regex
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-    // Try tx_ref format VA-<UUID>-<timestamp>
-    if (txRef && txRef.startsWith('VA-')) {
-      const prefixRemoved = txRef.replace('VA-', '');
-      const lastHyphenIndex = prefixRemoved.lastIndexOf('-');
-      if (lastHyphenIndex !== -1) {
-        const potentialId = prefixRemoved.substring(0, lastHyphenIndex);
-        if (UUID_REGEX.test(potentialId)) {
-          userId = potentialId;
-          console.log(`[Flutterwave Webhook] Parsed userId from tx_ref: ${userId}`);
-        } else {
-          console.warn(`[Flutterwave Webhook] Parsed non-UUID from tx_ref: "${potentialId}"`);
-        }
-      }
-    }
-
-    // Try tx_ref format PM-<...> (app-initiated payments — user is on the existing transaction)
-    if (!userId && existingTx.length > 0 && existingTx[0].user_id) {
-      userId = existingTx[0].user_id;
-      console.log(`[Flutterwave Webhook] Matched user from existing pending transaction: ${userId}`);
-    }
-
-    // Try email lookup
-    if (!userId && email) {
-      const { rows: userRows } = await query(
-        `SELECT id FROM users WHERE email = $1 LIMIT 1`,
-        [email]
-      );
-      if (userRows.length > 0) {
-        userId = userRows[0].id;
-      }
-    }
-
-    // Fallback: Virtual Account bank transfers
-    if (!userId) {
-      const accountNumber = 
-        payload.data?.account?.account_number || 
-        payload.account?.account_number || 
-        payload.data?.account_number ||
-        payload.account_number;
-      
-      if (accountNumber) {
-        const { rows: vaRows } = await query(
-          `SELECT id FROM users WHERE virtual_account_number = $1 LIMIT 1`,
-          [accountNumber]
-        );
-        if (vaRows.length > 0) {
-          userId = vaRows[0].id;
-          console.log(`[Flutterwave Webhook] Matched user via virtual account number: ${accountNumber}`);
-        }
-      }
-    }
-
-    // =====================================================
-    // USER NOT FOUND
-    // =====================================================
-
-    // Final validation: ensure userId is a valid UUID before querying
-    if (userId && !UUID_REGEX.test(userId)) {
-      console.warn(`[Flutterwave Webhook] Rejecting invalid UUID userId: "${userId}"`);
-      userId = null;
-    }
-
-    if (!userId) {
-      console.error('[Flutterwave Webhook] User not found for ref:', reference, 'email:', email);
-
-      await logWebhookEvent({
-        source: 'flutterwave',
-        reference,
-        eventType: payload.event || 'charge.completed',
-        payload,
-        signatureOk: true,
-        status: 'error',
-        note: `User not found (email: ${email})`
-      });
-
-      return res.status(200).send('User not found');
-    }
-
-    console.log('USER ID:', userId);
-
-    // =====================================================
-    // CREATE TRANSACTION IF NOT EXISTS
-    // =====================================================
-
-    if (existingTx.length === 0) {
-      await createTransaction(
-        userId,
-        null,
-        'wallet_topup',
-        verifiedAmount,
-        reference,
-        'flutterwave'
-      );
-      console.log('[Flutterwave Webhook] New transaction created');
-    }
-
-    // =====================================================
-    // CREDIT USER WALLET (idempotent — processCompletedPayment handles duplicates)
-    // =====================================================
-
-    const { isDuplicate } = await processCompletedPayment(
-      reference,
-      verifiedAmount,
-      gatewayRef,
-      'flutterwave'
-    );
-
-    console.log('[Flutterwave Webhook] Wallet credited');
-
-    // =====================================================
-    // CREATE NOTIFICATION
-    // =====================================================
-
-    await createNotification(
-      userId,
-      'PAYMENT',
-      'Payment Successful',
-      `Your Flutterwave payment of ₦${Number(
-        verifiedAmount
-      ).toLocaleString()} was successful.`
-    ).catch(() => {});
-
-    // =====================================================
-    // LOG SUCCESS
-    // =====================================================
-
-    await logWebhookEvent({
-      source: 'flutterwave',
-      reference,
-      eventType: payload.event || 'charge.completed',
-      payload,
-      signatureOk: true,
-      status: 'processed',
-      note: `Wallet credited with ₦${verifiedAmount}`
-    });
-
-    return res.status(200).send('Webhook processed');
-
-  } catch (error) {
-    console.error('[Flutterwave Webhook] ERROR:', error);
-
-    try {
-      await logWebhookEvent({
-        source: 'flutterwave',
-        reference: req.body?.tx_ref || req.body?.data?.tx_ref || null,
-        eventType: req.body?.event || 'charge.completed',
-        payload: req.body,
-        signatureOk: true,
-        status: 'error',
-        note: `Error processing webhook: ${error.message}`
-      });
-    } catch (logErr) {
-      console.error('[Flutterwave Webhook] Failed to log error:', logErr.message);
-    }
-
-    return res.status(500).send('Webhook error');
-  }
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/transactions/webhook/lotus
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -919,14 +570,6 @@ export const verifyTransaction = async (req, res) => {
       const verified = await verifyWithPaystack(reference, getPaystackSecret());
       verifiedAmount = verified.amount;
       gatewayRef = verified.gatewayRef;
-    } else if (provider === 'flutterwave') {
-      const response = await axios.get(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${reference}`, {
-        headers: { Authorization: `Bearer ${getFlutterwaveSecret()}` }
-      });
-      const data = response.data.data;
-      if (data.status !== 'successful') throw new Error('Payment not successful');
-      verifiedAmount = data.amount;
-      gatewayRef = data.id.toString();
     } else if (provider === 'lotus') {
       const lotusRef = req.query.lotusRef;
       const lookupRef = lotusRef || reference;

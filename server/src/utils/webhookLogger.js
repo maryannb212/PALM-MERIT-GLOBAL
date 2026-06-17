@@ -4,7 +4,7 @@ import { query } from '../config/db.js';
  * Log a webhook event to the webhook_logs table.
  *
  * @param {object} opts
- * @param {'paystack'|'flutterwave'} opts.source     - Gateway name
+ * @param {'paystack'|'lotus'} opts.source     - Gateway name
  * @param {string|null}              opts.reference  - Transaction reference (if available)
  * @param {string|null}              opts.eventType  - e.g. 'charge.success'
  * @param {object|null}              opts.payload    - Full raw body

@@ -5,7 +5,7 @@ import './MembershipPaywall.css';
 
 const MembershipPaywall = ({ user }) => {
   const [loading, setLoading] = useState(false);
-  const [internalProvider] = useState('flutterwave');
+  const [internalProvider] = useState('lotus');
   const [error, setError] = useState('');
 
   const handlePayNow = async () => {
@@ -74,7 +74,7 @@ const MembershipPaywall = ({ user }) => {
           <div className="security-notice" style={{ marginTop: '25px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#475569', textAlign: 'center', lineHeight: '1.5' }}>
             <p style={{ margin: '0 0 8px 0', color: '#0f172a', fontWeight: 'bold' }}>🔒 Secure Cooperative Contribution</p>
             <p style={{ margin: 0 }}>
-              Payment is processed securely via <strong>Flutterwave</strong>. Once payment is confirmed, your membership is <strong>activated automatically</strong> — no admin approval needed.
+              Payment is processed securely via <strong>Lotus Bank</strong>. Once payment is confirmed, your membership is <strong>activated automatically</strong> — no admin approval needed.
               <br/><br/>
               After activation, you'll get access to your <strong>personal Virtual Funding Account</strong> for instant wallet top-ups.
             </p>

@@ -18,7 +18,6 @@ import {
   getAdminReferralStats,
   getEligibilityQueue,
   approveEligibility,
-  reconcileFlutterwave,
   getWebhookLogs,
   getSystemStatus,
   getTransactionDebug, 
@@ -65,7 +64,6 @@ router.post('/approve-payout', approvePayout);
 router.get('/referrals', getAdminReferralStats);
 router.get('/eligibility-queue', getEligibilityQueue);
 router.post('/approve-eligibility', approveEligibility);
-router.post('/reconcile-flutterwave', reconcileFlutterwave);
 router.get('/webhook-logs', getWebhookLogs);
 router.get('/system-status', getSystemStatus);
 router.get('/transaction-debug/:reference', getTransactionDebug);

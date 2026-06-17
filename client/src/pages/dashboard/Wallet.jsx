@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { getMyTransactions, payTshirtFee, getMyPlans, generateVirtualAccount } from '../../services/api';
+import { getMyTransactions, payTshirtFee, getMyPlans } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
@@ -15,7 +15,7 @@ const Wallet = () => {
   const [tshirtLoading, setTshirtLoading] = useState(false);
   const [hideBalances, setHideBalances] = useState(true);
   const [plans, setPlans] = useState([]);
-  const [generatingVA, setGeneratingVA] = useState(false);
+
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -78,24 +78,6 @@ const Wallet = () => {
     }
   };
 
-  const handleGenerateVA = async () => {
-    setGeneratingVA(true);
-    try {
-      const response = await generateVirtualAccount();
-      alert(response.data.message || 'Virtual account successfully generated');
-      // Update the user context locally so UI reflects the new account
-      updateUser({
-        virtual_account_number: response.data.virtual_account_number,
-        virtual_bank_name: response.data.virtual_bank_name,
-        virtual_account_name: response.data.virtual_account_name
-      });
-    } catch (error) {
-      alert(error.response?.data?.message || 'Failed to generate virtual account');
-    } finally {
-      setGeneratingVA(false);
-    }
-  };
-
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     alert('Copied to clipboard!');
@@ -152,43 +134,23 @@ const Wallet = () => {
           </div>
         </div>
 
-        {/* ─── Fund Wallet Section ─── */}
+        {/* ─── Fund Wallet Button ─── */}
         <div className="funding-account-section card mt-4" style={{ border: '1px solid rgba(128, 0, 32, 0.15)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)' }}>
           <div className="card-header" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '1.4rem' }}>🏦</span>
             <div style={{ textAlign: 'left' }}>
-              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>Dedicated Funding Account</h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>Transfer directly to this account to fund your wallet instantly</p>
+              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>Fund Your Wallet</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>Pay instantly via Lotus Bank card payment</p>
             </div>
           </div>
           <div className="card-body" style={{ padding: '30px', textAlign: 'center' }}>
-            
-            {user?.virtual_account_number && user?.virtual_bank_name !== 'Palm Merit Finance' ? (
-              <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '12px', border: '1px solid #e9ecef', marginBottom: '25px', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.8rem', fontWeight: 'bold', letterSpacing: '2px', color: '#800020', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px' }}>
-                  {user.virtual_account_number}
-                  <button onClick={() => handleCopy(user.virtual_account_number)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#6c757d' }} title="Copy Account Number">📋</button>
-                </div>
-                <div style={{ fontSize: '1.1rem', color: '#333', fontWeight: '600' }}>{user.virtual_bank_name}</div>
-                <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '5px' }}>{user.virtual_account_name}</div>
-              </div>
-            ) : (
-              <div style={{ marginBottom: '25px' }}>
-                <p style={{ fontSize: '0.95rem', color: 'var(--color-text-muted)' }}>You don't have a dedicated funding account yet.</p>
-                <button 
-                  onClick={handleGenerateVA}
-                  disabled={generatingVA}
-                  className="btn btn-secondary"
-                  style={{ padding: '10px 20px', borderRadius: '6px' }}
-                >
-                  {generatingVA ? 'Generating...' : 'Generate Funding Account'}
-                </button>
-              </div>
-            )}
-
-            <div style={{ borderTop: '1px solid #eee', paddingTop: '25px' }}>
-              <p style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: '#777' }}></p>
-            </div>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="btn btn-primary"
+              style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
+            >
+              💳 Deposit with Lotus Bank
+            </button>
           </div>
         </div>
 

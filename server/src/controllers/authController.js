@@ -6,7 +6,7 @@ import { query } from '../config/db.js';
 import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
 import { sendWelcomeEmail, sendPasswordResetEmail, sendOTPEmail } from '../utils/emailService.js';
-import { createVirtualAccount } from '../services/virtualAccountService.js';
+
 import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
 import { getUserReferralCodes } from '../models/referralModel.js';
 import admin from '../config/firebaseAdmin.js';
@@ -508,20 +508,7 @@ export const getUserProfile = async (req, res) => {
     const { rows: countRows } = await query("SELECT COUNT(*) FROM users WHERE role = 'user'");
     const totalMembers = parseInt(countRows[0].count, 10);
 
-    // Retroactive Virtual Account Generation:
-    // If the user is verified but doesn't have a virtual account (because it failed previously)
-    if (user.kyc_status === 'verified' && (!user.virtual_account_number || user.virtual_provider === 'system_fallback')) {
-      try {
-        const updatedAccount = await createVirtualAccount(userId);
-        if (updatedAccount) {
-          user.virtual_account_number = updatedAccount.virtual_account_number;
-          user.virtual_account_name = updatedAccount.virtual_account_name;
-          user.virtual_bank_name = updatedAccount.virtual_bank_name;
-        }
-      } catch (err) {
-        console.error('Failed retroactive virtual account generation:', err);
-      }
-    }
+
 
     // Get default info
     const { rows: defaultRows } = await query(
@@ -643,11 +630,10 @@ export const generateVirtualAccount = async (req, res) => {
   try {
     const userId = req.user.id;
     
-    // First verify if the user already has one
     const { rows } = await query('SELECT virtual_account_number, virtual_bank_name, virtual_account_name, virtual_provider FROM users WHERE id = $1', [userId]);
     const user = rows[0];
     
-    if (user?.virtual_account_number && user.virtual_provider !== 'system_fallback') {
+    if (user?.virtual_account_number) {
       return res.json({
         message: 'Virtual account already exists',
         virtual_account_number: user.virtual_account_number,
@@ -656,17 +642,7 @@ export const generateVirtualAccount = async (req, res) => {
       });
     }
 
-    const updatedAccount = await createVirtualAccount(userId);
-    
-    if (updatedAccount && updatedAccount.virtual_account_number) {
-      res.json({
-        message: 'Virtual account successfully generated',
-        virtual_account_number: updatedAccount.virtual_account_number,
-        virtual_bank_name: updatedAccount.virtual_bank_name,
-        virtual_account_name: updatedAccount.virtual_account_name
-      });
-    } else {
-      res.status(400).json({ message: 'Failed to generate virtual account' });
+    res.status(400).json({ message: 'Virtual accounts are not available. Please use card payment via Lotus Bank.' });
     }
   } catch (error) {
     console.error('Error generating virtual account:', error.message);

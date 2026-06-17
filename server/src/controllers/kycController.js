@@ -1,5 +1,5 @@
 import { query, getClient } from '../config/db.js';
-import { createVirtualAccount } from '../services/virtualAccountService.js';
+
 
 export const submitKYC = async (req, res) => {
   try {
@@ -191,12 +191,7 @@ export const verifyUserKYC = async (req, res) => {
           );
         }
 
-        try {
-          await createVirtualAccount(userId);
-          console.log(`Virtual account created for user ${userId}`);
-        } catch (vaError) {
-          console.error(`Failed to create virtual account for user ${userId}:`, vaError.message);
-        }
+        console.log(`KYC approved for user ${userId} - virtual accounts not available with Lotus Bank`);
       }
 
       await client.query('COMMIT');

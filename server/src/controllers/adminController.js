@@ -648,142 +648,6 @@ export const approveEligibility = async (req, res) => {
   }
 };
 
-/**
- * Reconcile missed Flutterwave payments.
- * Fetches recent successful transactions from Flutterwave API,
- * checks if they exist in the database, and credits any missed ones.
- * POST /api/admin/reconcile-flutterwave
- */
-export const reconcileFlutterwave = async (req, res) => {
-  try {
-    const secret = process.env.FLUTTERWAVE_SECRET_KEY?.trim().replace(/^["']|["']$/g, '');
-    if (!secret) {
-      return res.status(400).json({ message: 'FLUTTERWAVE_SECRET_KEY is not configured.' });
-    }
-
-    // Fetch recent successful transactions from Flutterwave (last 48 hours)
-    const fromDate = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const toDate = new Date().toISOString().split('T')[0];
-
-    console.log(`[Reconciliation] Fetching Flutterwave transactions from ${fromDate} to ${toDate}...`);
-
-    const { default: axios } = await import('axios');
-    const flwResponse = await axios.get(
-      `https://api.flutterwave.com/v3/transactions?from=${fromDate}&to=${toDate}&status=successful`,
-      {
-        headers: { Authorization: `Bearer ${secret}` },
-        timeout: 30000
-      }
-    );
-
-    const flwTransactions = flwResponse.data?.data || [];
-    console.log(`[Reconciliation] Found ${flwTransactions.length} successful Flutterwave transactions.`);
-
-    let credited = 0;
-    let skipped = 0;
-    let noUser = 0;
-    const results = [];
-
-    for (const flwTx of flwTransactions) {
-      const reference = flwTx.tx_ref || flwTx.flw_ref || `FLW-RECON-${flwTx.id}`;
-      const amount = Number(flwTx.amount);
-      const email = flwTx.customer?.email;
-      const flwId = flwTx.id?.toString();
-
-      // Check if already in our database as completed
-      const { rows: existing } = await query(
-        'SELECT id, status FROM transactions WHERE reference = $1',
-        [reference]
-      );
-
-      if (existing.length > 0 && existing[0].status === 'completed') {
-        skipped++;
-        continue;
-      }
-
-      // Find the user
-      let userId = null;
-
-      // Try tx_ref VA-<UUID>-<timestamp>
-      if (reference.startsWith('VA-')) {
-        const prefixRemoved = reference.replace('VA-', '');
-        const lastHyphen = prefixRemoved.lastIndexOf('-');
-        if (lastHyphen !== -1) {
-          const potentialId = prefixRemoved.substring(0, lastHyphen);
-          const { rows: check } = await query('SELECT id FROM users WHERE id = $1', [potentialId]);
-          if (check.length > 0) userId = potentialId;
-        }
-      }
-
-      // Try existing pending transaction
-      if (!userId && existing.length > 0 && existing[0].user_id) {
-        userId = existing[0].user_id;
-      }
-
-      // Try email
-      if (!userId && email) {
-        const { rows: userRows } = await query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
-        if (userRows.length > 0) userId = userRows[0].id;
-      }
-
-      // Try virtual account number
-      if (!userId && flwTx.meta?.account_number) {
-        const { rows: vaRows } = await query(
-          'SELECT id FROM users WHERE virtual_account_number = $1 LIMIT 1',
-          [flwTx.meta.account_number]
-        );
-        if (vaRows.length > 0) userId = vaRows[0].id;
-      }
-
-      if (!userId) {
-        noUser++;
-        results.push({ reference, amount, email, status: 'user_not_found' });
-        continue;
-      }
-
-      // Create transaction if it doesn't exist
-      if (existing.length === 0) {
-        const { createTransaction: createTx } = await import('../models/transactionModel.js');
-        await createTx(userId, null, 'wallet_topup', amount, reference, 'flutterwave');
-      }
-
-      // Process the payment (idempotent)
-      const { isDuplicate } = await processCompletedPayment(reference, amount, flwId, 'flutterwave');
-
-      if (!isDuplicate) {
-        credited++;
-        results.push({ reference, amount, userId, status: 'credited' });
-
-        await createNotification(
-          userId,
-          'PAYMENT',
-          'Missed Payment Recovered',
-          `₦${amount.toLocaleString()} has been credited to your wallet (reconciliation).`
-        );
-
-        console.log(`[Reconciliation] Credited ₦${amount} to user ${userId} (ref: ${reference})`);
-      } else {
-        skipped++;
-        results.push({ reference, amount, userId, status: 'already_completed' });
-      }
-    }
-
-    await logAudit(req.user.id, 'RECONCILE_FLUTTERWAVE', 'system', null, { credited, skipped, noUser });
-
-    res.json({
-      message: `Reconciliation complete. Credited: ${credited}, Skipped: ${skipped}, No user: ${noUser}`,
-      total: flwTransactions.length,
-      credited,
-      skipped,
-      noUser,
-      results
-    });
-  } catch (error) {
-    console.error('[Reconciliation] Error:', error.response?.data || error.message);
-    res.status(500).json({ message: 'Reconciliation failed: ' + (error.response?.data?.message || error.message) });
-  }
-};
-
 export const getCashFlowSummary = async (req, res) => {
   try {
     const incomingSql = `
@@ -821,19 +685,21 @@ export const getWebhookLogs = async (req, res) => {
 
 export const getSystemStatus = async (req, res) => {
   try {
-    const flwSecret = process.env.FLUTTERWAVE_SECRET_KEY || '';
-    const flwBvn = process.env.FLUTTERWAVE_MERCHANT_BVN || '';
+    const lotusMerchant = process.env.LOTUS_MERCHANT_KEY || '';
+    const lotusApiKey = process.env.LOTUS_X_API_KEY || '';
+    const lotusWallet = process.env.LOTUS_WALLET_ID || '';
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY || '';
     const paymentMode = process.env.PAYMENT_MODE || 'live';
 
     res.json({
       paymentMode,
-      flutterwave: {
-        hasSecretKey: flwSecret.length > 0,
-        secretKeyLength: flwSecret.length,
-        secretKeyPrefix: flwSecret.substring(0, 7),
-        hasMerchantBvn: flwBvn.length > 0,
-        merchantBvnLength: flwBvn.length,
+      lotus: {
+        hasMerchantKey: lotusMerchant.length > 0,
+        merchantKeyLength: lotusMerchant.length,
+        merchantKeyPrefix: lotusMerchant.substring(0, 8),
+        hasApiKey: lotusApiKey.length > 0,
+        apiKeyLength: lotusApiKey.length,
+        walletId: lotusWallet,
       },
       paystack: {
         hasSecretKey: paystackSecret.length > 0,

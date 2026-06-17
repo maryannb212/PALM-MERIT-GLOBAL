@@ -4,7 +4,6 @@ import {
   verifyTransaction, 
   getMyTransactions, 
   paystackWebhook,
-  flutterwaveWebhook,
   lotusWebhook,
   uploadReceipt
 } from '../controllers/transactionController.js';
@@ -17,7 +16,6 @@ const router = express.Router();
 
 // Webhook routes
 router.post('/webhook/paystack', paystackWebhook);
-router.post('/webhook/flutterwave', flutterwaveWebhook);
 router.post('/webhook/virtual-account', virtualAccountWebhook);
 router.post('/webhook/lotus', lotusWebhook);
 

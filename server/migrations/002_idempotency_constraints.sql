@@ -26,7 +26,7 @@ $$;
 -- ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS webhook_logs (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  source        VARCHAR(50)  NOT NULL DEFAULT 'paystack',   -- paystack | flutterwave
+  source        VARCHAR(50)  NOT NULL DEFAULT 'paystack',   -- paystack | lotus
   reference     VARCHAR(100),
   event_type    VARCHAR(100),
   payload       JSONB,

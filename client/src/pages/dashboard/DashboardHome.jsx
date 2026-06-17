@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead, generateVirtualAccount } from '../../services/api';
+import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import MembershipPaywall from '../../components/MembershipPaywall';
 import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes, FaWhatsapp } from 'react-icons/fa';
@@ -20,29 +20,6 @@ const DashboardHome = () => {
   const [birthdayDismissed, setBirthdayDismissed] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showAllNotifs, setShowAllNotifs] = useState(false);
-  const [generatingVA, setGeneratingVA] = useState(false);
-
-  const handleGenerateVA = async () => {
-    setGeneratingVA(true);
-    try {
-      const response = await generateVirtualAccount();
-      alert(response.data.message || 'Virtual account successfully generated');
-      if (updateUser) {
-        updateUser({
-          virtual_account_number: response.data.virtual_account_number,
-          virtual_bank_name: response.data.virtual_bank_name,
-          virtual_account_name: response.data.virtual_account_name
-        });
-      } else {
-        refreshProfile();
-      }
-    } catch (error) {
-      alert(error.response?.data?.message || 'Failed to generate virtual account');
-    } finally {
-      setGeneratingVA(false);
-    }
-  };
-
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     alert('Copied to clipboard!');
@@ -178,41 +155,7 @@ const DashboardHome = () => {
           </div>
         )}
 
-        {/* ─── Virtual Account Card ─── */}
-        <div className="dashboard-section virtual-account-card" style={{ marginBottom: '20px', padding: '20px', borderRadius: '12px', background: '#fff', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #eee' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-            <span style={{ fontSize: '1.4rem' }}>🏦</span>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#800020' }}>Your Dedicated Funding Account</h3>
-          </div>
-          
-          {user?.virtual_account_number && user?.virtual_bank_name !== 'Palm Merit Finance' ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', background: '#f8f9fa', padding: '15px 20px', borderRadius: '10px', border: '1px solid #e9ecef' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#333', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {user.virtual_account_number}
-                  <button onClick={() => handleCopy(user.virtual_account_number)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: '#6c757d' }} title="Copy Account Number">📋</button>
-                </div>
-                <div style={{ fontSize: '1rem', color: '#555', fontWeight: '500', marginTop: '4px' }}>{user.virtual_bank_name}</div>
-                <div style={{ fontSize: '0.85rem', color: '#777', marginTop: '2px' }}>{user.virtual_account_name}</div>
-              </div>
-              <div style={{ fontSize: '0.85rem', color: '#666', maxWidth: '200px' }}>
-                Transfer to this account to automatically fund your wallet.
-              </div>
-            </div>
-          ) : (
-            <div style={{ background: '#f8f9fa', padding: '15px 20px', borderRadius: '10px', border: '1px solid #e9ecef', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: '#666', maxWidth: '300px' }}>Generate a dedicated virtual account to easily fund your wallet via bank transfer.</p>
-              <button 
-                onClick={handleGenerateVA}
-                disabled={generatingVA}
-                className="btn btn-primary"
-                style={{ padding: '8px 16px', fontSize: '0.9rem', borderRadius: '6px' }}
-              >
-                {generatingVA ? 'Generating...' : 'Generate Account'}
-              </button>
-            </div>
-          )}
-        </div>
+
 
         {/* ─── Birthday Banner ─── */}
         {isBirthday && !birthdayDismissed && (

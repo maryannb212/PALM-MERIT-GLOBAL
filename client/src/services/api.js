@@ -151,7 +151,7 @@ export const rejectWithdrawal = (id, data) => API.put(`/admin/withdrawals/${id}/
 export const broadcastNotification = (data) => API.post('/admin/notifications/broadcast', data);
 export const approveManualPayment = (transactionId, data) => API.post(`/admin/approve-payment/${transactionId}`, data);
 export const getCashflow = () => API.get('/admin/cashflow');
-export const reconcileFlutterwave = () => API.post('/admin/reconcile-flutterwave');
+
 export const getWebhookLogs = () => API.get('/admin/webhook-logs');
 export const getRecentTransfers = (hours = 24) => API.get(`/admin/transactions/recent?hours=${hours}`);
 
