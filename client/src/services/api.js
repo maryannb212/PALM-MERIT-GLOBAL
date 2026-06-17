@@ -85,6 +85,7 @@ export const initializeTransaction = (data) => API.post('/transactions/initializ
 export const verifyTransaction = (ref) => API.get(`/transactions/verify/${ref}`);
 export const initializeDeposit = initializeTransaction; // alias
 export const verifyDeposit = verifyTransaction; // alias
+export const payWithLotus = (data) => API.post('/transactions/initialize', { ...data, payment_provider: 'lotus' });
 export const requestWithdrawal = (data) => API.post('/transactions/withdraw', data);
 export const getMyTransactions = () => API.get('/transactions/my-transactions');
 export const uploadReceipt = (formData) => API.post('/transactions/upload-receipt', formData, {
