@@ -59,17 +59,7 @@ const Defaults = () => {
     setExpandedPlan(expandedPlan === planId ? null : planId);
   };
 
-  const getDefaultInfo = (plan) => {
-    const config = {
-      CREST: { weekly: 4000, penalty: 4000 },
-      SILVER: { weekly: 1500, penalty: 1500 },
-      GOLDEN_BASKET: { weekly: 2000, penalty: 2000 },
-      ISUSU: { daily: 500, penalty: 500 }
-    };
-    return config[plan.plan_name] || { weekly: 0, penalty: 0 };
-  };
-
-  const isDaily = (plan) => !!getDefaultInfo(plan).daily;
+  const isDaily = (plan) => plan.plan_name === 'ISUSU';
 
   const periodLabel = (plan) => isDaily(plan) ? 'Daily' : 'Weekly';
 
@@ -175,12 +165,11 @@ const Defaults = () => {
         ) : (
           <div className="defaults-plans-list">
             {plans.map(plan => {
-              const info = getDefaultInfo(plan);
               const colors = PLAN_COLORS[plan.plan_name] || PLAN_COLORS.CREST;
               const inDefault = hasDefaults(plan);
-              const defaultPerAccount = info.penalty;
+              const defaultPerAccount = plan.penalty_per_account || 0;
               const isDailyPlan = isDaily(plan);
-              const contributionPerAccount = info.weekly || info.daily;
+              const contributionPerAccount = plan.weekly_amount || 0;
               const totalContributionDue = contributionPerAccount * (plan.number_of_accounts || 1);
 
               return (
