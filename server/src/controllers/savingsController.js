@@ -6,7 +6,7 @@ import { createReferralCodeForPlan } from '../models/referralModel.js';
 
 export const subscribeToPlan = async (req, res) => {
   try {
-    const { planName, targetAmount, numberOfAccounts } = req.body;
+    const { planName, targetAmount, numberOfAccounts, referralCode } = req.body;
     const userId = req.user.id;
 
     if (!planName || !targetAmount) {
@@ -20,6 +20,31 @@ export const subscribeToPlan = async (req, res) => {
 
     const clearanceRequired = ['CREST', 'SILVER'].includes(planName);
     const requestedAccounts = numberOfAccounts || 1;
+
+    // Validate referral code if provided
+    let referredById = null;
+    let usedReferralCodeId = null;
+    if (referralCode && referralCode.trim() && referralCode !== 'NEW') {
+      const codeStr = referralCode.trim();
+      const { rows: refCodes } = await query('SELECT id, user_id, status, unlock_date FROM referral_codes WHERE code = $1', [codeStr]);
+      if (refCodes.length > 0) {
+        const rc = refCodes[0];
+        if (rc.status === 'used') {
+          return res.status(400).json({ message: 'This referral code has already been used' });
+        }
+        if (rc.status === 'locked' || (rc.unlock_date && new Date(rc.unlock_date) > new Date())) {
+          return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
+        }
+        referredById = rc.user_id;
+        usedReferralCodeId = rc.id;
+      } else {
+        const { rows: referrerRows } = await query('SELECT id FROM users WHERE referral_code = $1', [codeStr]);
+        if (referrerRows.length === 0) {
+          return res.status(400).json({ message: 'Invalid referral code' });
+        }
+        referredById = referrerRows[0].id;
+      }
+    }
 
     // Check Bulk Account Monthly Limit (100 accounts per month)
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
@@ -108,8 +133,25 @@ export const subscribeToPlan = async (req, res) => {
         );
       }
 
-      // NEW LOGIC: Generate specific single-use referral code for this plan
-      await createReferralCodeForPlan(client, userId, plan.id, planName);
+      // Process referral code if provided
+      if (usedReferralCodeId) {
+        await client.query(
+          "UPDATE users SET referred_by = $1 WHERE id = $2",
+          [referredById, userId]
+        );
+        await client.query(
+          "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+          [usedReferralCodeId, userId]
+        );
+      } else if (referredById && !usedReferralCodeId) {
+        await client.query(
+          "UPDATE users SET referred_by = $1 WHERE id = $2",
+          [referredById, userId]
+        );
+      }
+
+      // Generate one referral code per account
+      await createReferralCodeForPlan(client, userId, plan.id, planName, requestedAccounts);
 
       // Set the initial current_amount of the savings plan to initialSavingsTotal
       await client.query(
