@@ -218,57 +218,23 @@ const Wallet = () => {
           </div>
         </div>
 
-        {/* ─── Fund Wallet / Generate VA / KYC ─── */}
+        {/* ─── Fund Wallet Button ─── */}
         <div className="funding-account-section card mt-4" style={{ border: '1px solid rgba(128, 0, 32, 0.15)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)' }}>
           <div className="card-header" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '1.4rem' }}>🏦</span>
             <div style={{ textAlign: 'left' }}>
-              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>
-                {user?.virtual_account_number ? 'Fund Your Wallet' : user?.kycStatus === 'verified' && user?.bvn ? 'Get Your Virtual Account' : 'Complete Your KYC'}
-              </h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>
-                {user?.virtual_account_number
-                  ? 'Pay instantly via Lotus Bank card payment'
-                  : user?.kycStatus === 'verified' && user?.bvn
-                    ? 'Generate a dedicated bank account to receive transfers directly'
-                    : 'Verify your identity to unlock funding options'}
-              </p>
+              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>Fund Your Wallet</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>Pay instantly via Lotus Bank card payment</p>
             </div>
           </div>
           <div className="card-body" style={{ padding: '30px', textAlign: 'center' }}>
-            {user?.virtual_account_number ? (
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="btn btn-primary"
-                style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
-              >
-                💳 Deposit with Lotus Bank
-              </button>
-            ) : user?.kycStatus === 'verified' && user?.bvn ? (
-              <div>
-                <p style={{ color: '#64748b', marginBottom: '15px' }}>
-                  Get a dedicated bank account number to receive transfers directly.
-                </p>
-                <button
-                  onClick={handleGenerateVA}
-                  className="btn btn-primary"
-                  disabled={vaLoading}
-                  style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
-                >
-                  {vaLoading ? 'Generating...' : '🏦 Generate Virtual Account'}
-                </button>
-              </div>
-            ) : (
-              <div>
-                <p style={{ color: '#64748b', marginBottom: '10px', fontSize: '0.95rem' }}>
-                  Complete your KYC verification to unlock a dedicated virtual bank account.
-                </p>
-                <Link to="/dashboard/kyc" className="btn btn-secondary" style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-block' }}>
-                  Complete KYC
-                </Link>
-              </div>
-            )}
-            {vaError && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '10px' }}>{vaError}</p>}
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="btn btn-primary"
+              style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
+            >
+              💳 Deposit with Lotus Bank
+            </button>
           </div>
         </div>
 
