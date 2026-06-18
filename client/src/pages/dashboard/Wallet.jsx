@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { getMyTransactions, payTshirtFee, getMyPlans } from '../../services/api';
+import { getMyTransactions, payTshirtFee, getMyPlans, generateVirtualAccount } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
@@ -15,6 +15,8 @@ const Wallet = () => {
   const [tshirtLoading, setTshirtLoading] = useState(false);
   const [hideBalances, setHideBalances] = useState(true);
   const [plans, setPlans] = useState([]);
+  const [vaLoading, setVaLoading] = useState(false);
+  const [vaError, setVaError] = useState('');
 
 
   useEffect(() => {
@@ -78,6 +80,24 @@ const Wallet = () => {
     }
   };
 
+  const handleGenerateVA = async () => {
+    setVaLoading(true);
+    setVaError('');
+    try {
+      const { data } = await generateVirtualAccount();
+      updateUser({
+        virtual_account_number: data.virtual_account_number,
+        virtual_bank_name: data.virtual_bank_name,
+        virtual_account_name: data.virtual_account_name
+      });
+      alert('Virtual account created successfully!');
+    } catch (err) {
+      setVaError(err.response?.data?.message || 'Failed to generate virtual account');
+    } finally {
+      setVaLoading(false);
+    }
+  };
+
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     alert('Copied to clipboard!');
@@ -134,23 +154,121 @@ const Wallet = () => {
           </div>
         </div>
 
-        {/* ─── Fund Wallet Button ─── */}
+        {/* ─── Virtual Account Card ─── */}
+        <div className="virtual-account-card" style={{ border: '1px solid rgba(128, 0, 32, 0.15)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)' }}>
+          <div className="card-header" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '1.4rem' }}>🏦</span>
+            <div style={{ textAlign: 'left' }}>
+              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>Virtual Bank Account</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>Receive transfers directly to this account</p>
+            </div>
+          </div>
+          <div className="card-body" style={{ padding: '25px' }}>
+            {user?.virtual_account_number ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                  <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account Number</label>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#0f172a', fontFamily: 'monospace', marginTop: '5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {user.virtual_account_number}
+                      <button onClick={() => handleCopy(user.virtual_account_number)} style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '0.75rem', color: '#475569' }}>Copy</button>
+                    </div>
+                  </div>
+                  <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Bank Name</label>
+                    <div style={{ fontSize: '1.1rem', fontWeight: '600', color: '#0f172a', marginTop: '5px' }}>{user.virtual_bank_name}</div>
+                  </div>
+                  <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account Name</label>
+                    <div style={{ fontSize: '1.05rem', fontWeight: '600', color: '#0f172a', marginTop: '5px' }}>{user.virtual_account_name}</div>
+                  </div>
+                </div>
+                <p style={{ margin: '5px 0 0', fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic' }}>
+                  Transfer any amount to this account. Your wallet will be credited automatically.
+                </p>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                {user?.kycStatus === 'verified' && user?.bvn ? (
+                  <>
+                    <p style={{ color: '#64748b', marginBottom: '15px' }}>
+                      Get a dedicated bank account number to receive transfers directly.
+                    </p>
+                    <button
+                      onClick={handleGenerateVA}
+                      className="btn btn-primary"
+                      disabled={vaLoading}
+                      style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
+                    >
+                      {vaLoading ? 'Generating...' : '🏦 Generate Virtual Account'}
+                    </button>
+                  </>
+                ) : (
+                  <div>
+                    <p style={{ color: '#64748b', marginBottom: '10px', fontSize: '0.95rem' }}>
+                      Complete your KYC verification to unlock a dedicated virtual bank account.
+                    </p>
+                    <Link to="/dashboard/kyc" className="btn btn-secondary" style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-block' }}>
+                      Complete KYC
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ─── Fund Wallet / Generate VA / KYC ─── */}
         <div className="funding-account-section card mt-4" style={{ border: '1px solid rgba(128, 0, 32, 0.15)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)' }}>
           <div className="card-header" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '1.4rem' }}>🏦</span>
             <div style={{ textAlign: 'left' }}>
-              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>Fund Your Wallet</h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>Pay instantly via Lotus Bank card payment</p>
+              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                {user?.virtual_account_number ? 'Fund Your Wallet' : user?.kycStatus === 'verified' && user?.bvn ? 'Get Your Virtual Account' : 'Complete Your KYC'}
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>
+                {user?.virtual_account_number
+                  ? 'Pay instantly via Lotus Bank card payment'
+                  : user?.kycStatus === 'verified' && user?.bvn
+                    ? 'Generate a dedicated bank account to receive transfers directly'
+                    : 'Verify your identity to unlock funding options'}
+              </p>
             </div>
           </div>
           <div className="card-body" style={{ padding: '30px', textAlign: 'center' }}>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="btn btn-primary"
-              style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
-            >
-              💳 Deposit with Lotus Bank
-            </button>
+            {user?.virtual_account_number ? (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="btn btn-primary"
+                style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
+              >
+                💳 Deposit with Lotus Bank
+              </button>
+            ) : user?.kycStatus === 'verified' && user?.bvn ? (
+              <div>
+                <p style={{ color: '#64748b', marginBottom: '15px' }}>
+                  Get a dedicated bank account number to receive transfers directly.
+                </p>
+                <button
+                  onClick={handleGenerateVA}
+                  className="btn btn-primary"
+                  disabled={vaLoading}
+                  style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
+                >
+                  {vaLoading ? 'Generating...' : '🏦 Generate Virtual Account'}
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p style={{ color: '#64748b', marginBottom: '10px', fontSize: '0.95rem' }}>
+                  Complete your KYC verification to unlock a dedicated virtual bank account.
+                </p>
+                <Link to="/dashboard/kyc" className="btn btn-secondary" style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-block' }}>
+                  Complete KYC
+                </Link>
+              </div>
+            )}
+            {vaError && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '10px' }}>{vaError}</p>}
           </div>
         </div>
 
