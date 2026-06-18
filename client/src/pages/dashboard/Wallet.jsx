@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { getMyTransactions, payTshirtFee, getMyPlans, generateVirtualAccount, updateBvn } from '../../services/api';
-import DepositModal from '../../components/DepositModal';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 import './Dashboard.css';
 
 const Wallet = () => {
   const { user, updateUser, refreshProfile } = useAuth();
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tshirtLoading, setTshirtLoading] = useState(false);
@@ -281,26 +279,6 @@ const Wallet = () => {
           </div>
         </div>
 
-        {/* ─── Fund Wallet Button ─── */}
-        <div className="funding-account-section card mt-4" style={{ border: '1px solid rgba(128, 0, 32, 0.15)', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)' }}>
-          <div className="card-header" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white', borderBottom: 'none', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '1.4rem' }}>🏦</span>
-            <div style={{ textAlign: 'left' }}>
-              <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.2rem', fontWeight: 'bold' }}>Fund Your Wallet</h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>Pay instantly via Lotus Bank card payment</p>
-            </div>
-          </div>
-          <div className="card-body" style={{ padding: '30px', textAlign: 'center' }}>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="btn btn-primary"
-              style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
-            >
-              💳 Deposit with Lotus Bank
-            </button>
-          </div>
-        </div>
-
         {/* ─── T-Shirt Reminder Banner ─── */}
         {!user?.tshirt_paid && isClearanceDue && (
           <div className="tshirt-banner">
@@ -479,11 +457,6 @@ const Wallet = () => {
           </div>
         </div>
       )}
-      <DepositModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSuccess={() => window.location.reload()}
-      />
     </>
   );
 };
