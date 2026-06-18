@@ -28,7 +28,7 @@ export const createVirtualAccount = async (user) => {
 
   const cleanPhone = (user.phone || '').replace(/[^0-9]/g, '');
 
-  const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+  const baseUrl = (process.env.WEBHOOK_BASE_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
 
   const payload = {
     currency: 'NGN',

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { getMyTransactions, payTshirtFee, getMyPlans, generateVirtualAccount } from '../../services/api';
+import { getMyTransactions, payTshirtFee, getMyPlans, generateVirtualAccount, updateBvn } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
@@ -19,6 +19,11 @@ const Wallet = () => {
   const [vaError, setVaError] = useState('');
   const [vaSuccess, setVaSuccess] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showBvnModal, setShowBvnModal] = useState(false);
+  const [bvnValue, setBvnValue] = useState('');
+  const [bvnError, setBvnError] = useState('');
+  const [bvnSubmitting, setBvnSubmitting] = useState(false);
+  const [bvnSuccess, setBvnSuccess] = useState('');
 
 
   useEffect(() => {
@@ -84,6 +89,37 @@ const Wallet = () => {
       alert(error.response?.data?.message || 'Payment failed');
     } finally {
       setTshirtLoading(false);
+    }
+  };
+
+  const handleBvnChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+    setBvnValue(val);
+    setBvnError('');
+    setBvnSuccess('');
+  };
+
+  const handleBvnSubmit = async () => {
+    if (bvnValue.length !== 11) {
+      setBvnError('BVN must be exactly 11 digits');
+      return;
+    }
+    setBvnSubmitting(true);
+    setBvnError('');
+    setBvnSuccess('');
+    try {
+      await updateBvn(bvnValue);
+      setBvnSuccess('BVN submitted successfully!');
+      await refreshProfile();
+      setTimeout(() => {
+        setShowBvnModal(false);
+        setBvnValue('');
+        setBvnSuccess('');
+      }, 1500);
+    } catch (err) {
+      setBvnError(err.response?.data?.message || 'Failed to update BVN');
+    } finally {
+      setBvnSubmitting(false);
     }
   };
 
@@ -212,7 +248,7 @@ const Wallet = () => {
                     ❌ {vaError}
                   </div>
                 )}
-                {user?.kycStatus === 'verified' && user?.bvn ? (
+                {user?.bvn ? (
                   <>
                     <p style={{ color: '#64748b', marginBottom: '15px' }}>
                       Get a dedicated bank account number to receive transfers directly.
@@ -227,14 +263,18 @@ const Wallet = () => {
                     </button>
                   </>
                 ) : (
-                  <div>
-                    <p style={{ color: '#64748b', marginBottom: '10px', fontSize: '0.95rem' }}>
-                      Complete your KYC verification to unlock a dedicated virtual bank account.
+                  <>
+                    <p style={{ color: '#64748b', marginBottom: '15px' }}>
+                      Provide your BVN to generate a dedicated virtual bank account.
                     </p>
-                    <Link to="/dashboard/kyc" className="btn btn-secondary" style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-block' }}>
-                      Complete KYC
-                    </Link>
-                  </div>
+                    <button
+                      onClick={() => setShowBvnModal(true)}
+                      className="btn btn-primary"
+                      style={{ padding: '12px 30px', fontSize: '1rem', borderRadius: '6px' }}
+                    >
+                      Provide BVN
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -389,6 +429,56 @@ const Wallet = () => {
             </select>
           </div>
         </div>
+      {showBvnModal && (
+        <div className="bvn-modal-overlay" onClick={() => { if (!bvnSubmitting) { setShowBvnModal(false); setBvnError(''); setBvnSuccess(''); setBvnValue(''); } }}>
+          <div className="bvn-modal-card" onClick={e => e.stopPropagation()}>
+            <button className="bvn-modal-close" onClick={() => { setShowBvnModal(false); setBvnError(''); setBvnSuccess(''); setBvnValue(''); }} disabled={bvnSubmitting}>
+              ✕
+            </button>
+            <div className="bvn-modal-icon">🔐</div>
+            <h3 className="bvn-modal-title">Enter Your BVN</h3>
+            <p className="bvn-modal-desc">
+              Your Bank Verification Number (BVN) is required to generate a dedicated virtual bank account for receiving transfers.
+            </p>
+            {bvnSuccess && (
+              <div className="bvn-alert bvn-alert-success">{bvnSuccess}</div>
+            )}
+            {bvnError && (
+              <div className="bvn-alert bvn-alert-error">{bvnError}</div>
+            )}
+            <div className="bvn-input-group">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Enter 11-digit BVN"
+                value={bvnValue}
+                onChange={handleBvnChange}
+                maxLength={11}
+                className="bvn-input"
+                disabled={bvnSubmitting}
+                autoFocus
+              />
+              <div className="bvn-counter">{bvnValue.length}/11</div>
+            </div>
+            <div className="bvn-modal-actions">
+              <button
+                className="bvn-btn bvn-btn-cancel"
+                onClick={() => { setShowBvnModal(false); setBvnError(''); setBvnSuccess(''); setBvnValue(''); }}
+                disabled={bvnSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                className="bvn-btn bvn-btn-submit"
+                onClick={handleBvnSubmit}
+                disabled={bvnSubmitting || bvnValue.length !== 11}
+              >
+                {bvnSubmitting ? 'Submitting...' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <DepositModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

@@ -596,6 +596,31 @@ export const uploadProfileImage = async (req, res) => {
   }
 };
 
+export const updateBvn = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { bvn } = req.body;
+
+    if (!bvn || !/^\d{11}$/.test(bvn)) {
+      return res.status(400).json({ message: 'BVN must be exactly 11 digits' });
+    }
+
+    const { rows } = await query(
+      `INSERT INTO kyc_details (user_id, bvn)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id)
+       DO UPDATE SET bvn = $2, updated_at = CURRENT_TIMESTAMP
+       RETURNING bvn`,
+      [userId, bvn]
+    );
+
+    res.json({ message: 'BVN updated successfully', bvn: rows[0].bvn });
+  } catch (error) {
+    console.error('Error updating BVN:', error);
+    res.status(500).json({ message: 'Server error updating BVN' });
+  }
+};
+
 export const removeProfileImage = async (req, res) => {
   try {
     const userId = req.user.id;
