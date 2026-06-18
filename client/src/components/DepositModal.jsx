@@ -12,6 +12,10 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount || parseFloat(amount) <= 0) return;
+    if (parseFloat(amount) < 500) {
+      setError('Minimum deposit amount is ₦500');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -48,12 +52,13 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
 
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="form-group">
-            <label>Amount (NGN)</label>
+            <label>Amount (NGN) — minimum ₦500</label>
             <input 
               type="number" 
               value={amount} 
               onChange={(e) => setAmount(e.target.value)} 
               placeholder="e.g. 5000"
+              min="500"
               required 
             />
           </div>
