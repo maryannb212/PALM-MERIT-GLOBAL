@@ -1,7 +1,7 @@
 import { query } from '../config/db.js';
 import { createNotification } from '../models/notificationModel.js';
 import { logAudit } from '../models/auditModel.js';
-import { processCompletedPayment } from '../models/transactionModel.js';
+import { processCompletedPayment, createTransaction } from '../models/transactionModel.js';
 import * as withdrawalController from './withdrawalController.js';
 
 /**
@@ -377,6 +377,52 @@ export const getReconciliationStats = async (req, res) => {
  * Approve manual payment
  * POST /api/admin/approve-payment/:transactionId
  */
+/**
+ * Admin: Manually credit a user's wallet (for Lotus VA deposits when webhook wasn't received)
+ * POST /api/admin/reconcile-lotus-va
+ */
+export const reconcileLotusVA = async (req, res) => {
+  try {
+    const { userId, amount } = req.body;
+
+    if (!userId || !amount || amount <= 0) {
+      return res.status(400).json({ message: 'userId and a positive amount are required' });
+    }
+
+    const reference = `LVA-MANUAL-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    await createTransaction(userId, null, 'wallet_topup', parseFloat(amount), reference, 'lotus');
+
+    const { isDuplicate } = await processCompletedPayment(reference);
+    if (isDuplicate) {
+      return res.status(400).json({ message: 'Transaction was already processed.' });
+    }
+
+    await logAudit(req.user.id, 'RECONCILE_LOTUS_VA', 'transaction', reference, { userId, amount });
+
+    await createNotification(
+      userId, 'PAYMENT', 'Wallet Credited (Manual Reconciliation)',
+      `Your wallet has been credited with ₦${parseFloat(amount).toLocaleString()} via Lotus VA deposit reconciliation.`
+    );
+
+    try {
+      await query(
+        `INSERT INTO webhook_logs (source, reference, event_type, payload, signature_ok, status, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        ['lotus', reference, 'reserved_account.manual_reconciliation',
+         JSON.stringify({ userId, amount, adminId: req.user.id }), true, 'processed',
+         `Manual reconciliation: Credited ₦${amount} to user ${userId}`]
+      );
+    } catch (logErr) {
+      console.warn('[reconcileLotusVA] Failed to log webhook event:', logErr.message);
+    }
+
+    res.json({ message: `Wallet credited with ₦${parseFloat(amount).toLocaleString()}`, reference });
+  } catch (error) {
+    console.error('[reconcileLotusVA] Error:', error.message);
+    res.status(500).json({ message: 'Server error: ' + error.message });
+  }
+};
+
 export const approveManualPayment = async (req, res) => {
   try {
     const { transactionId } = req.params;
@@ -648,29 +694,6 @@ export const approveEligibility = async (req, res) => {
   }
 };
 
-export const getCashFlowSummary = async (req, res) => {
-  try {
-    const incomingSql = `
-      SELECT COALESCE(SUM(amount),0) as total_incoming
-      FROM transactions
-      WHERE status = 'completed' AND type IN ('wallet_topup','deposit','contribution')
-    `;
-    const { rows: incRows } = await query(incomingSql);
-    const totalIncoming = parseFloat(incRows[0].total_incoming);
-    const outgoingSql = `
-      SELECT COALESCE(SUM(amount),0) as total_outgoing
-      FROM transactions
-      WHERE status = 'completed' AND type IN ('withdrawal','penalty','clearance','membership')
-    `;
-    const { rows: outRows } = await query(outgoingSql);
-    const totalOutgoing = parseFloat(outRows[0].total_outgoing);
-    const netChange = totalIncoming - totalOutgoing;
-    res.json({ totalIncoming, totalOutgoing, netChange });
-  } catch (error) {
-    console.error('Error fetching cash flow summary:', error);
-    res.status(500).json({ message: 'Server error fetching cash flow summary' });
-  }
-};
 export const getWebhookLogs = async (req, res) => {
   try {
     const { rows } = await query(

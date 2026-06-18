@@ -95,64 +95,6 @@ export const sendWelcomeEmail = async (user) => {
 };
 
 /**
- * Send Email Verification Link
- */
-export const sendVerificationEmail = async (email, token) => {
-  const verificationUrl = `${process.env.CLIENT_URL || 'https://palmmeritglobal.com'}/verify-email?token=${token}`;
-  const subject = 'Verify Your Email - Palm Merit Global';
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 10px;">
-      <h2 style="color: #0A6847; text-align: center;">Email Verification</h2>
-      <p>Thank you for registering with Palm Merit Global. Please click the button below to verify your email address:</p>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${verificationUrl}" style="background-color: #0A6847; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Verify Email</a>
-      </div>
-      <p>If you did not create an account, please ignore this email.</p>
-      <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-      <p style="font-size: 12px; color: #777;">If you're having trouble clicking the button, copy and paste the URL below into your browser:</p>
-      <p style="font-size: 12px; color: #777;">${verificationUrl}</p>
-    </div>
-  `;
-
-  return sendEmail({
-    to: email,
-    subject,
-    text: `Verify your email by clicking here: ${verificationUrl}`,
-    html,
-  });
-};
-
-/**
- * Send Password Reset Email
- */
-export const sendPasswordResetEmail = async (email, resetToken) => {
-  const resetUrl = `${process.env.CLIENT_URL || 'https://palmmeritglobal.com'}/reset-password?token=${resetToken}`;
-  const subject = 'Password Reset Request - Palm Merit Global';
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 10px;">
-      <h2 style="color: #0A6847; text-align: center;">Password Reset Request</h2>
-      <p>You are receiving this email because you (or someone else) have requested the reset of the password for your account.</p>
-      <p>Please click on the button below to complete the process:</p>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${resetUrl}" style="background-color: #0A6847; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
-      </div>
-      <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
-      <p>This link will expire in 30 minutes.</p>
-      <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-      <p style="font-size: 12px; color: #777;">If you're having trouble clicking the "Reset Password" button, copy and paste the URL below into your web browser:</p>
-      <p style="font-size: 12px; color: #777;">${resetUrl}</p>
-    </div>
-  `;
-
-  return sendEmail({
-    to: email,
-    subject,
-    text: `You requested a password reset. Use this link: ${resetUrl}`,
-    html,
-  });
-};
-
-/**
  * Send Login OTP Email
  */
 export const sendOTPEmail = async (email, code, context = 'Login') => {

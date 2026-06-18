@@ -26,13 +26,4 @@ export const getUserSavingsPlans = async (userId) => {
   return result.rows;
 };
 
-export const updateSavingsPlanAmount = async (planId, amountToAdd) => {
-  const sql = `
-    UPDATE savings_plans 
-    SET current_amount = current_amount + $2, updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1
-    RETURNING *;
-  `;
-  const result = await query(sql, [planId, amountToAdd]);
-  return result.rows[0];
-};
+

@@ -1,4 +1,5 @@
 import { query, getClient } from '../config/db.js';
+import { createVirtualAccount } from '../services/virtualAccountService.js';
 
 
 export const submitKYC = async (req, res) => {
@@ -10,20 +11,9 @@ export const submitKYC = async (req, res) => {
     } = req.body;
     const userId = req.user.id;
 
-// File upload handling removed; KYC submissions no longer require document uploads.
-// getFilePath helper and related code have been eliminated.
-
-// Document URLs are no longer required.
-      const idFrontUrl = null;
-      const idBackUrl = null;
-      const selfieUrl = null;
-      const profileImageUrl = null;
-
-// Basic validation
       if (!bvn || !id_type || !id_number) {
         return res.status(400).json({ message: 'BVN, ID Type, and ID Number are required' });
       }
-      // No required document files now.
 
 
     const formattedDob = date_of_birth === "" ? null : date_of_birth;
@@ -71,7 +61,6 @@ export const submitKYC = async (req, res) => {
 
       let userSql = `UPDATE users SET kyc_status = $2`;
       const userValues = [userId, targetKycStatus];
-      // No profile image handling required.
       userSql += ` WHERE id = $1 RETURNING kyc_status;`;
 
       const { rows: userRows } = await client.query(userSql, userValues);
@@ -173,10 +162,9 @@ export const verifyUserKYC = async (req, res) => {
       // Trigger virtual account creation and sync data if verified
       if (status === 'verified') {
         // Fetch KYC details to sync to user record
-        const kycResult = await client.query('SELECT first_name, last_name, phone FROM kyc_details WHERE user_id = $1', [userId]);
-        if (kycResult.rows.length > 0) {
-          const kyc = kycResult.rows[0];
-
+        const kycResult = await client.query('SELECT first_name, last_name, phone, bvn FROM kyc_details WHERE user_id = $1', [userId]);
+        const kyc = kycResult.rows[0] || {};
+        if (kyc.first_name) {
           if (kyc.phone) {
             const phoneCheck = await client.query('SELECT id FROM users WHERE phone = $1 AND id != $2', [kyc.phone, userId]);
             if (phoneCheck.rows.length > 0) {
@@ -191,7 +179,29 @@ export const verifyUserKYC = async (req, res) => {
           );
         }
 
-        console.log(`KYC approved for user ${userId} - virtual accounts not available with Lotus Bank`);
+        try {
+          const vaData = await createVirtualAccount({
+            id: userId,
+            first_name: kyc.first_name || user.first_name,
+            last_name: kyc.last_name || user.last_name,
+            email: user.email,
+            phone: kyc.phone || user.phone,
+            bvn: kyc.bvn
+          });
+
+          await client.query(
+            `UPDATE users SET
+              virtual_account_number = $1,
+              virtual_account_name = $2,
+              virtual_bank_name = $3,
+              virtual_provider = 'lotus',
+              virtual_account_slug = $4
+            WHERE id = $5`,
+            [vaData.account_number, vaData.account_name, vaData.bank_name, vaData.reference, userId]
+          );
+        } catch (vaErr) {
+          console.error(`KYC approved for user ${userId} but VA creation failed:`, vaErr.message);
+        }
       }
 
       await client.query('COMMIT');

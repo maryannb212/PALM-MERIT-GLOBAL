@@ -195,9 +195,6 @@ export const initializeTransaction = async (req, res) => {
   }
 };
 
-// Alias for backward compatibility
-export const initializeDeposit = initializeTransaction;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/transactions/webhook/paystack
 // ─────────────────────────────────────────────────────────────────────────────
@@ -391,7 +388,9 @@ export const lotusWebhook = async (req, res) => {
       return res.status(400).send('Invalid JSON payload');
     }
 
-    const eventType = payload.event || payload.type || 'unknown';
+    const payloadService = payload.service || '';
+    const payloadType = payload.type || '';
+    const eventType = payload.event || payloadType || 'unknown';
     const reference = payload.data?.reference || payload.reference || null;
     const status = payload.data?.status || payload.status || '';
 
@@ -418,6 +417,11 @@ export const lotusWebhook = async (req, res) => {
         note: 'HMAC signature mismatch'
       });
       return res.status(401).send('Unauthorized');
+    }
+
+    // ── Virtual Account (Reserved Account) Deposit ────────────────────────
+    if (payloadService === 'payments' && payloadType === 'reserved_account') {
+      return await handleLotusVADeposit(payload, res);
     }
 
     if (!reference) {
@@ -599,9 +603,6 @@ export const verifyTransaction = async (req, res) => {
   }
 };
 
-// Alias for backward compatibility
-export const verifyDeposit = verifyTransaction;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/transactions/my-transactions
 // ─────────────────────────────────────────────────────────────────────────────
@@ -653,3 +654,95 @@ export const uploadReceipt = async (req, res) => {
     res.status(500).json({ message: 'Server error during receipt upload' });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lotus Virtual Account (Reserved Account) Deposit Webhook
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Handle Lotus virtual account deposit webhook.
+ * Called from lotusWebhook when service='payments' and type='reserved_account'.
+ */
+async function handleLotusVADeposit(payload, res) {
+  try {
+    const data = payload.data || {};
+    const accountNumber = data.reserved_account?.account_number;
+    const amount = parseFloat(data.amount) || 0;
+    const vaReference = data.reference || '';
+
+    if (!accountNumber) {
+      console.warn('[Lotus VA Webhook] Missing account_number');
+      await logWebhookEvent({
+        source: 'lotus', reference: vaReference, eventType: 'reserved_account',
+        payload, signatureOk: true, status: 'rejected',
+        note: 'Missing account_number in reserved_account webhook'
+      });
+      return res.status(400).send('Missing account_number');
+    }
+
+    if (amount <= 0) {
+      console.warn('[Lotus VA Webhook] Invalid amount:', amount);
+      return res.status(200).send('Ignored — invalid amount');
+    }
+
+    // Find user by virtual account number
+    const { rows } = await query(
+      'SELECT id, email, virtual_account_number FROM users WHERE virtual_account_number = $1',
+      [accountNumber]
+    );
+    const user = rows[0];
+
+    if (!user) {
+      console.warn(`[Lotus VA Webhook] No user found for account ${accountNumber}`);
+      await logWebhookEvent({
+        source: 'lotus', reference: vaReference, eventType: 'reserved_account',
+        payload, signatureOk: true, status: 'rejected',
+        note: `No user found for VA account ${accountNumber}`
+      });
+      return res.status(200).send('User not found');
+    }
+
+    // Check for duplicate
+    const { rows: existingTx } = await query(
+      'SELECT * FROM transactions WHERE reference = $1',
+      [vaReference]
+    );
+
+    if (existingTx.length === 0) {
+      await createTransaction(
+        user.id, null, 'wallet_topup', amount, vaReference, 'lotus'
+      );
+    }
+
+    const { isDuplicate } = await processCompletedPayment(
+      vaReference, amount, vaReference, 'lotus'
+    );
+
+    await logWebhookEvent({
+      source: 'lotus', reference: vaReference, eventType: 'reserved_account',
+      payload, signatureOk: true,
+      status: isDuplicate ? 'duplicate' : 'processed',
+      note: isDuplicate
+        ? `Duplicate VA deposit for user ${user.id}`
+        : `Credited ₦${amount} to user ${user.id} via Lotus VA deposit`
+    });
+
+    if (!isDuplicate) {
+      await createNotification(
+        user.id, 'PAYMENT', 'Wallet Funded via Transfer',
+        `Your wallet has been credited with ₦${amount.toLocaleString('en-NG')} via bank transfer to your Lotus virtual account.`
+      ).catch(() => {});
+      console.log(`[Lotus VA Webhook] Credited user ${user.id} with ₦${amount}`);
+    }
+
+    return res.status(200).send('Webhook processed');
+  } catch (error) {
+    console.error('[Lotus VA Webhook] Error:', error.message);
+    await logWebhookEvent({
+      source: 'lotus', reference: payload?.data?.reference || null,
+      eventType: 'reserved_account', payload,
+      signatureOk: true, status: 'error', note: error.message
+    }).catch(() => {});
+    return res.status(200).send('Error logged');
+  }
+}

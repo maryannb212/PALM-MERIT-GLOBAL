@@ -17,6 +17,8 @@ const Wallet = () => {
   const [plans, setPlans] = useState([]);
   const [vaLoading, setVaLoading] = useState(false);
   const [vaError, setVaError] = useState('');
+  const [vaSuccess, setVaSuccess] = useState('');
+  const [copied, setCopied] = useState(false);
 
 
   useEffect(() => {
@@ -43,11 +45,9 @@ const Wallet = () => {
   );
 
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchData = async () => {
       try {
-        if (refreshProfile) {
-          await refreshProfile();
-        }
+        if (refreshProfile) await refreshProfile();
         const response = await getMyTransactions();
         setTransactions(response.data || []);
       } catch (error) {
@@ -56,7 +56,14 @@ const Wallet = () => {
         setLoading(false);
       }
     };
-    fetchTransactions();
+    fetchData();
+
+    const handleFocus = () => {
+      if (refreshProfile) refreshProfile();
+      getMyTransactions().then(res => setTransactions(res.data || [])).catch(() => {});
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const handleTshirtPayment = async () => {
@@ -83,6 +90,7 @@ const Wallet = () => {
   const handleGenerateVA = async () => {
     setVaLoading(true);
     setVaError('');
+    setVaSuccess('');
     try {
       const { data } = await generateVirtualAccount();
       updateUser({
@@ -90,7 +98,8 @@ const Wallet = () => {
         virtual_bank_name: data.virtual_bank_name,
         virtual_account_name: data.virtual_account_name
       });
-      alert('Virtual account created successfully!');
+      setVaSuccess(data.message || 'Virtual account created successfully!');
+      await refreshProfile();
     } catch (err) {
       setVaError(err.response?.data?.message || 'Failed to generate virtual account');
     } finally {
@@ -100,7 +109,8 @@ const Wallet = () => {
 
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
-    alert('Copied to clipboard!');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const formatCurrency = (amount) => {
@@ -142,6 +152,9 @@ const Wallet = () => {
           <div className="virtual-account-balance" onClick={() => setHideBalances(!hideBalances)} style={{ cursor: 'pointer' }}>
             <span className="label" style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
               Wallet Balance 
+              <button onClick={(e) => { e.stopPropagation(); refreshProfile(); }} style={{ background: 'none', border: 'none', color: '#ff781f', cursor: 'pointer', fontSize: '0.85rem', padding: '0', textDecoration: 'underline' }} title="Refresh balance">
+                &#x21bb;
+              </button>
               <span style={{ fontSize: '0.85rem', color: '#ff781f' }}>({hideBalances ? 'Show' : 'Hide'})</span>
             </span>
             <span className="amount">
@@ -189,6 +202,16 @@ const Wallet = () => {
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                {vaSuccess && (
+                  <div style={{ background: '#d4edda', color: '#155724', padding: '12px 16px', borderRadius: '8px', marginBottom: '15px', fontSize: '0.9rem' }}>
+                    ✅ {vaSuccess}
+                  </div>
+                )}
+                {vaError && (
+                  <div style={{ background: '#f8d7da', color: '#721c24', padding: '12px 16px', borderRadius: '8px', marginBottom: '15px', fontSize: '0.9rem' }}>
+                    ❌ {vaError}
+                  </div>
+                )}
                 {user?.kycStatus === 'verified' && user?.bvn ? (
                   <>
                     <p style={{ color: '#64748b', marginBottom: '15px' }}>

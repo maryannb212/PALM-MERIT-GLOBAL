@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMyDefaults, payWithLotus } from '../../services/api';
-import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity } from 'react-icons/fa';
+import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock } from 'react-icons/fa';
 import './Dashboard.css';
 import '../../components/DepositModal.css';
 
@@ -26,7 +26,6 @@ const Defaults = () => {
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [totalDefaults, setTotalDefaults] = useState(0);
   const [showLotusModal, setShowLotusModal] = useState(false);
-  const [lotusAmount, setLotusAmount] = useState('');
   const [lotusLoading, setLotusLoading] = useState(false);
   const [lotusError, setLotusError] = useState('');
 
@@ -63,17 +62,13 @@ const Defaults = () => {
 
   const periodLabel = (plan) => isDaily(plan) ? 'Daily' : 'Weekly';
 
-  const periodRef = (plan) => isDaily(plan) ? "today's" : "this week's";
-
-  const periodTitle = (plan) => isDaily(plan) ? 'today' : 'this week';
-
   const handleLotusPay = async (e) => {
     e.preventDefault();
-    if (!lotusAmount || parseFloat(lotusAmount) <= 0) return;
+    if (totalDefaults <= 0) return;
     setLotusLoading(true);
     setLotusError('');
     try {
-      const { data } = await payWithLotus({ amount: parseFloat(lotusAmount), type: 'deposit' });
+      const { data } = await payWithLotus({ amount: totalDefaults, type: 'deposit' });
       if (data.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
@@ -125,10 +120,12 @@ const Defaults = () => {
           <button className="btn btn-primary" onClick={() => navigate('/dashboard/wallet')}>
             <FaWallet /> Fund Wallet
           </button>
-          <button className="btn btn-secondary" onClick={() => { setLotusAmount(totalDefaults > 0 ? String(totalDefaults) : ''); setShowLotusModal(true); }}
-            style={{ background: '#800020', color: '#fff', border: 'none' }}>
-            <FaUniversity /> Pay with Lotus
-          </button>
+          {totalDefaults > 0 && (
+            <button className="btn btn-secondary" onClick={() => setShowLotusModal(true)}
+              style={{ background: '#800020', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FaUniversity /> Clear Defaults • {formatCurrency(totalDefaults)}
+            </button>
+          )}
         </div>
       </header>
 
@@ -273,38 +270,57 @@ const Defaults = () => {
         )}
       </div>
 
-      {/* Lotus Payment Modal */}
+      {/* Lotus Payment Modal — Clear Defaults */}
       {showLotusModal && (
         <div className="modal-overlay" onClick={() => setShowLotusModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <header className="modal-header">
-              <h3><FaUniversity /> Pay with Lotus Bank</h3>
+            <header className="modal-header" style={{ background: '#800020' }}>
+              <h3><FaUniversity style={{ marginRight: 8 }} /> Clear Defaults with Lotus Bank</h3>
               <button className="close-btn" onClick={() => setShowLotusModal(false)}>&times;</button>
             </header>
             <form onSubmit={handleLotusPay} className="modal-form">
-              <p>This payment will clear all <strong>₦{Number(totalDefaults).toLocaleString('en-NG')}</strong> in outstanding defaults across your programs.</p>
-              <div className="form-group">
-                <label>Amount (NGN)</label>
-                <input
-                  type="number"
-                  value={lotusAmount}
-                  onChange={e => setLotusAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  min="100"
-                  required
-                />
+              <div style={{
+                background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
+                padding: '16px 20px', margin: '10px 0 20px', textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '0.8rem', color: '#991b1b', fontWeight: 600, marginBottom: 4 }}>
+                  TOTAL OUTSTANDING DEFAULTS
+                </div>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#dc2626' }}>
+                  {formatCurrency(totalDefaults)}
+                </div>
               </div>
+
+              <div style={{ padding: '0 4px' }}>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                  <FaInfoCircle style={{ color: '#2563eb', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
+                    You'll be charged <strong>{formatCurrency(totalDefaults)}</strong> to clear all outstanding defaults.
+                    Any overpayment beyond your total defaults will be credited to your wallet.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                  <FaLock style={{ color: '#16a34a', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
+                    Secured payment via Lotus Bank. You'll be redirected to complete the transaction.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <FaCheckCircle style={{ color: '#16a34a', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
+                    Payment is auto-applied to settle defaults from oldest to newest. Partial settlements are supported.
+                  </p>
+                </div>
+              </div>
+
               {lotusError && <p className="error-message">{lotusError}</p>}
-              <div className="modal-actions">
+
+              <div className="modal-actions" style={{ marginTop: 24 }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowLotusModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={lotusLoading}
-                  style={{ background: '#800020', borderColor: '#800020' }}>
-                  {lotusLoading ? 'Processing...' : '🏦 Pay with Lotus'}
+                <button type="submit" className="btn btn-primary" disabled={lotusLoading || totalDefaults <= 0}
+                  style={{ background: '#800020', borderColor: '#800020', padding: '12px 28px', fontSize: '1rem' }}>
+                  {lotusLoading ? 'Processing...' : `🏦 Pay ${formatCurrency(totalDefaults)} with Lotus`}
                 </button>
-              </div>
-              <div className="security-notice" style={{ marginTop: '15px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.78rem', color: '#475569', textAlign: 'center' }}>
-                <p style={{ margin: 0, color: '#0f172a', fontWeight: 'bold' }}>🔒 Secure Payment via Lotus Bank</p>
-                <p style={{ margin: '5px 0 0' }}>You'll be redirected to Lotus Bank's secure checkout to complete payment.</p>
               </div>
             </form>
           </div>

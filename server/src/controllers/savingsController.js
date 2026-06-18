@@ -1,7 +1,6 @@
 import { createSavingsPlan, getUserSavingsPlans } from '../models/savingsModel.js';
 import { getClient, query } from '../config/db.js';
 import { createWalletLedgerEntry } from '../models/transactionModel.js';
-import { isReferrerEligibleForMultiplier } from '../helpers/referralHelper.js';
 import { createReferralCodeForPlan } from '../models/referralModel.js';
 
 export const subscribeToPlan = async (req, res) => {

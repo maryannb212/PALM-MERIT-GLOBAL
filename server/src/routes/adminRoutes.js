@@ -25,7 +25,8 @@ import {
   deleteTestPayment,
   getUserDefaults,
   updateDefault,
-  resolveUserDefaults
+  resolveUserDefaults,
+  reconcileLotusVA
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -64,6 +65,7 @@ router.post('/approve-payout', approvePayout);
 router.get('/referrals', getAdminReferralStats);
 router.get('/eligibility-queue', getEligibilityQueue);
 router.post('/approve-eligibility', approveEligibility);
+router.post('/reconcile-lotus-va', reconcileLotusVA);
 router.get('/webhook-logs', getWebhookLogs);
 router.get('/system-status', getSystemStatus);
 router.get('/transaction-debug/:reference', getTransactionDebug);

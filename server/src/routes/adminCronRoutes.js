@@ -37,18 +37,6 @@ router.post('/deductions', async (req, res) => {
 });
 
 /**
- * Trigger Penalty/Deduction Check (now consolidated under deductionJob)
- */
-router.post('/penalties', async (req, res) => {
-  try {
-    const result = await runDeductionJob();
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to trigger penalty check', error: error.message });
-  }
-});
-
-/**
  * Trigger Maturity Check & Settlement
  */
 router.post('/maturity', async (req, res) => {

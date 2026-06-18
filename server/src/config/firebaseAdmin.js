@@ -22,18 +22,4 @@ if (serviceAccount) {
   console.warn("FIREBASE_SERVICE_ACCOUNT environment variable is missing or invalid. Firebase Admin SDK not initialized.");
 }
 
-export const verifyFirebaseToken = async (idToken) => {
-  if (!serviceAccount) {
-    throw new Error("Firebase Admin SDK is not initialized.");
-  }
-  
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    return decodedToken;
-  } catch (error) {
-    console.error("Error verifying Firebase ID token:", error);
-    throw new Error("Invalid or expired Firebase token");
-  }
-};
-
 export default admin;

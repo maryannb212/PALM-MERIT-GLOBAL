@@ -9,7 +9,7 @@ import { query } from '../config/db.js';
  * - 'pending': If user has savings plans but total contributions are 0.
  * - 'inactive': If user has 0 savings plans started.
  */
-export const calculateDownlineStatus = (user, plans) => {
+const calculateDownlineStatus = (user, plans) => {
   if (user.status && user.status.toLowerCase() !== 'active') {
     return 'disqualified';
   }

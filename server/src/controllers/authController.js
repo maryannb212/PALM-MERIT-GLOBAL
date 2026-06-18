@@ -1,14 +1,15 @@
 import bcrypt from 'bcryptjs';
 import jsonwebtoken from 'jsonwebtoken';
 import crypto from 'crypto';
-import { createUser, findUserByEmail, findUserByPhone, findUserById, findUserByEmailOrPhone, normalizePhone } from '../models/userModel.js';
+import { findUserByPhone, findUserById, findUserByEmailOrPhone, normalizePhone } from '../models/userModel.js';
 import { query } from '../config/db.js';
 import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
-import { sendWelcomeEmail, sendPasswordResetEmail, sendOTPEmail } from '../utils/emailService.js';
+import { sendWelcomeEmail, sendOTPEmail } from '../utils/emailService.js';
 
 import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
 import { getUserReferralCodes } from '../models/referralModel.js';
+import { createVirtualAccount } from '../services/virtualAccountService.js';
 import admin from '../config/firebaseAdmin.js';
 
 dotenv.config();
@@ -365,12 +366,6 @@ export const forgotPassword = async (req, res) => {
 
     let normalizedIdentifier = identifier.trim().toLowerCase();
     
-    // -- Phone implementation commented out per request --
-    // const isPhone = /^[+\d\s]+$/.test(normalizedIdentifier);
-    // if (isPhone) {
-    //   normalizedIdentifier = normalizePhone(normalizedIdentifier);
-    // }
-
     const user = await findUserByEmailOrPhone(normalizedIdentifier);
 
     if (!user) {
@@ -380,9 +375,6 @@ export const forgotPassword = async (req, res) => {
     // Generate and save OTP for password reset
     const otp = await createAndSaveOTP(user.id, 'reset');
     
-    // Send OTP via SMS and/or Email (Non-blocking)
-    // if (user.phone && isPhone) { ... }
-
     if (user.email) {
       sendOTPEmail(user.email, otp.code, 'Password Reset').catch(err => {
         console.error('[Auth Service] Background Password Reset OTP delivery failed (Email):', err.message);
@@ -414,12 +406,6 @@ export const resetPassword = async (req, res) => {
     if (loginIdentifier && otp) {
       let normalizedIdentifier = loginIdentifier.trim().toLowerCase();
       
-      // -- Phone implementation commented out per request --
-      // const isPhone = /^[+\d\s]+$/.test(normalizedIdentifier);
-      // if (isPhone) {
-      //   normalizedIdentifier = normalizePhone(normalizedIdentifier);
-      // }
-
       const user = await findUserByEmailOrPhone(normalizedIdentifier);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
@@ -630,46 +616,52 @@ export const generateVirtualAccount = async (req, res) => {
   try {
     const userId = req.user.id;
     
-    const { rows } = await query('SELECT virtual_account_number, virtual_bank_name, virtual_account_name, virtual_provider FROM users WHERE id = $1', [userId]);
+    const { rows } = await query(
+      `SELECT u.*, k.bvn
+       FROM users u
+       LEFT JOIN kyc_details k ON u.id = k.user_id
+       WHERE u.id = $1`,
+      [userId]
+    );
     const user = rows[0];
     
-    if (user?.virtual_account_number) {
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    if (user.virtual_account_number) {
       return res.json({
         message: 'Virtual account already exists',
         virtual_account_number: user.virtual_account_number,
         virtual_bank_name: user.virtual_bank_name,
-        virtual_account_name: user.virtual_account_name
+        virtual_account_name: user.virtual_account_name,
+        virtual_provider: user.virtual_provider
       });
     }
 
-    res.status(400).json({ message: 'Virtual accounts are not available. Please use card payment via Lotus Bank.' });
-    }
+    const vaData = await createVirtualAccount(user);
+
+    await query(
+      `UPDATE users SET
+        virtual_account_number = $1,
+        virtual_account_name = $2,
+        virtual_bank_name = $3,
+        virtual_provider = 'lotus',
+        virtual_account_slug = $4
+      WHERE id = $5`,
+      [vaData.account_number, vaData.account_name, vaData.bank_name, vaData.reference, userId]
+    );
+
+    res.json({
+      message: 'Virtual account created successfully',
+      virtual_account_number: vaData.account_number,
+      virtual_bank_name: vaData.bank_name,
+      virtual_account_name: vaData.account_name,
+      virtual_provider: 'lotus'
+    });
   } catch (error) {
     console.error('Error generating virtual account:', error.message);
     res.status(500).json({ message: 'Server error while generating virtual account: ' + error.message });
   }
 };
-export const changePassword = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { oldPassword, newPassword } = req.body;
-    if (!oldPassword || !newPassword) {
-      return res.status(400).json({ message: 'Old and new passwords are required' });
-    }
-    const user = await findUserById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    const match = await bcrypt.compare(oldPassword, user.password_hash);
-    if (!match) {
-      return res.status(401).json({ message: 'Current password is incorrect' });
-    }
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(newPassword, salt);
-    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
-    res.json({ message: 'Password changed successfully' });
-  } catch (error) {
-    console.error('Error in changePassword:', error);
-    res.status(500).json({ message: 'Server error changing password' });
-  }
-};
+

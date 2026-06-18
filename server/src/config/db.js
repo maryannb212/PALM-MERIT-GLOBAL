@@ -52,7 +52,6 @@ export const query = (text, params) => {
   return pool.query(text, params).then(res => {
     const duration = Date.now() - start;
     if (process.env.NODE_ENV !== 'production') {
-      // console.log('Executed query', { text, duration, rows: res.rowCount });
     }
     return res;
   });

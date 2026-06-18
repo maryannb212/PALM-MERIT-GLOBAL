@@ -289,6 +289,24 @@ const DashboardHome = () => {
           </div>
         </div>
 
+        {/* ─── Virtual Account Card ─── */}
+        {user?.virtual_account_number && (
+          <div className="virtual-account-card" style={{ marginBottom: '20px', padding: '18px 22px', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <span style={{ fontSize: '2rem' }}>🏦</span>
+              <div>
+                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', color: '#0f172a' }}>Your Virtual Account</h4>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
+                  <strong>{user.virtual_account_number}</strong> — {user.virtual_bank_name}
+                </p>
+              </div>
+            </div>
+            <Link to="/dashboard/wallet" className="btn btn-sm btn-primary" style={{ padding: '8px 20px', fontSize: '0.85rem', textDecoration: 'none' }}>
+              View Details
+            </Link>
+          </div>
+        )}
+
         {/* ─── What's Up This Week ─── */}
         <div className="dashboard-section whats-up-section">
           <div className="section-header">

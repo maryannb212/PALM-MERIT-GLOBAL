@@ -79,7 +79,7 @@ export const runStartupCatchupDeductions = async () => {
           const owedAmount = expectedTotal - currentAmount;
           console.log(`Plan ${plan.id} (${plan.plan_name}) is behind. Expected: N${expectedTotal}, Actual: N${currentAmount}. Catching up N${owedAmount}...`);
 
-          const { rows: users } = await client.query('SELECT id, available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
+          const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
           if (users.length === 0) throw new Error('User not found');
 
           const user = users[0];
@@ -88,7 +88,7 @@ export const runStartupCatchupDeductions = async () => {
           if (availableBalance >= owedAmount) {
             const reference = `CATCHUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-            await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [owedAmount, user.id]);
+            await client.query('UPDATE users SET available_balance = available_balance - $1 WHERE id = $2', [owedAmount, user.id]);
             await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [owedAmount, plan.id]);
             await client.query(`
               INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
@@ -218,7 +218,7 @@ export const runDeductionJob = async () => {
         const savingsAmount = Math.min(payableAmount, fullDue);
 
         if (savingsAmount > 0) {
-          await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
+          await client.query('UPDATE users SET available_balance = available_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
           await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [savingsAmount, plan.id]);
           await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'savings', $3, 'completed', $4)`, [plan.user_id, plan.id, savingsAmount, ref]);
           await createWalletLedgerEntry(client, plan.user_id, 'debit', savingsAmount, ref, `Automatic savings deduction for ${plan.plan_name}`);

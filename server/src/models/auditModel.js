@@ -28,16 +28,4 @@ export const logAudit = async (adminId, action, entityType, entityId, details) =
   }
 };
 
-/**
- * Get all audit logs
- */
-export const getAllAuditLogs = async () => {
-  const sql = `
-    SELECT a.*, u.first_name, u.last_name, u.email 
-    FROM audit_logs a
-    JOIN users u ON a.admin_id = u.id
-    ORDER BY a.created_at DESC;
-  `;
-  const result = await query(sql);
-  return result.rows;
-};
+
