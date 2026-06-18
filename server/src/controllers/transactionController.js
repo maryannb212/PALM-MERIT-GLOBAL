@@ -666,7 +666,7 @@ export const uploadReceipt = async (req, res) => {
 async function handleLotusVADeposit(payload, res) {
   try {
     const data = payload.data || {};
-    const accountNumber = data.reserved_account?.account_number;
+    const accountNumber = data.reserved_account?.account_details?.account_number || data.reserved_account?.account_number;
     const amount = parseFloat(data.amount) || 0;
     const vaReference = data.reference || '';
 
