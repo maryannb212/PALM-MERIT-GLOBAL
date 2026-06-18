@@ -28,8 +28,6 @@ export const createVirtualAccount = async (user) => {
 
   const cleanPhone = (user.phone || '').replace(/[^0-9]/g, '');
 
-  const baseUrl = (process.env.WEBHOOK_BASE_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
-
   const payload = {
     currency: 'NGN',
     customer: {
@@ -38,8 +36,7 @@ export const createVirtualAccount = async (user) => {
       email: user.email || `user${user.id}@palmmeritglobal.com`,
       mobile_no: cleanPhone || user.phone || '',
       bvn
-    },
-    webhook_url: `${baseUrl}/api/transactions/webhook/lotus`
+    }
   };
 
   try {
