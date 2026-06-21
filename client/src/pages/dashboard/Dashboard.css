@@ -3593,6 +3593,16 @@ input:checked + .slider:before {
   color: #dc2626;
 }
 
+.defaults-plan-stat.highlight-safe {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.defaults-plan-stat.highlight-safe .dps-value {
+  color: #16a34a;
+}
+
+
 /* Warning */
 .defaults-plan-warning {
   display: flex;

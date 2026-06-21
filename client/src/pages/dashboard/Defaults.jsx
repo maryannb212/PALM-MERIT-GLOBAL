@@ -25,10 +25,9 @@ const Defaults = () => {
   const [loading, setLoading] = useState(true);
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [totalDefaults, setTotalDefaults] = useState(0);
-  const [showLotusModal, setShowLotusModal] = useState(false);
-  const [lotusAmount, setLotusAmount] = useState('');
-  const [lotusLoading, setLotusLoading] = useState(false);
-  const [lotusError, setLotusError] = useState('');
+  const [clearLoading, setClearLoading] = useState(false);
+  const [clearError, setClearError] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     fetchDefaults();
@@ -54,35 +53,30 @@ const Defaults = () => {
   };
 
   const hasDefaults = (plan) => plan.default_count > 0;
+  const anyDefaults = totalDefaults > 0;
 
   const toggleExpand = (planId) => {
     setExpandedPlan(expandedPlan === planId ? null : planId);
   };
 
   const isDaily = (plan) => plan.plan_name === 'ISUSU';
-
   const periodLabel = (plan) => isDaily(plan) ? 'Daily' : 'Weekly';
 
-  const periodRef = (plan) => isDaily(plan) ? "today's" : "this week's";
-
-  const periodTitle = (plan) => isDaily(plan) ? 'today' : 'this week';
-
-  const handleLotusPay = async (e) => {
-    e.preventDefault();
-    if (!lotusAmount || parseFloat(lotusAmount) <= 0) return;
-    setLotusLoading(true);
-    setLotusError('');
+  // Clear Defaults — charge exactly the total outstanding, redirect to Lotus
+  const handleClearDefaults = async () => {
+    setClearLoading(true);
+    setClearError('');
     try {
-      const { data } = await payWithLotus({ amount: parseFloat(lotusAmount), type: 'deposit' });
+      const { data } = await payWithLotus({ amount: Math.floor(totalDefaults), type: 'deposit' });
       if (data.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
-        setLotusError('Lotus Bank did not return a payment link. Try again.');
+        setClearError('Lotus Bank did not return a payment link. Please try again.');
+        setClearLoading(false);
       }
     } catch (err) {
-      setLotusError(err.response?.data?.message || 'Payment failed. Try again.');
-    } finally {
-      setLotusLoading(false);
+      setClearError(err.response?.data?.message || 'Payment failed. Please try again.');
+      setClearLoading(false);
     }
   };
 
@@ -120,15 +114,23 @@ const Defaults = () => {
   return (
     <>
       <header className="dashboard-header">
-        <h2>Defaults & Penalties</h2>
+        <h2>Defaults &amp; Penalties</h2>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button className="btn btn-primary" onClick={() => navigate('/dashboard/wallet')}>
             <FaWallet /> Fund Wallet
           </button>
-          <button className="btn btn-secondary" onClick={() => { setLotusAmount(totalDefaults > 0 ? String(totalDefaults) : ''); setShowLotusModal(true); }}
-            style={{ background: '#800020', color: '#fff', border: 'none' }}>
-            <FaUniversity /> Pay with Lotus
-          </button>
+
+          {/* Only show Clear Defaults button when the user actually has defaults */}
+          {!loading && anyDefaults && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowConfirmModal(true)}
+              style={{ background: '#800020', color: '#fff', border: 'none' }}
+              disabled={clearLoading}
+            >
+              <FaUniversity /> {clearLoading ? 'Redirecting...' : 'Clear Defaults'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -170,7 +172,6 @@ const Defaults = () => {
               const defaultPerAccount = plan.penalty_per_account || 0;
               const isDailyPlan = isDaily(plan);
               const contributionPerAccount = plan.weekly_amount || 0;
-              const totalContributionDue = contributionPerAccount * (plan.number_of_accounts || 1);
 
               return (
                 <div
@@ -197,6 +198,11 @@ const Defaults = () => {
                           <FaTimesCircle /> Defaulting
                         </span>
                       )}
+                      {!inDefault && (
+                        <span className="defaults-badge safe">
+                          <FaCheckCircle /> Good Standing
+                        </span>
+                      )}
                       <span className={`defaults-chevron ${expandedPlan === plan.plan_id ? 'open' : ''}`}>
                         <FaArrowRight />
                       </span>
@@ -212,7 +218,7 @@ const Defaults = () => {
                       <span className="dps-label">Penalty per Account</span>
                       <span className="dps-value penalty">{formatCurrency(defaultPerAccount)}</span>
                     </div>
-                    <div className="defaults-plan-stat highlight-danger">
+                    <div className={`defaults-plan-stat ${inDefault ? 'highlight-danger' : 'highlight-safe'}`}>
                       <span className="dps-label">Total Outstanding Default</span>
                       <span className="dps-value">{formatCurrency(plan.total_default_amount)}</span>
                     </div>
@@ -230,8 +236,6 @@ const Defaults = () => {
 
                   {expandedPlan === plan.plan_id && (
                     <div className="defaults-plan-details">
-
-
                       {/* Individual Defaults */}
                       {plan.defaults && plan.defaults.length > 0 && (
                         <div className="defaults-list-section">
@@ -258,13 +262,12 @@ const Defaults = () => {
                           </div>
                         </div>
                       )}
-
-                        </div>
+                    </div>
                   )}
 
                   {/* View Details Link (always visible) */}
                   <div className="defaults-view-details" onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/defaults/${plan.plan_id}`); }}>
-                    <span>View All Accounts & Full Details <FaArrowRight /></span>
+                    <span>View All Accounts &amp; Full Details <FaArrowRight /></span>
                   </div>
                 </div>
               );
@@ -273,44 +276,68 @@ const Defaults = () => {
         )}
       </div>
 
-      {/* Lotus Payment Modal */}
-      {showLotusModal && (
-        <div className="modal-overlay" onClick={() => setShowLotusModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+      {/* Confirm Clear Defaults Modal */}
+      {showConfirmModal && (
+        <div className="modal-overlay" onClick={() => { if (!clearLoading) setShowConfirmModal(false); }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <header className="modal-header">
-              <h3><FaUniversity /> Pay with Lotus Bank</h3>
-              <button className="close-btn" onClick={() => setShowLotusModal(false)}>&times;</button>
+              <h3><FaUniversity /> Clear All Defaults</h3>
+              <button className="close-btn" onClick={() => setShowConfirmModal(false)} disabled={clearLoading}>&times;</button>
             </header>
-            <form onSubmit={handleLotusPay} className="modal-form">
-              <p>This payment will clear all <strong>₦{Number(totalDefaults).toLocaleString('en-NG')}</strong> in outstanding defaults across your programs.</p>
-              <div className="form-group">
-                <label>Amount (NGN)</label>
-                <input
-                  type="number"
-                  value={lotusAmount}
-                  onChange={e => setLotusAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  min="100"
-                  required
-                />
+
+            <div className="modal-form">
+              {/* Summary breakdown */}
+              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
+                <p style={{ margin: '0 0 10px', fontWeight: '600', color: '#991b1b', fontSize: '0.9rem' }}>
+                  <FaExclamationTriangle style={{ marginRight: '6px' }} />
+                  Outstanding Defaults Summary
+                </p>
+                {plans.filter(hasDefaults).map(plan => (
+                  <div key={plan.plan_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#374151', padding: '4px 0', borderBottom: '1px dashed #fca5a5' }}>
+                    <span>{PLAN_ICONS[plan.plan_name] || '📋'} {plan.plan_name} ({plan.default_count} default{plan.default_count > 1 ? 's' : ''})</span>
+                    <span style={{ fontWeight: '600' }}>{formatCurrency(plan.total_default_amount)}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem', fontWeight: '700', color: '#dc2626', marginTop: '10px', paddingTop: '6px' }}>
+                  <span>Total to Pay</span>
+                  <span>{formatCurrency(totalDefaults)}</span>
+                </div>
               </div>
-              {lotusError && <p className="error-message">{lotusError}</p>}
+
+              <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0 0 16px' }}>
+                You'll be redirected to <strong>Lotus Bank's secure checkout</strong> to complete this payment. Once paid, your defaults will be cleared automatically.
+              </p>
+
+              {clearError && <p className="error-message" style={{ marginBottom: '12px' }}>{clearError}</p>}
+
               <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowLotusModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={lotusLoading}
-                  style={{ background: '#800020', borderColor: '#800020' }}>
-                  {lotusLoading ? 'Processing...' : '🏦 Pay with Lotus'}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowConfirmModal(false)}
+                  disabled={clearLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleClearDefaults}
+                  disabled={clearLoading}
+                  style={{ background: '#800020', borderColor: '#800020' }}
+                >
+                  {clearLoading ? 'Redirecting to Lotus...' : `🏦 Pay ${formatCurrency(totalDefaults)}`}
                 </button>
               </div>
+
               <div className="security-notice" style={{ marginTop: '15px', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.78rem', color: '#475569', textAlign: 'center' }}>
                 <p style={{ margin: 0, color: '#0f172a', fontWeight: 'bold' }}>🔒 Secure Payment via Lotus Bank</p>
                 <p style={{ margin: '5px 0 0' }}>You'll be redirected to Lotus Bank's secure checkout to complete payment.</p>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
-
     </>
   );
 };
