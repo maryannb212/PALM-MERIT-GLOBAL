@@ -11,7 +11,8 @@ import {
   getMyReferrals,
   uploadProfileImage,
   removeProfileImage,
-  generateVirtualAccount
+  generateVirtualAccount,
+  updateBvn
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import upload from '../middleware/uploadMiddleware.js';
@@ -39,5 +40,6 @@ router.get('/referrals', protect, getMyReferrals);
 router.put('/profile-image', protect, upload.single('profileImage'), uploadProfileImage);
 router.delete('/profile-image', protect, removeProfileImage);
 router.post('/generate-virtual-account', protect, generateVirtualAccount);
+router.put('/bvn', protect, updateBvn);
 
 export default router;

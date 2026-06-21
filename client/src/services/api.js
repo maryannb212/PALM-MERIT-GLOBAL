@@ -70,6 +70,8 @@ export const verifyOTP = (data) => API.post('/auth/verify-otp', data);
 export const forgotPassword = (data) => API.post('/auth/forgot-password', data);
 export const resetPassword = (data) => API.post('/auth/reset-password', data);
 export const generateVirtualAccount = () => API.post('/auth/generate-virtual-account');
+export const updateBvn = (bvn) => API.put('/auth/bvn', { bvn });
+
 
 // Savings endpoints
 export const subscribeToPlan = (planData) => API.post('/savings/subscribe', planData);
