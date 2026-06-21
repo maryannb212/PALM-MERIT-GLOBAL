@@ -643,7 +643,6 @@ export const generateVirtualAccount = async (req, res) => {
     }
 
     res.status(400).json({ message: 'Virtual accounts are not available. Please use card payment via Lotus Bank.' });
-    }
   } catch (error) {
     console.error('Error generating virtual account:', error.message);
     res.status(500).json({ message: 'Server error while generating virtual account: ' + error.message });
