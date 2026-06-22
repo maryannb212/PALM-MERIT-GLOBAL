@@ -341,42 +341,6 @@ export const paystackWebhook = async (req, res) => {
     );
 
     console.info(`[Webhook] Processed reference=${reference} amount=${transaction.amount}`);
-    return res.status(200).send('Webhook processed');
-  } catch (error) {
-    const note = error.message || 'Unknown error';
-
-    await logWebhookEvent({
-      source: 'paystack',
-      reference,
-      eventType,
-      payload: event,
-      signatureOk,
-      status: 'error',
-      note,
-    });
-
-    if (error.message?.startsWith('REFERENCE_NOT_FOUND')) {
-      console.warn(`[Webhook] Unknown reference: ${reference}`);
-      return res.status(200).send('Unknown reference — ignored');
-    }
-
-    if (error.message?.startsWith('AMOUNT_MISMATCH')) {
-      console.error(`[Webhook] Amount mismatch: ${error.message}`);
-      return res.status(200).send('Amount mismatch — transaction rejected');
-    }
-
-    console.error('[Webhook] Unexpected error:', error);
-    return res.status(200).send('Internal error — logged');
-  }
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST /api/transactions/webhook/lotus
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Lotus Bank Webhook handler.
- */
 export const lotusWebhook = async (req, res) => {
   try {
     // Dual-mode raw body handling (works with or without express.raw middleware)
@@ -433,44 +397,58 @@ export const lotusWebhook = async (req, res) => {
       return res.status(400).send('Missing reference');
     }
 
-    // Only process successful payments
-    const successStatuses = ['successful', 'completed', 'paid', 'success', 'approved', 'succeeded'];
-    if (!successStatuses.includes(status.toLowerCase())) {
-      console.log('[Lotus Webhook] Ignored non-successful payment:', status);
-      await logWebhookEvent({
-        source: 'lotus',
-        reference,
-        eventType,
-        payload,
-        signatureOk: true,
-        status: 'ignored',
-        note: `Status: ${status}`
-      });
-      return res.status(200).send('Ignored');
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // Detect payment type:
+    // Virtual Account (bank transfer) → payload.data.reserved_account exists
+    // Checkout (card/transfer via checkout link) → no reserved_account
+    // ─────────────────────────────────────────────────────────────────────────
+    const isVirtualAccountPayment = !!(payload.data?.reserved_account);
 
-    // Verify with Lotus API
-    let verifiedAmount = payload.data?.amount || payload.amount || null;
-    let gatewayRef = payload.data?.reference || payload.reference || null;
+    if (isVirtualAccountPayment) {
+      // ── VIRTUAL ACCOUNT PAYMENT FLOW ──────────────────────────────────────
+      // HMAC already verified above — no secondary API call needed.
+      // Lotus VA webhook always fires on a successful transfer, so we trust
+      // the payload directly and credit the user by their virtual_account_number.
 
-    if (!isMockMode()) {
-      try {
-        const statusRes = await axios.get(
-          `https://partnerhub.lotusbank.com/api/v1/checkout/status/${reference}`,
-          {
-            headers: { 'x-api-key': getLotusXApiKey() },
-            timeout: 10000
-          }
-        );
-        const verifyData = statusRes.data?.data;
-        if (verifyData && successStatuses.includes((verifyData.status || '').toLowerCase())) {
-          verifiedAmount = verifyData.amount || verifiedAmount;
-          gatewayRef = verifyData.reference || gatewayRef;
-        } else {
-          throw new Error(`Lotus verification returned status: ${verifyData?.status}`);
-        }
-      } catch (verifyErr) {
-        console.error('[Lotus Webhook] Verification failed:', verifyErr.message);
+      const rawAmount = payload.data?.amount || 0;
+      // Lotus sends VA amounts in naira (not kobo), unlike Paystack
+      const amount = Number(rawAmount);
+      const accountNumber = payload.data?.reserved_account?.account_details?.account_number;
+
+      if (!accountNumber) {
+        await logWebhookEvent({
+          source: 'lotus',
+          reference,
+          eventType,
+          payload,
+          signatureOk: true,
+          status: 'rejected',
+          note: 'VA webhook missing reserved_account.account_details.account_number'
+        });
+        return res.status(400).send('Missing account number');
+      }
+
+      if (!amount || amount <= 0) {
+        await logWebhookEvent({
+          source: 'lotus',
+          reference,
+          eventType,
+          payload,
+          signatureOk: true,
+          status: 'rejected',
+          note: `Invalid amount: ${rawAmount}`
+        });
+        return res.status(400).send('Invalid amount');
+      }
+
+      // Look up user by virtual account number
+      const { rows: userRows } = await query(
+        'SELECT id, email, available_balance FROM users WHERE virtual_account_number = $1',
+        [accountNumber]
+      );
+
+      if (!userRows[0]) {
+        console.error(`[Lotus VA Webhook] No user found for account ${accountNumber}`);
         await logWebhookEvent({
           source: 'lotus',
           reference,
@@ -478,30 +456,41 @@ export const lotusWebhook = async (req, res) => {
           payload,
           signatureOk: true,
           status: 'error',
-          note: `Verification failed: ${verifyErr.message}`
+          note: `No user found for virtual_account_number=${accountNumber}`
         });
-        return res.status(503).send('Verification error — will retry');
+        return res.status(200).send('User not found');
       }
-    }
 
-    const { isDuplicate, transaction } = await processCompletedPayment(
-      reference,
-      verifiedAmount ? Number(verifiedAmount) : null,
-      gatewayRef,
-      'lotus'
-    );
+      const user = userRows[0];
 
-    if (isDuplicate) {
-      console.info(`[Lotus Webhook] Duplicate — already processed reference=${reference}`);
-      await logWebhookEvent({
-        source: 'lotus',
-        reference,
-        eventType,
-        payload,
-        signatureOk: true,
-        status: 'duplicate',
-        note: 'Already processed'
-      });
+      // Check for duplicate (idempotency)
+      const { rows: existingTx } = await query(
+        'SELECT id, status FROM transactions WHERE reference = $1',
+        [reference]
+      );
+
+      if (existingTx[0]?.status === 'completed') {
+        console.info(`[Lotus VA Webhook] Duplicate — already processed ref=${reference}`);
+        await logWebhookEvent({
+          source: 'lotus',
+          reference,
+          eventType,
+          payload,
+          signatureOk: true,
+          status: 'duplicate',
+          note: 'Already processed'
+        });
+        return res.status(200).send('Duplicate');
+      }
+
+      // Create a pending transaction record if none exists (VA payments have no prior record)
+      if (!existingTx[0]) {
+        await query(
+          `INSERT INTO transactions (user_id, plan_id, type, amount, reference, payment_provider, status)
+           VALUES ($1, NULL, 'wallet_topup', $2, $3, 'lotus', 'pending')
+           ON CONFLICT (reference) DO NOTHING`,
+          [user.id, amount, reference]
+        );
       return res.status(200).send('Duplicate');
     }
 

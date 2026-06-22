@@ -217,13 +217,15 @@ export const runDeductionJob = async () => {
         const payableAmount = payableAccounts * perAccountAmount;
         const savingsAmount = Math.min(payableAmount, fullDue);
 
+        let remainingBalance = balance;
+
         if (savingsAmount > 0) {
           await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
           await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [savingsAmount, plan.id]);
           await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'savings', $3, 'completed', $4)`, [plan.user_id, plan.id, savingsAmount, ref]);
           await createWalletLedgerEntry(client, plan.user_id, 'debit', savingsAmount, ref, `Automatic savings deduction for ${plan.plan_name}`);
 
-          await client.query('COMMIT');
+          remainingBalance -= savingsAmount;
 
           let msg = `Your automatic savings deduction of N${savingsAmount.toLocaleString()} for your ${plan.plan_name} plan was successful`;
           if (savingsAmount < fullDue) {
@@ -234,17 +236,46 @@ export const runDeductionJob = async () => {
           await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
           console.log(`Plan ${plan.id}: saved N${savingsAmount}.`);
         } else {
-          // ── Insufficient funds — create a default ──
-          const defaultPenalty = perAccountAmount * numAccounts;
-          await client.query(`INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount) VALUES ($1, $2, $3::date, $4)`, [plan.user_id, plan.id, watDateStr, defaultPenalty]);
-          await client.query('COMMIT');
-
-          await createNotification(
-            plan.user_id, 'ALERT', 'Savings Default Recorded',
-            `Your ${plan.plan_name} plan missed the contribution of N${defaultPenalty.toLocaleString()} due to insufficient wallet balance. A default has been recorded for ${watDateStr}.`
-          );
-          console.log(`Plan ${plan.id}: insufficient funds (N${balance}) — defaulted N${defaultPenalty}.`);
+          console.log(`Plan ${plan.id}: insufficient funds (N${balance}) to cover even 1 account (N${perAccountAmount}). Checking defaults...`);
+          
+          // ── Add SKIP- marker if no savings could be made ──
+          const skipRef = `SKIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'penalty', 0, 'completed', $3)`, [plan.user_id, plan.id, skipRef]);
         }
+
+        // ── Sweep leftover to defaults ──
+        if (remainingBalance > 0) {
+          const { rows: unpaidDefaults } = await client.query(`
+            SELECT * FROM defaults 
+            WHERE plan_id = $1 AND status = 'unpaid' 
+            ORDER BY created_at ASC
+          `, [plan.id]);
+
+          for (const def of unpaidDefaults) {
+            if (remainingBalance <= 0) break;
+            const defBalance = parseFloat(def.penalty_amount) - parseFloat(def.amount_paid || 0);
+            if (defBalance <= 0) continue;
+
+            const sweepAmount = Math.floor(Math.min(remainingBalance, defBalance));
+            if (sweepAmount > 0) {
+              const defRef = `DEF-SWP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+              await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [sweepAmount, plan.user_id]);
+              
+              const newAmountPaid = parseFloat(def.amount_paid || 0) + sweepAmount;
+              const newStatus = newAmountPaid >= parseFloat(def.penalty_amount) ? 'paid' : 'unpaid';
+              
+              await client.query('UPDATE defaults SET amount_paid = $1, status = $2 WHERE id = $3', [newAmountPaid, newStatus, def.id]);
+              
+              await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'penalty_settlement', $3, 'completed', $4)`, [plan.user_id, plan.id, sweepAmount, defRef]);
+              await createWalletLedgerEntry(client, plan.user_id, 'debit', sweepAmount, defRef, `Default sweep settlement for ${plan.plan_name}`);
+              
+              remainingBalance -= sweepAmount;
+              console.log(`Plan ${plan.id}: Swept N${sweepAmount} to settle default ${def.id}`);
+            }
+          }
+        }
+
+        await client.query('COMMIT');
       } catch (err) {
         await client.query('ROLLBACK');
         console.error(`Error processing deduction for plan ${plan.id}:`, err);
