@@ -338,6 +338,22 @@ export const paystackWebhook = async (req, res) => {
     );
 
     console.info(`[Webhook] Processed reference=${reference} amount=${transaction.amount}`);
+    return res.status(200).send('Webhook processed');
+  } catch (error) {
+    console.error('[Paystack Webhook] Error:', error.message);
+    await logWebhookEvent({
+      source: 'paystack',
+      reference: event?.data?.reference || null,
+      eventType: event?.event,
+      payload: event,
+      signatureOk: true,
+      status: 'error',
+      note: error.message
+    });
+    return res.status(500).send('Internal Error');
+  }
+};
+
 export const lotusWebhook = async (req, res) => {
   try {
     // Dual-mode raw body handling (works with or without express.raw middleware)
@@ -386,6 +402,14 @@ export const lotusWebhook = async (req, res) => {
     // ── Virtual Account (Reserved Account) Deposit ────────────────────────
     if (payloadService === 'payments' && payloadType === 'reserved_account') {
       return await handleLotusVADeposit(payload, res);
+    }
+
+    // ── Checkout Payment (membership, deposit, etc.) ────────────────────
+    const isSuccessfulCheckout = payload.event === 'payment.success' ||
+      payloadType === 'checkout' ||
+      (payload.service === 'payment' && payload.data?.status === 'successful');
+    if (isSuccessfulCheckout && reference) {
+      return await handleLotusCheckout(payload, res);
     }
 
     if (!reference) {
@@ -495,28 +519,52 @@ export const lotusWebhook = async (req, res) => {
            ON CONFLICT (reference) DO NOTHING`,
           [user.id, amount, reference]
         );
-      return res.status(200).send('Duplicate');
+      }
+
+      // Process the payment (idempotent)
+      const { isDuplicate, transaction } = await processCompletedPayment(
+        reference,
+        amount,
+        reference,
+        'lotus'
+      );
+
+      if (isDuplicate) {
+        console.info(`[Lotus VA Webhook] Duplicate — already processed ref=${reference}`);
+        await logWebhookEvent({
+          source: 'lotus',
+          reference,
+          eventType,
+          payload,
+          signatureOk: true,
+          status: 'duplicate',
+          note: 'Already processed'
+        });
+        return res.status(200).send('Duplicate');
+      }
+
+      await createNotification(
+        transaction.user_id,
+        'PAYMENT',
+        'Payment Successful (Lotus Bank)',
+        `Your Lotus Bank payment of ₦${Number(transaction.amount).toLocaleString('en-NG')} (ref: ${reference}) has been confirmed.`
+      ).catch(() => {});
+
+      await logWebhookEvent({
+        source: 'lotus',
+        reference,
+        eventType,
+        payload,
+        signatureOk: true,
+        status: 'processed',
+        note: `Credited ₦${transaction.amount} to user ${transaction.user_id}`
+      });
+
+      console.info(`[Lotus Webhook] Processed reference=${reference}`);
+      return res.status(200).send('Webhook processed');
     }
-
-    await createNotification(
-      transaction.user_id,
-      'PAYMENT',
-      'Payment Successful (Lotus Bank)',
-      `Your Lotus Bank payment of ₦${Number(transaction.amount).toLocaleString('en-NG')} (ref: ${reference}) has been confirmed.`
-    ).catch(() => {});
-
-    await logWebhookEvent({
-      source: 'lotus',
-      reference,
-      eventType,
-      payload,
-      signatureOk: true,
-      status: 'processed',
-      note: `Credited ₦${transaction.amount} to user ${transaction.user_id}`
-    });
-
-    console.info(`[Lotus Webhook] Processed reference=${reference}`);
-    return res.status(200).send('Webhook processed');
+    // If not a virtual account payment, respond success (events we don't handle)
+    return res.status(200).send('Not a VA payment');
   } catch (error) {
     console.error('[Lotus Webhook] Error:', error.message);
     await logWebhookEvent({
@@ -730,6 +778,92 @@ async function handleLotusVADeposit(payload, res) {
     await logWebhookEvent({
       source: 'lotus', reference: payload?.data?.reference || null,
       eventType: 'reserved_account', payload,
+      signatureOk: true, status: 'error', note: error.message
+    }).catch(() => {});
+    return res.status(200).send('Error logged');
+  }
+}
+
+/**
+ * Handle Lotus checkout payment webhook (membership, deposit, etc.)
+ * Called from lotusWebhook for successful checkout/payment events.
+ */
+async function handleLotusCheckout(payload, res) {
+  try {
+    const data = payload.data || {};
+    const reference = data.reference || payload.reference || '';
+    const status = data.status || payload.status || '';
+
+    if (!reference) {
+      console.warn('[Lotus Checkout Webhook] Missing reference');
+      return res.status(200).send('Missing reference');
+    }
+
+    const successStatuses = ['successful', 'completed', 'paid', 'success', 'approved', 'succeeded'];
+    if (!successStatuses.includes(status.toLowerCase())) {
+      console.info(`[Lotus Checkout Webhook] Non-success status: ${status}`);
+      return res.status(200).send(`Ignored — status: ${status}`);
+    }
+
+    // Find the pending transaction
+    const { rows: existingTx } = await query(
+      'SELECT * FROM transactions WHERE reference = $1',
+      [reference]
+    );
+
+    if (existingTx.length === 0) {
+      console.warn(`[Lotus Checkout Webhook] No transaction found for ref=${reference}`);
+      await logWebhookEvent({
+        source: 'lotus', reference, eventType: 'checkout',
+        payload, signatureOk: true, status: 'rejected',
+        note: `No transaction found for ref ${reference}`
+      });
+      return res.status(200).send('Transaction not found');
+    }
+
+    if (existingTx[0].status === 'completed') {
+      console.info(`[Lotus Checkout Webhook] Already completed ref=${reference}`);
+      await logWebhookEvent({
+        source: 'lotus', reference, eventType: 'checkout',
+        payload, signatureOk: true, status: 'duplicate',
+        note: 'Already processed'
+      });
+      return res.status(200).send('Duplicate');
+    }
+
+    const amount = parseFloat(data.amount) || parseFloat(existingTx[0].amount) || 0;
+
+    const { isDuplicate, transaction } = await processCompletedPayment(
+      reference, amount, reference, 'lotus'
+    );
+
+    const txType = transaction.type || existingTx[0].type;
+    const userId = transaction.user_id || existingTx[0].user_id;
+
+    await logWebhookEvent({
+      source: 'lotus', reference, eventType: 'checkout',
+      payload, signatureOk: true,
+      status: isDuplicate ? 'duplicate' : 'processed',
+      note: isDuplicate
+        ? `Duplicate checkout for ref ${reference}`
+        : `Processed ${txType} of ₦${amount} for user ${userId}`
+    });
+
+    if (!isDuplicate) {
+      const label = txType === 'membership' ? 'Membership Activated' : 'Payment Successful';
+      const msg = txType === 'membership'
+        ? 'Your membership has been activated successfully.'
+        : `Your payment of ₦${amount.toLocaleString('en-NG')} (ref: ${reference}) has been confirmed.`;
+      await createNotification(userId, 'PAYMENT', label, msg).catch(() => {});
+      console.log(`[Lotus Checkout Webhook] Processed ${txType} for user ${userId}`);
+    }
+
+    return res.status(200).send('Webhook processed');
+  } catch (error) {
+    console.error('[Lotus Checkout Webhook] Error:', error.message);
+    await logWebhookEvent({
+      source: 'lotus', reference: payload?.data?.reference || null,
+      eventType: 'checkout', payload,
       signatureOk: true, status: 'error', note: error.message
     }).catch(() => {});
     return res.status(200).send('Error logged');

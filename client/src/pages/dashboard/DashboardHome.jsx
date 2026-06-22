@@ -20,6 +20,7 @@ const DashboardHome = () => {
   const [birthdayDismissed, setBirthdayDismissed] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showAllNotifs, setShowAllNotifs] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
     alert('Copied to clipboard!');
@@ -32,8 +33,8 @@ const DashboardHome = () => {
     return today.getMonth() === dob.getMonth() && today.getDate() === dob.getDate();
   })();
 
-  const fetchPlans = async () => {
-    if (!user?.hasPaidMembership && user?.role !== 'admin') {
+  const fetchPlans = async (hasMembership) => {
+    if (!hasMembership && user?.role !== 'admin') {
       setLoading(false);
       return;
     }
@@ -52,8 +53,13 @@ const DashboardHome = () => {
   };
 
   useEffect(() => {
-    refreshProfile(); // Always fetch latest profile (KYC status, membership, etc.)
-    fetchPlans();
+    const init = async () => {
+      const profile = await refreshProfile();
+      const hasMembership = profile?.has_paid_membership ?? user?.hasPaidMembership;
+      setProfileLoaded(true);
+      fetchPlans(hasMembership);
+    };
+    init();
   }, []);
 
   const handleDismissBirthday = () => {
@@ -65,6 +71,10 @@ const DashboardHome = () => {
     const bDismissed = sessionStorage.getItem('birthday_dismissed');
     if (bDismissed) setBirthdayDismissed(true);
   }, []);
+
+  if (!profileLoaded) {
+    return <div className="loading-container" style={{ textAlign: 'center', padding: '80px 20px' }}><div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid #e1e1e1', borderTop: '4px solid #800020', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div><p>Loading your profile...</p></div>;
+  }
 
   if (user?.role === 'admin') {
     // Admin bypasses paywall
