@@ -47,6 +47,13 @@ export const createReferralCodeForPlan = async (client, userId, planId, planName
 };
 
 export const getUserReferralCodes = async (userId) => {
+  await query(
+    `UPDATE referral_codes
+     SET status = 'available', updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = $1 AND status = 'locked' AND unlock_date IS NOT NULL AND unlock_date <= NOW()`,
+    [userId]
+  );
+
   const sql = `
     SELECT r.id, r.code, r.status, r.unlock_date, r.used_by_user_id, r.created_at,
            s.plan_name as plan_name, s.status as plan_status,
