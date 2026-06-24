@@ -31,6 +31,11 @@ export const subscribeToPlan = async (req, res) => {
         if (rc.status === 'used') {
           return res.status(400).json({ message: 'This referral code has already been used' });
         }
+        // Auto-unlock if unlock_date has passed
+        if (rc.status === 'locked' && rc.unlock_date && new Date(rc.unlock_date) <= new Date()) {
+          await query('UPDATE referral_codes SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', ['available', rc.id]);
+          rc.status = 'available';
+        }
         if (rc.status === 'locked' || (rc.unlock_date && new Date(rc.unlock_date) > new Date())) {
           return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
         }
