@@ -35,18 +35,20 @@ const settleOutstandingPenalties = async (client, userId, amount, paymentReferen
       // Fully settle this default
       await client.query(`UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1`, [d.id]);
 
+      const settlementRef = `${paymentReference}-STL-${d.id.slice(0, 8)}`;
+
       // Record settlement transaction
       await client.query(
         `INSERT INTO transactions (user_id, plan_id, type, amount, status, reference, payment_provider)
          VALUES ($1, NULL, 'penalty_settlement', $2, 'completed', $3, 'system') RETURNING *`,
-        [userId, penalty, paymentReference]
+        [userId, penalty, settlementRef]
       );
 
       // Ledger entry for settlement
       await client.query(
         `INSERT INTO wallet_transactions (user_id, type, amount, reference, description)
          VALUES ($1, 'debit', $2, $3, $4)`,
-        [userId, penalty, paymentReference, `Penalty settlement from payment ${paymentReference}`]
+        [userId, penalty, settlementRef, `Penalty settlement from payment ${paymentReference}`]
       );
 
       // Notify user
@@ -63,6 +65,7 @@ const settleOutstandingPenalties = async (client, userId, amount, paymentReferen
       remaining -= penalty;
     } else {
       // Partially settle this default
+      const settlementRef = `${paymentReference}-STL-${d.id.slice(0, 8)}`;
       const newPenalty = penalty - remaining;
       await client.query(`UPDATE defaults SET penalty_amount = $1 WHERE id = $2`, [newPenalty, d.id]);
 
