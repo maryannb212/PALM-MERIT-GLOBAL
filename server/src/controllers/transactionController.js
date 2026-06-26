@@ -399,6 +399,21 @@ export const lotusWebhook = async (req, res) => {
       return res.status(401).send('Unauthorized');
     }
 
+    // ── Fund Transfer (merchant settlement, no user VA info) ────────────
+    if (payloadService === 'payments' && payloadType === 'fund_transfer') {
+      console.info(`[Lotus Webhook] Fund transfer acknowledged — ref=${payload.data?.transactionReference || 'none'}`);
+      await logWebhookEvent({
+        source: 'lotus',
+        reference: payload.data?.transactionReference || null,
+        eventType,
+        payload,
+        signatureOk: true,
+        status: 'acknowledged',
+        note: 'Merchant fund transfer — no user action needed'
+      });
+      return res.status(200).send('Acknowledged');
+    }
+
     // ── Virtual Account (Reserved Account) Deposit ────────────────────────
     if (payloadService === 'payments' && payloadType === 'reserved_account') {
       return await handleLotusVADeposit(payload, res);
@@ -419,10 +434,10 @@ export const lotusWebhook = async (req, res) => {
         eventType,
         payload,
         signatureOk: true,
-        status: 'rejected',
-        note: 'Missing reference'
+        status: 'acknowledged',
+        note: 'Unknown event type or missing reference — acknowledged'
       });
-      return res.status(400).send('Missing reference');
+      return res.status(200).send('Acknowledged');
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -720,6 +735,16 @@ async function handleLotusVADeposit(payload, res) {
     if (amount <= 0) {
       console.warn('[Lotus VA Webhook] Invalid amount:', amount);
       return res.status(200).send('Ignored — invalid amount');
+    }
+
+    if (!vaReference) {
+      console.warn('[Lotus VA Webhook] Missing reference in payload');
+      await logWebhookEvent({
+        source: 'lotus', reference: null, eventType: 'reserved_account',
+        payload, signatureOk: true, status: 'rejected',
+        note: 'Missing reference in reserved_account webhook for VA deposit'
+      });
+      return res.status(400).send('Missing reference');
     }
 
     // Find user by virtual account number
