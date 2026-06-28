@@ -377,7 +377,7 @@ export const lotusWebhook = async (req, res) => {
     console.log('============== LOTUS WEBHOOK ==============');
     console.log(JSON.stringify(payload, null, 2));
 
-    // Verify HMAC-SHA512 signature (as per Lotus docs)
+   
     const apiKey = getLotusXApiKey();
     const signatureHeader = req.headers['signature'];
     let signatureOk = false;

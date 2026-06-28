@@ -386,9 +386,19 @@ export const processCompletedPayment = async (
 
         const plan = planRows[0];
 
-        const payoutDate = new Date(
-          Date.now() + (7 * 24 * 60 * 60 * 1000)
-        );
+        let payoutDate;
+        const planStart = new Date(plan.start_date);
+        switch (plan.plan_name) {
+          case 'CREST':
+            payoutDate = new Date(planStart.getTime() + (98 * 24 * 60 * 60 * 1000));
+            break;
+          case 'SILVER':
+          case 'GOLDEN_BASKET':
+            payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
+            break;
+          default:
+            payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
+        }
 
         await client.query(
           `

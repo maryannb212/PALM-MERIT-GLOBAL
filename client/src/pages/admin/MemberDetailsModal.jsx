@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   FaTimes, FaUser, FaWallet, FaRegAddressCard, FaPiggyBank, 
   FaUniversity, FaFileImage, FaExternalLinkAlt, FaInfoCircle, FaShieldAlt,
-  FaExclamationCircle, FaCircle
+  FaExclamationCircle, FaCircle, FaUserFriends, FaLink, FaTree, FaCopy
 } from 'react-icons/fa';
 import { getAdminUserById } from '../../services/api';
 import './Admin.css';
@@ -114,6 +114,12 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                 style={{ background: 'none', border: 'none', color: activeTab === 'financial' ? '#d4af37' : '#64748b', fontWeight: 'bold', padding: '8px 16px', borderBottom: activeTab === 'financial' ? '2px solid #d4af37' : 'none', cursor: 'pointer', transition: '0.2s', fontSize: '0.9rem' }}
               >
                 <FaWallet style={{ marginRight: '6px' }} /> Financial Ledger & Subscriptions
+              </button>
+              <button 
+                onClick={() => setActiveTab('referral')}
+                style={{ background: 'none', border: 'none', color: activeTab === 'referral' ? '#d4af37' : '#64748b', fontWeight: 'bold', padding: '8px 16px', borderBottom: activeTab === 'referral' ? '2px solid #d4af37' : 'none', cursor: 'pointer', transition: '0.2s', fontSize: '0.9rem' }}
+              >
+                <FaUserFriends style={{ marginRight: '6px' }} /> Referral Network
               </button>
             </div>
 
@@ -409,6 +415,90 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                   )}
                 </div>
 
+              </div>
+            )}
+
+            {/* TAB CONTENT: REFERRAL NETWORK */}
+            {activeTab === 'referral' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                {/* Referrer Info Card */}
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '12px', padding: '20px' }}>
+                  <h3 style={{ color: '#d4af37', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.05rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '10px', marginBottom: '15px' }}>
+                    <FaLink size={16} /> Referral Information
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Referral Code</span>
+                      <div style={{ color: 'white', fontWeight: 'bold', fontFamily: 'monospace', marginTop: '4px', fontSize: '0.9rem' }}>
+                        {details.referral_code || 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Referred By</span>
+                      <div style={{ color: 'white', fontWeight: 600, marginTop: '4px' }}>
+                        {details.referred_by_user ? (
+                          <span>{details.referred_by_user.first_name} {details.referred_by_user.last_name} ({details.referred_by_user.email})</span>
+                        ) : (
+                          <span style={{ color: '#64748b' }}>— Direct Signup</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Unlock Date</span>
+                      <div style={{ color: 'white', fontWeight: 600, marginTop: '4px' }}>
+                        {details.referral_unlock_date ? formatDate(details.referral_unlock_date) : 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Expiry Date</span>
+                      <div style={{ color: 'white', fontWeight: 600, marginTop: '4px' }}>
+                        {details.referral_expiry_date ? formatDate(details.referral_expiry_date) : 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Downlines Card */}
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '12px', padding: '20px' }}>
+                  <h3 style={{ color: '#d4af37', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.05rem', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '10px', marginBottom: '15px' }}>
+                    <FaUserFriends size={16} /> Downlines ({details.downline_count || 0})
+                  </h3>
+                  {details.downlines && details.downlines.length > 0 ? (
+                    <div className="table-responsive">
+                      <table className="admin-table" style={{ fontSize: '0.85rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                            <th>Joined</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {details.downlines.map((down) => (
+                            <tr key={down.id} style={{ background: 'rgba(255,255,255,0.01)' }}>
+                              <td><strong style={{ color: 'white' }}>{down.first_name} {down.last_name}</strong></td>
+                              <td style={{ color: '#94a3b8' }}>{down.email || 'N/A'}</td>
+                              <td style={{ color: '#94a3b8' }}>{down.phone || 'N/A'}</td>
+                              <td>
+                                <span className={`badge-status ${down.status === 'active' ? 'status-verified' : 'status-unverified'}`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                                  {down.status?.toUpperCase() || 'ACTIVE'}
+                                </span>
+                              </td>
+                              <td style={{ color: '#94a3b8' }}>{formatDate(down.created_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 0', color: '#64748b', textAlign: 'center', gap: '10px' }}>
+                      <FaUserFriends size={24} />
+                      <p style={{ margin: 0, fontSize: '0.85rem' }}>This member has not referred any downlines yet.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

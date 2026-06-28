@@ -76,10 +76,10 @@ export const subscribeToPlan = async (req, res) => {
     const regFeeTotal = config.regFee * requestedAccounts;
     const totalFirstPayment = initialSavingsTotal + regFeeTotal;
 
-    // Set preferred day automatically to the previous day name (e.g., if joined Monday, deduct Sunday)
+    // Set preferred day to the day the user is registering on
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const currentDayIndex = new Date().getDay();
-    const autoPreferredDay = daysOfWeek[(currentDayIndex + 6) % 7];
+    const autoPreferredDay = daysOfWeek[currentDayIndex];
 
     const client = await getClient();
     try {
@@ -238,7 +238,8 @@ export const payClearanceFee = async (req, res) => {
         throw new Error('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee of ₦5,000 in your wallet before paying clearance fees.');
       }
 
-      const clearanceFee = 3000.00;
+      const accounts = plan.number_of_accounts || 1;
+      const clearanceFee = 3000.00 * accounts;
 
       if (parseFloat(user.available_balance) >= clearanceFee) {
         // Option 1: Deduct from Wallet
@@ -258,7 +259,19 @@ export const payClearanceFee = async (req, res) => {
         throw new Error('Insufficient available balance. Please top up your wallet to pay the clearance fee.');
       }
 
-      const payoutDate = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000));
+      let payoutDate;
+      const planStart = new Date(plan.start_date);
+      switch (plan.plan_name) {
+        case 'CREST':
+          payoutDate = new Date(planStart.getTime() + (98 * 24 * 60 * 60 * 1000));
+          break;
+        case 'SILVER':
+        case 'GOLDEN_BASKET':
+          payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
+          break;
+        default:
+          payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
+      }
       
       const updatePlanText = `
         UPDATE savings_plans 
@@ -325,6 +338,95 @@ export const payTshirtFee = async (req, res) => {
   } catch (error) {
     console.error('Error paying T-Shirt fee:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const bulkClearance = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Verify t-shirt paid
+      const { rows: users } = await client.query('SELECT available_balance, wallet_balance, tshirt_paid FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      const user = users[0];
+      if (!user.tshirt_paid) {
+        throw new Error('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee of ₦5,000 before bulk clearance.');
+      }
+
+      // Fetch all pending_clearance plans for this user
+      const { rows: plans } = await client.query(
+        `SELECT * FROM savings_plans WHERE user_id = $1 AND status = 'pending_clearance' AND clearance_paid = FALSE FOR UPDATE`,
+        [userId]
+      );
+
+      if (plans.length === 0) {
+        throw new Error('No plans pending clearance payment');
+      }
+
+      // Calculate total fee (3000 per account per plan)
+      let totalFee = 0;
+      for (const plan of plans) {
+        const accounts = plan.number_of_accounts || 1;
+        totalFee += 3000 * accounts;
+      }
+
+      if (parseFloat(user.available_balance) < totalFee) {
+        throw new Error(`Insufficient balance. Bulk clearance requires ₦${totalFee.toLocaleString()} (₦${totalFee.toLocaleString()} total for ${plans.length} plan(s)), but your wallet has ₦${parseFloat(user.available_balance).toLocaleString()}.`);
+      }
+
+      // Deduct total from wallet
+      await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [totalFee, userId]);
+
+      // Process each plan
+      const updatedPlans = [];
+      for (const plan of plans) {
+        const accounts = plan.number_of_accounts || 1;
+        const fee = 3000 * accounts;
+
+        const reference = `CLR-${Date.now()}-${plan.id}`;
+        await client.query(`
+          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+          VALUES ($1, $2, 'clearance', $3, 'completed', $4)
+        `, [userId, plan.id, fee, reference]);
+
+        await createWalletLedgerEntry(client, userId, 'debit', fee, reference, `Clearance Fee for Plan: ${plan.plan_name} (${accounts} account(s))`);
+
+        let payoutDate;
+        const planStart = new Date(plan.start_date);
+        switch (plan.plan_name) {
+          case 'CREST':
+            payoutDate = new Date(planStart.getTime() + (98 * 24 * 60 * 60 * 1000));
+            break;
+          case 'SILVER':
+          case 'GOLDEN_BASKET':
+            payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
+            break;
+          default:
+            payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
+        }
+
+        const { rows: updated } = await client.query(`
+          UPDATE savings_plans
+          SET status = 'pending_settlement', clearance_paid = TRUE, clearance_date = CURRENT_TIMESTAMP, payout_date = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2 RETURNING *
+        `, [payoutDate, plan.id]);
+
+        updatedPlans.push(updated[0]);
+      }
+
+      await client.query('COMMIT');
+      res.json({ message: `Bulk clearance completed for ${plans.length} plan(s). Total fee: ₦${totalFee.toLocaleString()}`, plans: updatedPlans });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ message: error.message });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error in bulkClearance:', error);
+    res.status(500).json({ message: 'Server error during bulk clearance' });
   }
 };
 

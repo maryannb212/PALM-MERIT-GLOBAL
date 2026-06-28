@@ -14,9 +14,14 @@ export const getAllUsers = async (req, res) => {
       SELECT 
         u.id, u.first_name, u.last_name, u.email, u.phone, u.role, 
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.available_balance, u.held_balance, u.created_at,
+        u.referral_code, u.referred_by,
+        referrer.first_name AS referrer_first_name,
+        referrer.last_name AS referrer_last_name,
+        (SELECT COUNT(*) FROM users sub WHERE sub.referred_by = u.id) AS downline_count,
         COALESCE(d.outstanding, 0) as outstanding_default,
         COALESCE(d.cnt, 0) as default_count
       FROM users u
+      LEFT JOIN users referrer ON u.referred_by = referrer.id
       LEFT JOIN (
         SELECT user_id, SUM(penalty_amount) as outstanding, COUNT(*) as cnt
         FROM defaults WHERE resolved = FALSE
@@ -43,7 +48,8 @@ export const getUserById = async (req, res) => {
     // 1. Fetch user standard fields + wallet balances
     const userSql = `
       SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, 
-             wallet_balance, available_balance, held_balance, created_at, profile_image, status
+             wallet_balance, available_balance, held_balance, created_at, profile_image, status,
+             referral_code, referred_by, referral_unlock_date, referral_expiry_date
       FROM users 
       WHERE id = $1;
     `;
@@ -54,6 +60,25 @@ export const getUserById = async (req, res) => {
     }
     
     const user = userResult.rows[0];
+
+    // Fetch referrer name if referred_by is set
+    if (user.referred_by) {
+      const { rows: referrer } = await query(
+        'SELECT id, first_name, last_name, email FROM users WHERE id = $1',
+        [user.referred_by]
+      );
+      user.referred_by_user = referrer.length > 0 ? referrer[0] : null;
+    }
+
+    // Fetch downlines (users this person referred)
+    const { rows: downlines } = await query(`
+      SELECT id, first_name, last_name, email, phone, status, created_at
+      FROM users
+      WHERE referred_by = $1
+      ORDER BY created_at DESC
+    `, [id]);
+    user.downlines = downlines;
+    user.downline_count = downlines.length;
     
     const kycSql = `
       SELECT first_name, last_name, middle_name, phone, email, address, gender, dob, bvn, 
@@ -115,7 +140,7 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance } = req.body;
+    const { first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date } = req.body;
 
     const sql = `
       UPDATE users 
@@ -127,11 +152,15 @@ export const updateUser = async (req, res) => {
           has_paid_membership = COALESCE($6, has_paid_membership),
           wallet_balance = COALESCE($7, wallet_balance),
           available_balance = COALESCE($8, available_balance),
-          held_balance = COALESCE($9, held_balance)
-      WHERE id = $10
-      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance;
+          held_balance = COALESCE($9, held_balance),
+          referral_code = COALESCE($10, referral_code),
+          referred_by = COALESCE($11, referred_by),
+          referral_unlock_date = COALESCE($12, referral_unlock_date),
+          referral_expiry_date = COALESCE($13, referral_expiry_date)
+      WHERE id = $14
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date;
     `;
-    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, id]);
+    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
@@ -184,7 +213,9 @@ export const getDashboardStats = async (req, res) => {
         (SELECT COALESCE(SUM(current_amount), 0) FROM savings_plans WHERE status = 'active') as total_savings,
         (SELECT COALESCE(SUM(available_balance + held_balance), 0) FROM users WHERE role = 'user') as total_liabilities,
         (SELECT COUNT(*) FROM tickets WHERE status = 'open') as open_tickets,
-        (SELECT COUNT(*) FROM users WHERE kyc_status = 'pending') as pending_kyc
+        (SELECT COUNT(*) FROM users WHERE kyc_status = 'pending') as pending_kyc,
+        (SELECT COUNT(*) FROM users WHERE referred_by IS NOT NULL) as total_downlines,
+        (SELECT COUNT(*) FROM users WHERE referral_code IS NOT NULL AND referral_code != '') as total_referral_codes
     `;
     const result = await query(sql);
     const data = result.rows[0];
@@ -208,6 +239,8 @@ export const getDashboardStats = async (req, res) => {
       totalLiabilities: parseFloat(data.total_liabilities),
       openTickets: parseInt(data.open_tickets),
       pendingKYC: parseInt(data.pending_kyc),
+      totalDownlines: parseInt(data.total_downlines),
+      totalReferralCodes: parseInt(data.total_referral_codes),
       recentUsers: recentUsers.rows
     });
   } catch (error) {
@@ -656,12 +689,40 @@ export const approveEligibility = async (req, res) => {
       return res.status(400).json({ message: 'Plan is not in eligibility review status' });
     }
 
+    // Validate that contributions are complete
+    const expectedContributions = (() => {
+      const cfg = {
+        'CREST': { amount: 4000, weeks: 12 },
+        'SILVER': { amount: 1500, weeks: 50 },
+        'GOLDEN_BASKET': { amount: 2000, weeks: 50 },
+        'ISUSU': { amount: 500, days: 30 }
+      };
+      const c = cfg[plan.plan_name];
+      if (!c) return 0;
+      const numAccounts = plan.number_of_accounts || 1;
+      if (c.days) return c.amount * numAccounts * c.days;
+      return c.amount * numAccounts * c.weeks;
+    })();
+    if (parseFloat(plan.current_amount || 0) < expectedContributions) {
+      return res.status(400).json({
+        message: `Plan has not completed all contributions. Current: ₦${parseFloat(plan.current_amount || 0).toLocaleString()}, Required: ₦${expectedContributions.toLocaleString()}`
+      });
+    }
+
     let newStatus = 'pending_settlement';
-    let payoutDate = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000));
+    let payoutDate = null;
+    const planStart = new Date(plan.start_date);
 
     if (['CREST', 'SILVER'].includes(plan.plan_name)) {
       newStatus = 'pending_clearance';
-      payoutDate = null;
+    } else {
+      switch (plan.plan_name) {
+        case 'GOLDEN_BASKET':
+          payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
+          break;
+        default:
+          payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
+      }
     }
 
     await query('BEGIN');

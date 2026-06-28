@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser } from '../../services/api';
-import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle } from 'react-icons/fa';
+import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle, FaLink, FaUserFriends } from 'react-icons/fa';
 import EditMemberModal from './EditMemberModal';
 import MemberDetailsModal from './MemberDetailsModal';
 import UserDefaultsModal from './UserDefaultsModal';
@@ -145,6 +145,8 @@ const MembersPage = () => {
                   <th>Membership</th>
                   <th>Identity Verification</th>
                   <th>Defaults</th>
+                  <th><FaUserFriends /> Referrals</th>
+                  <th>Referred By</th>
                   <th className="text-right"><FaCalendarAlt /> Access Date</th>
                   <th className="text-right">Actions</th>
                 </tr>
@@ -212,6 +214,41 @@ const MembersPage = () => {
                           <span style={{ fontWeight: 600 }}>CLEAN</span>
                         </div>
                       )}
+                    </td>
+                    <td>
+                      <div className="status-dot" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FaUsers size={12} color="#d4af37" />
+                          <strong style={{ color: '#d4af37', fontSize: '0.9rem' }}>
+                            {member.downline_count || 0}
+                          </strong>
+                          <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                            downline{member.downline_count !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {member.referral_code && (
+                          <span style={{ color: '#94a3b8', fontSize: '0.7rem', fontFamily: 'monospace' }}>
+                            <FaLink size={8} style={{ marginRight: '3px' }} />
+                            {member.referral_code}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="status-dot" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                        {member.referred_by ? (
+                          <>
+                            <span style={{ color: '#d4af37', fontSize: '0.85rem', fontWeight: 600 }}>
+                              {member.referrer_first_name || 'Unknown'} {member.referrer_last_name || ''}
+                            </span>
+                            <span style={{ color: '#64748b', fontSize: '0.65rem', fontFamily: 'monospace' }}>
+                              ID: {member.referred_by.substring(0, 8).toUpperCase()}
+                            </span>
+                          </>
+                        ) : (
+                          <span style={{ color: '#64748b', fontSize: '0.8rem' }}>— Direct Signup</span>
+                        )}
+                      </div>
                     </td>
                     <td className="text-right date-cell">
                       {new Date(member.created_at).toLocaleDateString('en-US', {

@@ -25,6 +25,53 @@ export const getPendingPayouts = async (req, res) => {
   }
 };
 
+export const getCEOSchedule = async (req, res) => {
+  try {
+    const client = await getClient();
+    try {
+      const { rows } = await client.query(`
+        SELECT
+          p.id as payout_id, p.amount, p.payout_type, p.status as payout_status, p.created_at as payout_created,
+          s.id as plan_id, s.plan_name, s.status as plan_status, s.clearance_paid, s.maturity_date,
+          s.payout_date as deadline, s.start_date, s.current_amount, s.target_amount, s.number_of_accounts,
+          u.id as user_id, u.first_name, u.last_name, u.email, u.phone, u.tshirt_paid
+        FROM savings_plans s
+        JOIN users u ON s.user_id = u.id
+        LEFT JOIN payouts p ON s.id = p.plan_id
+        WHERE s.status IN ('pending_clearance', 'pending_settlement')
+        ORDER BY s.payout_date ASC NULLS LAST, s.maturity_date ASC
+      `);
+
+      const schedule = rows.map(r => {
+        const daysUntilDeadline = r.deadline
+          ? Math.ceil((new Date(r.deadline) - new Date()) / (1000 * 60 * 60 * 24))
+          : null;
+        return {
+          ...r,
+          days_until_deadline: daysUntilDeadline,
+          is_overdue: daysUntilDeadline !== null && daysUntilDeadline < 0,
+          amount: r.amount ? parseFloat(r.amount) : null,
+          current_amount: parseFloat(r.current_amount || 0),
+          target_amount: parseFloat(r.target_amount || 0),
+          number_of_accounts: parseInt(r.number_of_accounts || 1)
+        };
+      });
+
+      res.json({
+        generated_at: new Date().toISOString(),
+        total_pending: schedule.filter(r => r.plan_status === 'pending_settlement').length,
+        total_clearance: schedule.filter(r => r.plan_status === 'pending_clearance').length,
+        schedule
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error fetching CEO schedule:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 export const approvePayout = async (req, res) => {
   try {
     const { payoutId, notes } = req.body;

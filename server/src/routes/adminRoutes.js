@@ -28,7 +28,7 @@ import {
   resolveUserDefaults,
   reconcileLotusVA
 } from '../controllers/adminController.js';
-import { getPendingPayouts, approvePayout } from '../controllers/payoutController.js';
+import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
 import { getFinancialReport } from '../controllers/financialReportController.js';
 import { ceoLogin } from '../controllers/adminAuthController.js';
@@ -62,6 +62,7 @@ router.put('/withdrawals/:id/approve', approveWithdrawal);
 router.put('/withdrawals/:id/reject', rejectWithdrawal);
 router.get('/payouts', getPendingPayouts);
 router.post('/approve-payout', approvePayout);
+router.get('/ceo/schedule', getCEOSchedule);
 router.get('/referrals', getAdminReferralStats);
 router.get('/eligibility-queue', getEligibilityQueue);
 router.post('/approve-eligibility', approveEligibility);

@@ -12,7 +12,11 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
     has_paid_membership: false,
     wallet_balance: 0,
     available_balance: 0,
-    held_balance: 0
+    held_balance: 0,
+    referral_code: '',
+    referred_by: '',
+    referral_unlock_date: '',
+    referral_expiry_date: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -27,7 +31,11 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
         has_paid_membership: member.has_paid_membership || false,
         wallet_balance: member.wallet_balance || 0,
         available_balance: member.available_balance || 0,
-        held_balance: member.held_balance || 0
+        held_balance: member.held_balance || 0,
+        referral_code: member.referral_code || '',
+        referred_by: member.referred_by || '',
+        referral_unlock_date: member.referral_unlock_date ? member.referral_unlock_date.split('T')[0] : '',
+        referral_expiry_date: member.referral_expiry_date ? member.referral_expiry_date.split('T')[0] : ''
       });
     }
   }, [member]);
@@ -110,6 +118,32 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
               <input type="number" name="held_balance" value={formData.held_balance} onChange={handleChange} className="refined-input" />
             </div>
           </div>
+          <details style={{ marginTop: '20px', background: 'rgba(212, 175, 55, 0.05)', borderRadius: '8px', padding: '12px', border: '1px solid rgba(212, 175, 55, 0.15)' }}>
+            <summary style={{ color: '#d4af37', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>
+              Referral Settings
+            </summary>
+            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group">
+                <label>Referral Code</label>
+                <input type="text" name="referral_code" value={formData.referral_code} onChange={handleChange} placeholder="e.g. PMG-XXXX" className="refined-input" />
+              </div>
+              <div className="form-group">
+                <label>Referred By (User ID)</label>
+                <input type="text" name="referred_by" value={formData.referred_by} onChange={handleChange} placeholder="UUID of referrer (or leave blank)" className="refined-input" />
+                <small style={{ color: '#64748b', fontSize: '0.7rem' }}>Enter the user ID of the person who referred this member</small>
+              </div>
+              <div className="form-row" style={{ display: 'flex', gap: '15px' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Unlock Date</label>
+                  <input type="date" name="referral_unlock_date" value={formData.referral_unlock_date} onChange={handleChange} className="refined-input" />
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Expiry Date</label>
+                  <input type="date" name="referral_expiry_date" value={formData.referral_expiry_date} onChange={handleChange} className="refined-input" />
+                </div>
+              </div>
+            </div>
+          </details>
           <div className="modal-actions" style={{ marginTop: '20px' }}>
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>

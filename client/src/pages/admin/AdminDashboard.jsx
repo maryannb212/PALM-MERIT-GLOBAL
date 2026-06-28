@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getAdminStats } from '../../services/api';
-import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank } from 'react-icons/fa';
+import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink } from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
 import './Admin.css';
 
@@ -17,6 +17,8 @@ const AdminDashboard = () => {
     activeSubscriptions: 0,
     totalVolume: 0,
     openTickets: 0,
+    totalDownlines: 0,
+    totalReferralCodes: 0,
     recentUsers: []
   });
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,8 @@ const AdminDashboard = () => {
         activeSubscriptions: data.activePlans || 0,
         totalVolume: data.totalSavings || 0,
         openTickets: data.openTickets || 0,
+        totalDownlines: data.totalDownlines || 0,
+        totalReferralCodes: data.totalReferralCodes || 0,
         recentUsers: data.recentUsers || []
       });
     } catch (error) {
@@ -85,6 +89,17 @@ const AdminDashboard = () => {
             <div className="stat-value">{stats.pendingKYC}</div>
             <p className="stat-label text-warning">
               {stats.verifiedUsers} Verified Members
+            </p>
+          </div>
+        </div>
+
+        <div className="stat-card" onClick={() => navigate('/admin/referrals')} style={{ cursor: 'pointer' }}>
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(212, 175, 55, 0.1)' }}><FaUserFriends style={{ color: '#d4af37' }} /></div>
+          <div className="stat-info">
+            <h3>Referral Network</h3>
+            <div className="stat-value">{stats.totalDownlines}</div>
+            <p className="stat-label">
+              <span style={{ fontWeight: 'bold', color: '#d4af37' }}>{stats.totalReferralCodes}</span> Active Referral Codes
             </p>
           </div>
         </div>
