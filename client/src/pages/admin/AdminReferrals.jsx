@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { 
   FaSearch, FaExclamationTriangle, FaUserFriends, 
-  FaClock, FaUserCheck, FaTimes, FaChevronDown, FaChevronUp,
+  FaClock, FaUserCheck, FaChevronDown, FaChevronUp,
   FaLink, FaShieldAlt
 } from 'react-icons/fa';
+import { API } from '../../services/api';
 import './Admin.css';
 
 const AdminReferrals = () => {
@@ -19,10 +19,7 @@ const AdminReferrals = () => {
     const fetchReferralStats = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/admin/referrals`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await API.get('/admin/referrals');
         setData(res.data);
         setError('');
       } catch (err) {
