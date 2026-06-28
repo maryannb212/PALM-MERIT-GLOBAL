@@ -4,7 +4,7 @@ import {
   FaClock, FaUserCheck, FaChevronDown, FaChevronUp,
   FaLink, FaShieldAlt
 } from 'react-icons/fa';
-import { API } from '../../services/api';
+import API from '../../services/api';
 import './Admin.css';
 
 const AdminReferrals = () => {
@@ -224,15 +224,15 @@ const AdminReferrals = () => {
                                   <FaExclamationTriangle /> Self-Referral
                                 </span>
                               ) : (
-                                <span style={{ color: '#10b981', fontSize: '0.8rem' }}>Clean</span>
+                                <span style={{ color: '#10b981', fontSize: '0.8rem' }}>No Issues</span>
                               )}
                             </td>
                           </tr>
                           {isExpanded && (
                             <tr>
-                              <td colSpan="7" style={{ padding: '0', background: 'rgba(255, 255, 255, 0.02)' }}>
-                                <div style={{ padding: '20px 30px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                                  <h4 style={{ color: '#d4af37', margin: '0 0 15px 0', fontSize: '0.9rem', fontWeight: 700 }}>
+                              <td colSpan="7" style={{ padding: '0', background: 'rgba(255, 255, 255, 0.03)' }}>
+                                <div style={{ padding: '20px 25px' }}>
+                                  <h4 style={{ color: '#d4af37', margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.03em' }}>
                                     Referred Downlines ({user.downlines.length})
                                   </h4>
                                   {user.downlines.length === 0 ? (
@@ -240,21 +240,21 @@ const AdminReferrals = () => {
                                       No downline members registered under this link.
                                     </p>
                                   ) : (
-                                    <div className="table-responsive">
-                                      <table className="admin-table" style={{ fontSize: '0.8rem' }}>
+                                    <div style={{ overflowX: 'auto' }}>
+                                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                         <thead>
                                           <tr>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th className="text-right">Status</th>
+                                            <th style={{ padding: '10px 14px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Name</th>
+                                            <th style={{ padding: '10px 14px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Email</th>
+                                            <th style={{ padding: '10px 14px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Status</th>
                                           </tr>
                                         </thead>
                                         <tbody>
                                           {user.downlines.map((down) => (
-                                            <tr key={down.id} style={{ background: 'rgba(255,255,255,0.01)' }}>
-                                              <td style={{ color: 'white', fontWeight: 600 }}>{down.firstName} {down.lastName}</td>
-                                              <td style={{ color: '#94a3b8' }}>{down.email || 'N/A'}</td>
-                                              <td className="text-right">
+                                            <tr key={down.id}>
+                                              <td style={{ padding: '10px 14px', color: '#e2e8f0', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{down.firstName} {down.lastName}</td>
+                                              <td style={{ padding: '10px 14px', color: '#94a3b8', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{down.email || 'N/A'}</td>
+                                              <td style={{ padding: '10px 14px', textAlign: 'right', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                                                 {down.referralStatus === 'qualified' && (
                                                   <span style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 600 }}>Qualified savings downline</span>
                                                 )}

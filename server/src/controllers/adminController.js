@@ -574,7 +574,7 @@ export const getAdminReferralStats = async (req, res) => {
       
       for (const down of directDownlines) {
         const { rows: plans } = await query(
-          'SELECT plan_name, current_amount, total_paid FROM savings_plans WHERE user_id = $1',
+          'SELECT plan_name, current_amount FROM savings_plans WHERE user_id = $1',
           [down.id]
         );
         
@@ -582,7 +582,7 @@ export const getAdminReferralStats = async (req, res) => {
         const hasGoldenBasket = plans.some(p => p.plan_name === 'GOLDEN_BASKET');
         const hasStandardPlan = plans.some(p => p.plan_name !== 'GOLDEN_BASKET');
         const totalStandardPaid = plans.filter(p => p.plan_name !== 'GOLDEN_BASKET')
-                                       .reduce((sum, p) => sum + parseFloat(p.current_amount || p.total_paid || 0), 0);
+                                       .reduce((sum, p) => sum + parseFloat(p.current_amount || 0), 0);
         
         let referralStatus = 'inactive';
         if (isSuspended) {
