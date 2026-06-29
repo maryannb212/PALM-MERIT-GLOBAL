@@ -15,7 +15,8 @@
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make",
     "migrate:rollback": "knex migrate:rollback",
-    "cron:deduction": "node -e \"import('./src/jobs/deductionJob.js').then(m => m.runDeductionJob()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\""
+    "cron:deduction": "node -e \"import('./src/jobs/deductionJob.js').then(m => m.runDeductionJob()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\"",
+    "cron:penalty": "node -e \"import('./src/jobs/deductionJob.js').then(m => m.runDeductionJob()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\""
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",

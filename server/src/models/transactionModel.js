@@ -16,12 +16,14 @@ const settleOutstandingPenalties = async (client, userId, amount, paymentReferen
   if (amount <= 0) return 0;
 
   // Fetch unresolved defaults for the user, ordered by missed_date (oldest first)
+  // FOR UPDATE prevents concurrent payments from double-settling the same defaults
   const { rows: defaults } = await client.query(
     `
       SELECT id, penalty_amount
       FROM defaults
       WHERE user_id = $1 AND resolved = FALSE
       ORDER BY missed_date ASC
+      FOR UPDATE
     `,
     [userId]
   );

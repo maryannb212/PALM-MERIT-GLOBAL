@@ -7,8 +7,7 @@ import 'express-async-errors';
 import rateLimit from 'express-rate-limit';
 import logger from './utils/logger.js';
 
-import { startStaffDeactivationJob } from './jobs/staffDeactivationJob.js';
-import { startDeductionJob, runStartupCatchupDeductions } from './jobs/deductionJob.js';
+import { runStartupCatchupDeductions } from './jobs/deductionJob.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -148,14 +147,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize scheduled tasks (Persistent mode)
-import { startMaturityJob } from './jobs/maturityCron.js';
-
 // Run one-time startup catch-up for any missed deductions
 runStartupCatchupDeductions();
-
-startMaturityJob();
-startDeductionJob();
-startStaffDeactivationJob();
 
 export default app;
