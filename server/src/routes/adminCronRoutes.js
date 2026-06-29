@@ -2,7 +2,6 @@ import express from 'express';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
 // Import extracted job logic
-import { applyDailyInterest } from '../services/interestEngine.js';
 import { runDeductionJob } from '../jobs/deductionJob.js';
 import { runMaturityCheck } from '../jobs/maturityCron.js';
 import { runStaffDeactivation } from '../jobs/staffDeactivationJob.js';
@@ -11,18 +10,6 @@ const router = express.Router();
 
 // Apply protect and admin middlewares to all routes in this file
 router.use(protect, admin);
-
-/**
- * Trigger Daily Interest Calculation
- */
-router.post('/interest', async (req, res) => {
-  try {
-    await applyDailyInterest();
-    res.json({ message: 'Daily interest calculation triggered successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to trigger interest calculation', error: error.message });
-  }
-});
 
 /**
  * Trigger Deduction Check

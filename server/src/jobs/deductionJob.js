@@ -2,7 +2,6 @@ import cron from 'node-cron';
 import { getClient, query } from '../config/db.js';
 import { createNotification } from '../models/notificationModel.js';
 import { createWalletLedgerEntry } from '../models/transactionModel.js';
-import { applyDailyInterest } from '../services/interestEngine.js';
 
 const PLAN_CONFIG = {
   'CREST': { amount: 4000, isDaily: false },
@@ -289,11 +288,6 @@ export const runDeductionJob = async () => {
 export const startDeductionJob = () => {
   cron.schedule('0 18 * * *', async () => {
     console.log('--- Starting Daily Tasks (6PM WAT) ---');
-    try {
-      await applyDailyInterest();
-    } catch (error) {
-      console.error('Error applying interest:', error);
-    }
     try {
       await runDeductionJob();
     } catch (error) {

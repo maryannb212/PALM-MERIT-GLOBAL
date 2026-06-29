@@ -55,6 +55,7 @@ const AdminPlans = lazy(() => import('./pages/admin/AdminPlans'));
 const AdminReferrals = lazy(() => import('./pages/admin/AdminReferrals'));
 const AdminSecurity = lazy(() => import('./pages/admin/AdminSecurity'));
 const EligibilityQueue = lazy(() => import('./pages/admin/EligibilityQueue'));
+const DuePaymentsPage = lazy(() => import('./pages/admin/DuePaymentsPage'));
 
 const LoadingSpinner = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
@@ -131,6 +132,7 @@ const AppLayout = () => {
               <Route path="plans" element={<AdminLockedRoute pageName="plans" title="Savings Plans"><AdminPlans /></AdminLockedRoute>} />
               <Route path="eligibility-queue" element={<AdminLockedRoute pageName="eligibility" title="Eligibility Review"><EligibilityQueue /></AdminLockedRoute>} />
               <Route path="referrals" element={<AdminLockedRoute pageName="referrals" title="Referral Audits"><AdminReferrals /></AdminLockedRoute>} />
+              <Route path="due-payments" element={<AdminLockedRoute pageName="due-payments" title="Due Payments"><DuePaymentsPage /></AdminLockedRoute>} />
             </Route>
           </Routes>
         </Suspense>

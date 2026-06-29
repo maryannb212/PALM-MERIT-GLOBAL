@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank, FaUserFriends, FaHandHoldingUsd } from 'react-icons/fa';
+import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank, FaUserFriends, FaHandHoldingUsd, FaHourglassHalf } from 'react-icons/fa';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
   const { admin, adminLogout } = useAuth();
@@ -23,6 +23,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { name: 'User Management', path: '/admin/members', icon: <FaUsers /> },
     { name: 'KYC Requests', path: '/admin/kyc-queue', icon: <FaUserCheck /> },
     { name: 'Defaulters List', path: '/admin/defaulters', icon: <FaExclamationTriangle /> },
+    { name: 'Due Payments', path: '/admin/due-payments', icon: <FaHourglassHalf /> },
     { name: 'Financial Report', path: '/admin/reconciliation', icon: <FaMoneyCheckAlt /> },
     { name: 'Payout Management', path: '/admin/payouts', icon: <FaHandHoldingUsd /> },
     { name: 'Support Tickets', path: '/admin/tickets', icon: <FaTicketAlt /> },

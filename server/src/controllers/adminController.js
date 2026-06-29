@@ -960,3 +960,172 @@ export const resolveUserDefaults = async (req, res) => {
     res.status(500).json({ message: 'Server error resolving defaults' });
   }
 };
+
+/**
+ * Get all active plans that are due for payment
+ * GET /api/admin/due-payments
+ */
+export const getDuePayments = async (req, res) => {
+  try {
+    const PLAN_CONFIG = {
+      'CREST': { amount: 4000, isDaily: false },
+      'SILVER': { amount: 1500, isDaily: false },
+      'GOLDEN_BASKET': { amount: 2000, isDaily: false },
+      'ISUSU': { amount: 500, isDaily: true }
+    };
+
+    const { rows: activePlans } = await query(`
+      SELECT 
+        sp.id AS plan_id,
+        sp.plan_name,
+        sp.status,
+        sp.start_date,
+        sp.current_amount,
+        sp.target_amount,
+        sp.number_of_accounts,
+        sp.preferred_day,
+        sp.maturity_date,
+        sp.user_id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone,
+        u.available_balance,
+        (SELECT created_at FROM transactions 
+         WHERE plan_id = sp.id AND type IN ('savings', 'penalty') AND status = 'completed'
+         ORDER BY created_at DESC LIMIT 1) AS last_payment_date,
+        (SELECT COALESCE(SUM(amount), 0) FROM transactions 
+         WHERE plan_id = sp.id AND type = 'savings' AND status = 'completed') AS total_paid
+      FROM savings_plans sp
+      JOIN users u ON sp.user_id = u.id
+      WHERE sp.status = 'active'
+      ORDER BY u.first_name, u.last_name
+    `);
+
+    const watDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+    const todayDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][watDate.getDay()];
+    const todayString = watDate.toDateString();
+
+    const result = [];
+
+    for (const plan of activePlans) {
+      const config = PLAN_CONFIG[plan.plan_name];
+      if (!config) continue;
+
+      const perAccountAmount = config.amount;
+      const numAccounts = plan.number_of_accounts || 1;
+      const expectedInstallment = perAccountAmount * numAccounts;
+      const lastPaymentDate = plan.last_payment_date;
+      const totalPaid = parseFloat(plan.total_paid || 0);
+
+      const actualContributions = Math.floor(totalPaid / expectedInstallment);
+
+      const startDate = new Date(plan.start_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      startDate.setHours(0, 0, 0, 0);
+
+      let expectedContributions = 0;
+      if (startDate < today) {
+        if (config.isDaily) {
+          expectedContributions = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+        } else {
+          const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const targetDayIndex = daysOfWeek.findIndex(d => d.toLowerCase() === (plan.preferred_day || '').toLowerCase());
+          if (targetDayIndex === -1) {
+            expectedContributions = Math.floor((today - startDate) / (1000 * 60 * 60 * 24 * 7));
+          } else {
+            let count = 0;
+            const cursor = new Date(startDate);
+            if (cursor.getDay() !== targetDayIndex) {
+              count = 1;
+              while (cursor.getDay() !== targetDayIndex) {
+                cursor.setDate(cursor.getDate() + 1);
+                cursor.setHours(0, 0, 0, 0);
+              }
+            }
+            while (cursor < today) {
+              count++;
+              cursor.setDate(cursor.getDate() + 7);
+              cursor.setHours(0, 0, 0, 0);
+            }
+            expectedContributions = count;
+          }
+        }
+      }
+
+      const missedContributions = Math.max(0, expectedContributions - actualContributions);
+
+      let isDue = false;
+      let daysSinceLastPayment = null;
+
+      if (config.isDaily) {
+        if (!lastPaymentDate) {
+          isDue = true;
+        } else {
+          const lastWatDate = new Date(new Date(lastPaymentDate).toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+          if (lastWatDate.toDateString() !== todayString) {
+            isDue = true;
+          }
+          daysSinceLastPayment = Math.floor((watDate - new Date(lastPaymentDate)) / (1000 * 60 * 60 * 24));
+        }
+      } else {
+        if (!lastPaymentDate) {
+          if (plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
+            isDue = true;
+          } else {
+            const daysSinceStart = Math.floor((watDate - startDate) / (1000 * 60 * 60 * 24));
+            if (daysSinceStart >= 7) {
+              isDue = true;
+            }
+          }
+          daysSinceLastPayment = lastPaymentDate 
+            ? Math.floor((watDate - new Date(lastPaymentDate)) / (1000 * 60 * 60 * 24))
+            : Math.floor((watDate - startDate) / (1000 * 60 * 60 * 24));
+        } else {
+          daysSinceLastPayment = Math.floor((watDate - new Date(lastPaymentDate)) / (1000 * 60 * 60 * 24));
+          if (daysSinceLastPayment >= 7) {
+            isDue = true;
+          }
+        }
+      }
+
+      result.push({
+        user_id: plan.user_id,
+        first_name: plan.first_name,
+        last_name: plan.last_name,
+        email: plan.email,
+        phone: plan.phone,
+        plan_id: plan.plan_id,
+        plan_name: plan.plan_name,
+        number_of_accounts: numAccounts,
+        per_account_amount: perAccountAmount,
+        expected_installment: expectedInstallment,
+        current_amount: parseFloat(plan.current_amount || 0),
+        target_amount: parseFloat(plan.target_amount || 0),
+        total_paid: totalPaid,
+        last_payment_date: lastPaymentDate,
+        days_since_last_payment: daysSinceLastPayment,
+        expected_contributions: expectedContributions,
+        actual_contributions: actualContributions,
+        missed_contributions: missedContributions,
+        available_balance: parseFloat(plan.available_balance || 0),
+        is_due: isDue,
+        has_never_paid: !lastPaymentDate,
+        preferred_day: plan.preferred_day,
+        start_date: plan.start_date,
+        maturity_date: plan.maturity_date,
+      });
+    }
+
+    result.sort((a, b) => {
+      if (a.is_due !== b.is_due) return a.is_due ? -1 : 1;
+      return (b.days_since_last_payment || 0) - (a.days_since_last_payment || 0);
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching due payments:', error);
+    res.status(500).json({ message: 'Server error fetching due payments' });
+  }
+};

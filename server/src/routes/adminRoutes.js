@@ -26,7 +26,8 @@ import {
   getUserDefaults,
   updateDefault,
   resolveUserDefaults,
-  reconcileLotusVA
+  reconcileLotusVA,
+  getDuePayments
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -72,6 +73,7 @@ router.get('/system-status', getSystemStatus);
 router.get('/transaction-debug/:reference', getTransactionDebug);
 router.get('/transactions/recent', getRecentTransfers);
 router.delete('/payments/:id', deleteTestPayment);
+router.get('/due-payments', getDuePayments);
 // User Defaults
 router.get('/users/:userId/defaults', getUserDefaults);
 router.put('/defaults/:id', updateDefault);

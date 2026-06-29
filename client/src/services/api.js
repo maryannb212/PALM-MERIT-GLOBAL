@@ -163,6 +163,8 @@ export const addAmbassador = (data) => API.post('/ambassadors', data);
 export const updateAmbassador = (id, data) => API.put(`/ambassadors/${id}`, data);
 export const deleteAmbassador = (id) => API.delete(`/ambassadors/${id}`);
 
+export const getDuePayments = () => API.get('/admin/due-payments');
+
 // Admin Defaults
 export const getUserDefaults = (userId) => API.get(`/admin/users/${userId}/defaults`);
 export const updateDefault = (id, data) => API.put(`/admin/defaults/${id}`, data);
