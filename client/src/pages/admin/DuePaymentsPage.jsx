@@ -9,6 +9,20 @@ const PLAN_COLORS = {
   'ISUSU': '#0891b2'
 };
 
+const PLAN_DURATIONS = {
+  'CREST': 84,
+  'SILVER': 350,
+  'GOLDEN_BASKET': 350,
+  'ISUSU': 30,
+};
+
+const PLAN_AMOUNTS = {
+  'CREST': 4000,
+  'SILVER': 1500,
+  'GOLDEN_BASKET': 2000,
+  'ISUSU': 500,
+};
+
 const DuePaymentsPage = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,12 +38,61 @@ const DuePaymentsPage = () => {
     try {
       setLoading(true);
       const { data: res } = await getDuePayments();
-      setData(res);
+      if (Array.isArray(res) && res.length > 0 && !res[0].plans) {
+        setData(groupFlatData(res));
+      } else {
+        setData(res);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const groupFlatData = (flat) => {
+    const userMap = {};
+    const watDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Lagos' }));
+
+    for (const entry of flat) {
+      const uid = entry.user_id;
+      if (!userMap[uid]) {
+        userMap[uid] = { user_id: uid, first_name: entry.first_name, last_name: entry.last_name, email: entry.email, plans: [], matured_count: 0, default_count: 0 };
+      }
+      const numAccounts = entry.number_of_accounts || 1;
+      const perAccountAmount = PLAN_AMOUNTS[entry.plan_name] || Math.round(entry.expected_installment / numAccounts);
+      const durationDays = PLAN_DURATIONS[entry.plan_name] || 350;
+      const startDate = new Date(entry.start_date);
+      const daysSinceStart = Math.floor((watDate - startDate) / (1000 * 60 * 60 * 24));
+      const isMatured = daysSinceStart >= durationDays;
+      const currentAmount = parseFloat(entry.current_amount || 0);
+      const targetAmount = parseFloat(entry.target_amount || 0);
+      const progressPct = targetAmount > 0 ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) : 0;
+      userMap[uid].plans.push({
+        plan_id: entry.plan_id,
+        plan_name: entry.plan_name,
+        number_of_accounts: numAccounts,
+        per_account_amount: perAccountAmount,
+        expected_installment: entry.expected_installment,
+        start_date: entry.start_date,
+        maturity_date: entry.maturity_date,
+        preferred_day: entry.preferred_day,
+        last_payment_date: entry.last_payment_date,
+        current_amount: currentAmount,
+        target_amount: targetAmount,
+        progress_pct: progressPct,
+        defaults: [],
+        days_since_start: daysSinceStart,
+        duration_days: durationDays,
+        is_matured: isMatured,
+      });
+      if (isMatured) userMap[uid].matured_count++;
+    }
+
+    return Object.values(userMap).sort((a, b) => {
+      if (b.matured_count !== a.matured_count) return b.matured_count - a.matured_count;
+      return a.first_name.localeCompare(b.first_name);
+    });
   };
 
   const filtered = useMemo(() => {
