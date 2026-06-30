@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMyPlans, payClearanceAccount, payWithLotus } from '../../services/api';
-import { FaCheckCircle, FaWallet, FaCreditCard, FaClipboardList, FaMoneyBillWave, FaShieldAlt } from 'react-icons/fa';
+import { FaCheckCircle, FaWallet, FaClipboardList, FaMoneyBillWave, FaShieldAlt } from 'react-icons/fa';
 import './Dashboard.css';
 
 const PLAN_ICONS = {
@@ -263,66 +263,34 @@ const Clearance = () => {
                           const idx = accountsCleared + i;
                           const lotusKey = `${plan.id}-${idx}`;
                           return (
-                            <div key={idx} style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                              <button className="btn btn-sm"
-                                onClick={() => handlePayAccount(plan.id, idx)}
-                                disabled={payingAccount === `${plan.id}-${idx}`}
-                                style={{
-                                  background: payingAccount === `${plan.id}-${idx}` ? '#94a3b8' : '#800020',
-                                  color: '#fff', border: 'none', padding: '6px 14px',
-                                  borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
-                                  cursor: payingAccount === `${plan.id}-${idx}` ? 'not-allowed' : 'pointer',
-                                  display: 'inline-flex', alignItems: 'center', gap: 4
-                                }}>
-                                {payingAccount === `${plan.id}-${idx}` ? (
-                                  <>Processing...</>
-                                ) : (
-                                  <><FaWallet /> Pay Account {idx + 1}</>
-                                )}
-                              </button>
-                              <button className="btn btn-sm"
-                                onClick={() => handleLotusPay(plan.id, idx, 3000)}
-                                disabled={lotusLoading === lotusKey}
-                                style={{
-                                  background: lotusLoading === lotusKey ? '#94a3b8' : '#1e40af',
-                                  color: '#fff', border: 'none', padding: '6px 14px',
-                                  borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
-                                  cursor: lotusLoading === lotusKey ? 'not-allowed' : 'pointer',
-                                  display: 'inline-flex', alignItems: 'center', gap: 4
-                                }}>
-                                {lotusLoading === lotusKey ? '...' : 'Lotus'}
-                              </button>
-                            </div>
+                            <button key={idx} className="btn btn-sm"
+                              onClick={() => handleLotusPay(plan.id, idx, 3000)}
+                              disabled={lotusLoading === lotusKey}
+                              style={{
+                                background: lotusLoading === lotusKey ? '#94a3b8' : '#1e40af',
+                                color: '#fff', border: 'none', padding: '6px 14px',
+                                borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
+                                cursor: lotusLoading === lotusKey ? 'not-allowed' : 'pointer',
+                                display: 'inline-flex', alignItems: 'center', gap: 4
+                              }}>
+                              {lotusLoading === lotusKey ? '...' : `Pay Account ${idx + 1} with Lotus`}
+                            </button>
                           );
                         })}
                       </div>
                       {accounts > 1 && (
-                        <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                          <button className="btn btn-secondary btn-sm"
-                            onClick={() => handlePayAllRemaining(plan.id)}
-                            disabled={payingAccount === `${plan.id}-bulk`}
-                            style={{
-                              background: payingAccount === `${plan.id}-bulk` ? '#94a3b8' : '#1e293b',
-                              color: '#fff', border: 'none', padding: '6px 14px',
-                              borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
-                              cursor: payingAccount === `${plan.id}-bulk` ? 'not-allowed' : 'pointer',
-                              display: 'inline-flex', alignItems: 'center', gap: 4
-                            }}>
-                            {payingAccount === `${plan.id}-bulk` ? 'Processing...' : `💰 Pay All (${formatCurrency(remaining * 3000)})`}
-                          </button>
-                          <button className="btn btn-sm"
-                            onClick={() => handleLotusPayAll(plan.id, remaining * 3000)}
-                            disabled={lotusLoading === `${plan.id}-bulk-lotus`}
-                            style={{
-                              background: lotusLoading === `${plan.id}-bulk-lotus` ? '#94a3b8' : '#1e40af',
-                              color: '#fff', border: 'none', padding: '6px 14px',
-                              borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
-                              cursor: lotusLoading === `${plan.id}-bulk-lotus` ? 'not-allowed' : 'pointer',
-                              display: 'inline-flex', alignItems: 'center', gap: 4
-                            }}>
-                            {lotusLoading === `${plan.id}-bulk-lotus` ? '...' : 'Lotus'}
-                          </button>
-                        </div>
+                        <button className="btn btn-sm"
+                          onClick={() => handleLotusPayAll(plan.id, remaining * 3000)}
+                          disabled={lotusLoading === `${plan.id}-bulk-lotus`}
+                          style={{
+                            background: lotusLoading === `${plan.id}-bulk-lotus` ? '#94a3b8' : '#1e40af',
+                            color: '#fff', border: 'none', padding: '6px 14px',
+                            borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
+                            cursor: lotusLoading === `${plan.id}-bulk-lotus` ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex', alignItems: 'center', gap: 4
+                          }}>
+                          {lotusLoading === `${plan.id}-bulk-lotus` ? '...' : `Pay All (${formatCurrency(remaining * 3000)}) with Lotus`}
+                        </button>
                       )}
                     </div>
                   )}
