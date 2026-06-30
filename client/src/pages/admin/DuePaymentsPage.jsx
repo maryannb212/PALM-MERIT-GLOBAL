@@ -33,7 +33,7 @@ const DuePaymentsPage = () => {
   };
 
   const filtered = useMemo(() => {
-    let result = data;
+    let result = Array.isArray(data) ? data : [];
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(u =>
@@ -57,8 +57,9 @@ const DuePaymentsPage = () => {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const totalMatured = data.reduce((s, u) => s + u.matured_count, 0);
-  const totalDefaults = data.reduce((s, u) => s + u.default_count, 0);
+  const safeData = Array.isArray(data) ? data : [];
+  const totalMatured = safeData.reduce((s, u) => s + (u.matured_count || 0), 0);
+  const totalDefaults = safeData.reduce((s, u) => s + (u.default_count || 0), 0);
 
   return (
     <div className="admin-page-content">
@@ -139,9 +140,9 @@ const DuePaymentsPage = () => {
                         <div style={{ fontWeight: 500 }}>{u.first_name} {u.last_name}</div>
                         <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{u.email}</div>
                       </td>
-                      <td style={{ textAlign: 'center' }}>{u.plans.length}</td>
+                      <td style={{ textAlign: 'center' }}>{(u.plans || []).length}</td>
                       <td style={{ textAlign: 'center' }}>
-                        {u.plans.reduce((s, p) => s + p.number_of_accounts, 0)}
+                        {(u.plans || []).reduce((s, p) => s + (p.number_of_accounts || 0), 0)}
                       </td>
                       <td style={{ textAlign: 'center', color: u.matured_count > 0 ? '#16a34a' : 'inherit', fontWeight: 600 }}>
                         {u.matured_count || '—'}
@@ -186,7 +187,7 @@ const DuePaymentsPage = () => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {u.plans.map(p => (
+                                {(u.plans || []).map(p => (
                                   <tr key={p.plan_id} style={{ background: p.is_matured ? '#f0fdf4' : 'transparent' }}>
                                     <td style={{ padding: '8px 12px' }}>
                                       <span style={{
@@ -225,9 +226,9 @@ const DuePaymentsPage = () => {
                                       </div>
                                     </td>
                                     <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                      {p.defaults.length > 0 ? (
+                                      {(p.defaults || []).length > 0 ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
-                                          {p.defaults.map(d => (
+                                          {(p.defaults || []).map(d => (
                                             <span key={d.id} style={{
                                               display: 'inline-block', padding: '1px 6px', borderRadius: 4,
                                               background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca',
