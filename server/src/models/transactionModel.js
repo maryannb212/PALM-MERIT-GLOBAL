@@ -402,6 +402,33 @@ export const processCompletedPayment = async (
         [completedTx.user_id]
       );
 
+      const { rows: memberRows } = await client.query(
+        `SELECT first_name, last_name FROM users WHERE id = $1`,
+        [completedTx.user_id]
+      );
+      const memberName = memberRows[0]
+        ? `${memberRows[0].first_name} ${memberRows[0].last_name}`
+        : 'A user';
+
+      await createNotification(
+        completedTx.user_id,
+        'PAYMENT',
+        'Membership Activated',
+        'Your membership has been activated successfully.'
+      ).catch(() => {});
+
+      const { rows: adminRows } = await client.query(
+        `SELECT id FROM users WHERE role = 'admin'`
+      );
+      for (const admin of adminRows) {
+        await createNotification(
+          admin.id,
+          'PAYMENT',
+          'New Member',
+          `${memberName} has activated their membership.`
+        ).catch(() => {});
+      }
+
       console.log(
         '[MEMBERSHIP ACTIVATED]'
       );

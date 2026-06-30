@@ -84,6 +84,7 @@ const DashboardHome = () => {
 
   const totalSavings = plans.reduce((sum, p) => sum + parseFloat(p.current_amount || 0), 0);
   const activePlans = plans.filter(p => p.status === 'active');
+  const clearancePlans = plans.filter(p => p.status === 'pending_clearance');
   const paidPlans = plans.filter(p => p.status === 'completed');
   const savingsPlans = plans.filter(p => p.plan_type === 'savings');
   const walletBalance = parseFloat(user?.walletBalance || user?.wallet_balance || 0);
@@ -325,6 +326,32 @@ const DashboardHome = () => {
           <p className="whats-up-subtitle">
             Total <strong>{activePlans.length}</strong> active cooperative program{activePlans.length !== 1 ? 's' : ''}
           </p>
+
+          {clearancePlans.length > 0 && (
+            <div className="clearance-notice" style={{
+              background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+              border: '1px solid #f59e0b',
+              borderRadius: '10px',
+              padding: '16px 20px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '1.5rem' }}>🔓</span>
+                <div style={{ flex: 1 }}>
+                  <strong style={{ color: '#92400e', fontSize: '0.95rem' }}>
+                    {clearancePlans.reduce((s, p) => s + ((p.number_of_accounts || 1) - (p.accounts_cleared || 0)), 0)} account{(clearancePlans.reduce((s, p) => s + ((p.number_of_accounts || 1) - (p.accounts_cleared || 0)), 0)) !== 1 ? 's' : ''} available for clearance
+                  </strong>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#78350f' }}>
+                    {clearancePlans.map(p => `${p.plan_name} (${(p.number_of_accounts || 1) - (p.accounts_cleared || 0)} remaining)`).join(', ')}
+                  </p>
+                </div>
+                <Link to="/dashboard/clearance" className="btn btn-sm btn-primary" style={{ textDecoration: 'none', padding: '8px 20px', whiteSpace: 'nowrap' }}>
+                  Proceed to Clearance
+                </Link>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <p className="text-muted">Loading activity...</p>
           ) : recentTransactions.length === 0 ? (
