@@ -122,6 +122,130 @@ export const runStartupCatchupDeductions = async () => {
   }
 };
 
+const computeIsDue = (plan, config, lastDeductionDate, watDate, todayDayName, todayString) => {
+  let isDue = false;
+
+  if (config.isDaily) {
+    if (!lastDeductionDate) {
+      isDue = true;
+    } else {
+      const lastWatDate = new Date(new Date(lastDeductionDate).toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+      if (lastWatDate.toDateString() !== todayString) {
+        isDue = true;
+      }
+    }
+  } else {
+    if (!lastDeductionDate) {
+      if (plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
+        isDue = true;
+      } else {
+        const daysSinceStart = Math.floor((watDate - new Date(plan.start_date)) / (1000 * 60 * 60 * 24));
+        if (daysSinceStart >= 7) {
+          isDue = true;
+        }
+      }
+    } else {
+      const daysSinceLast = Math.floor((watDate - new Date(lastDeductionDate)) / (1000 * 60 * 60 * 24));
+      if (daysSinceLast >= 7) {
+        isDue = true;
+      }
+    }
+  }
+
+  return isDue;
+};
+
+const processDuePlan = async (plan, config, watDateStr, todayDayName, todayString) => {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Re-check isDue inside the transaction to handle race conditions
+    const { rows: lockedPlans } = await client.query('SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE', [plan.id]);
+    if (lockedPlans.length === 0) {
+      await client.query('ROLLBACK');
+      return;
+    }
+
+    const { rows: existingTransactions } = await client.query(`
+      SELECT created_at FROM transactions
+      WHERE plan_id = $1 AND type IN ('savings', 'penalty') AND status = 'completed'
+      ORDER BY created_at DESC LIMIT 1
+    `, [plan.id]);
+
+    const { rows: todayDefault } = await client.query(`
+      SELECT id FROM defaults
+      WHERE plan_id = $1 AND missed_date = $2::date LIMIT 1
+    `, [plan.id, watDateStr]);
+
+    if (todayDefault.length > 0) {
+      await client.query('ROLLBACK');
+      return;
+    }
+
+    const lastDeductionDate = existingTransactions.length > 0 ? existingTransactions[0].created_at : null;
+
+    if (!computeIsDue(plan, config, lastDeductionDate, new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" })), todayDayName, todayString)) {
+      await client.query('ROLLBACK');
+      return;
+    }
+
+    const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
+    if (users.length === 0) throw new Error('User not found');
+
+    const balance = Math.floor(parseFloat(users[0].available_balance));
+    const ref = `AUTOSAV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    const perAccountAmount = config.amount;
+    const numAccounts = plan.number_of_accounts || 1;
+    const fullDue = perAccountAmount * numAccounts;
+    const payableAccounts = Math.floor(balance / perAccountAmount);
+    const payableAmount = payableAccounts * perAccountAmount;
+    const savingsAmount = Math.min(payableAmount, fullDue);
+
+    if (savingsAmount > 0) {
+      await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
+      await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [savingsAmount, plan.id]);
+      await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'savings', $3, 'completed', $4)`, [plan.user_id, plan.id, savingsAmount, ref]);
+      await createWalletLedgerEntry(client, plan.user_id, 'debit', savingsAmount, ref, `Automatic savings deduction for ${plan.plan_name}`);
+
+      console.log(`Plan ${plan.id}: saved N${savingsAmount}.`);
+    } else {
+      console.log(`Plan ${plan.id}: insufficient funds (N${balance}) to cover even 1 account (N${perAccountAmount}). Defaulting N${fullDue}...`);
+
+      await client.query(`
+        INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
+        VALUES ($1, $2, $3::date, $4)
+      `, [plan.user_id, plan.id, watDateStr, fullDue]);
+
+      const skipRef = `SKIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'penalty', 0, 'completed', $3)`, [plan.user_id, plan.id, skipRef]);
+
+      console.log(`Plan ${plan.id}: Default created for N${fullDue}.`);
+    }
+
+    await client.query('COMMIT');
+
+    if (savingsAmount > 0) {
+      let msg = `Your automatic savings deduction of N${savingsAmount.toLocaleString()} for your ${plan.plan_name} plan was successful`;
+      if (savingsAmount < fullDue) {
+        const paidAccounts = savingsAmount / perAccountAmount;
+        msg += ` (${paidAccounts} of ${numAccounts} accounts paid)`;
+      }
+      msg += '.';
+      await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
+    } else {
+      await createNotification(plan.user_id, 'SYSTEM', 'Missed Contribution',
+        `Your ${plan.plan_name} plan contribution of N${fullDue.toLocaleString()} was not deducted due to insufficient wallet balance. A default of N${fullDue.toLocaleString()} has been recorded.`);
+    }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`Error processing deduction for plan ${plan.id}:`, err);
+  } finally {
+    client.release();
+  }
+};
+
 export const runDeductionJob = async () => {
   console.log('Running automatic savings deduction job...');
   try {
@@ -130,135 +254,56 @@ export const runDeductionJob = async () => {
     const todayString = watDate.toDateString();
     const watDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
 
+    // Step 1: Get all active plans
     const { rows: activePlans } = await query("SELECT * FROM savings_plans WHERE status = 'active'");
+    console.log(`Total active plans: ${activePlans.length}`);
 
+    if (activePlans.length === 0) {
+      return { success: true, message: 'No active plans found.' };
+    }
+
+    const planIds = activePlans.map(p => p.id);
+
+    // Step 2: Batch query last transaction dates for all plans
+    const { rows: lastTxRows } = await query(`
+      SELECT DISTINCT ON (plan_id) plan_id, created_at
+      FROM transactions
+      WHERE plan_id = ANY($1) AND type IN ('savings', 'penalty') AND status = 'completed'
+      ORDER BY plan_id, created_at DESC
+    `, [planIds]);
+
+    // Step 3: Batch query today's defaults for all plans
+    const { rows: todayDefaults } = await query(`
+      SELECT plan_id FROM defaults
+      WHERE plan_id = ANY($1) AND missed_date = $2::date
+    `, [planIds, watDateStr]);
+
+    // Step 4: Build lookup maps
+    const lastTxByPlan = {};
+    for (const row of lastTxRows) {
+      lastTxByPlan[row.plan_id] = row.created_at;
+    }
+    const todayDefaultPlans = new Set(todayDefaults.map(d => d.plan_id));
+
+    // Step 5: Pre-compute which plans are due (no transactions needed)
+    const duePlans = [];
     for (const plan of activePlans) {
       const config = PLAN_CONFIG[plan.plan_name];
       if (!config) continue;
+      if (todayDefaultPlans.has(plan.id)) continue;
 
-      const expectedAmount = config.amount * (plan.number_of_accounts || 1);
-
-      const client = await getClient();
-      try {
-        await client.query('BEGIN');
-
-        const { rows: lockedPlans } = await client.query('SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE', [plan.id]);
-        if (lockedPlans.length === 0) {
-          await client.query('ROLLBACK');
-          continue;
-        }
-
-        const { rows: existingTransactions } = await client.query(`
-          SELECT created_at FROM transactions
-          WHERE plan_id = $1 AND type IN ('savings', 'penalty') AND status = 'completed'
-          ORDER BY created_at DESC LIMIT 1
-        `, [plan.id]);
-
-        const { rows: todayDefault } = await client.query(`
-          SELECT id FROM defaults
-          WHERE plan_id = $1 AND missed_date = $2::date LIMIT 1
-        `, [plan.id, watDateStr]);
-
-        if (todayDefault.length > 0) {
-          await client.query('ROLLBACK');
-          continue;
-        }
-
-        const lastDeductionDate = existingTransactions.length > 0 ? existingTransactions[0].created_at : null;
-
-        let isDue = false;
-
-        if (config.isDaily) {
-          if (!lastDeductionDate) {
-            isDue = true;
-          } else {
-            const lastWatDate = new Date(new Date(lastDeductionDate).toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
-            if (lastWatDate.toDateString() !== todayString) {
-              isDue = true;
-            }
-          }
-        } else {
-          if (!lastDeductionDate) {
-            if (plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
-              isDue = true;
-            } else {
-              const daysSinceStart = Math.floor((watDate - new Date(plan.start_date)) / (1000 * 60 * 60 * 24));
-              if (daysSinceStart >= 7) {
-                isDue = true;
-                console.log(`Plan ${plan.id} never deducted and it's been ${daysSinceStart} days. Catching up.`);
-              }
-            }
-          } else {
-            const daysSinceLast = Math.floor((watDate - new Date(lastDeductionDate)) / (1000 * 60 * 60 * 24));
-            if (daysSinceLast >= 7) {
-              isDue = true;
-              console.log(`Plan ${plan.id} (${plan.plan_name}) missed its preferred day. Catching up now (Days since last: ${daysSinceLast}).`);
-            }
-          }
-        }
-
-        if (!isDue) {
-          await client.query('ROLLBACK');
-          continue;
-        }
-
-        const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
-        if (users.length === 0) throw new Error('User not found');
-
-        const balance = Math.floor(parseFloat(users[0].available_balance));
-        const ref = `AUTOSAV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-        // ── Per-account granularity ──
-        const perAccountAmount = config.amount;
-        const numAccounts = plan.number_of_accounts || 1;
-        const fullDue = perAccountAmount * numAccounts;
-        const payableAccounts = Math.floor(balance / perAccountAmount);
-        const payableAmount = payableAccounts * perAccountAmount;
-        const savingsAmount = Math.min(payableAmount, fullDue);
-
-        if (savingsAmount > 0) {
-          await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
-          await client.query('UPDATE savings_plans SET current_amount = current_amount + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [savingsAmount, plan.id]);
-          await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'savings', $3, 'completed', $4)`, [plan.user_id, plan.id, savingsAmount, ref]);
-          await createWalletLedgerEntry(client, plan.user_id, 'debit', savingsAmount, ref, `Automatic savings deduction for ${plan.plan_name}`);
-
-          console.log(`Plan ${plan.id}: saved N${savingsAmount}.`);
-        } else {
-          console.log(`Plan ${plan.id}: insufficient funds (N${balance}) to cover even 1 account (N${perAccountAmount}). Defaulting N${fullDue}...`);
-          
-          // ── Create a default for the missed contribution ──
-          await client.query(`
-            INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
-            VALUES ($1, $2, $3::date, $4)
-          `, [plan.user_id, plan.id, watDateStr, fullDue]);
-          
-          // ── Insert SKIP- marker to prevent re-processing ──
-          const skipRef = `SKIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-          await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'penalty', 0, 'completed', $3)`, [plan.user_id, plan.id, skipRef]);
-          
-          console.log(`Plan ${plan.id}: Default created for N${fullDue}.`);
-        }
-
-        await client.query('COMMIT');
-
-        if (savingsAmount > 0) {
-          let msg = `Your automatic savings deduction of N${savingsAmount.toLocaleString()} for your ${plan.plan_name} plan was successful`;
-          if (savingsAmount < fullDue) {
-            const paidAccounts = savingsAmount / perAccountAmount;
-            msg += ` (${paidAccounts} of ${numAccounts} accounts paid)`;
-          }
-          msg += '.';
-          await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
-        } else {
-          await createNotification(plan.user_id, 'SYSTEM', 'Missed Contribution',
-            `Your ${plan.plan_name} plan contribution of N${fullDue.toLocaleString()} was not deducted due to insufficient wallet balance. A default of N${fullDue.toLocaleString()} has been recorded.`);
-        }
-      } catch (err) {
-        await client.query('ROLLBACK');
-        console.error(`Error processing deduction for plan ${plan.id}:`, err);
-      } finally {
-        client.release();
+      const lastDeductionDate = lastTxByPlan[plan.id] || null;
+      if (computeIsDue(plan, config, lastDeductionDate, watDate, todayDayName, todayString)) {
+        duePlans.push(plan);
       }
+    }
+
+    console.log(`Plans due for processing: ${duePlans.length}`);
+
+    // Step 6: Process only due plans in individual transactions
+    for (const plan of duePlans) {
+      const config = PLAN_CONFIG[plan.plan_name];
+      await processDuePlan(plan, config, watDateStr, todayDayName, todayString);
     }
 
     return { success: true, message: 'Deduction job completed.' };
