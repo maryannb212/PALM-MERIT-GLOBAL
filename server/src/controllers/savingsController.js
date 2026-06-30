@@ -231,12 +231,8 @@ export const payClearanceFee = async (req, res) => {
         throw new Error('Clearance already paid fully');
       }
 
-      const { rows: users } = await client.query('SELECT available_balance, wallet_balance, tshirt_paid FROM users WHERE id = $1 FOR UPDATE', [userId]);
+      const { rows: users } = await client.query('SELECT available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
       const user = users[0];
-      
-      if (!user.tshirt_paid) {
-        throw new Error('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee of ₦5,000 in your wallet before paying clearance fees.');
-      }
 
       const accounts = plan.number_of_accounts || 1;
       const accountsCleared = parseInt(plan.accounts_cleared || 0, 10);
