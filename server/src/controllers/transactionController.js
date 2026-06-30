@@ -124,7 +124,7 @@ export const initializeTransaction = async (req, res) => {
 
     if (provider === 'paystack') {
       try {
-        const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+        const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || process.env.WEBHOOK_BASE_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
         const callback_url = `${baseUrl}/verify-deposit?reference=${reference}`;
 
         const paystackRes = await axios.post('https://api.paystack.co/transaction/initialize', {
@@ -150,7 +150,7 @@ export const initializeTransaction = async (req, res) => {
         throw new Error('Lotus Bank is not configured. Please contact support.');
       }
       try {
-        const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+        const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || process.env.WEBHOOK_BASE_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
         const returnUrl = `${baseUrl}/verify-deposit?trxref=${reference}`;
 
         const lotusRes = await axios.post('https://partnerhub.lotusbank.com/api/v1/checkout/initialize', {

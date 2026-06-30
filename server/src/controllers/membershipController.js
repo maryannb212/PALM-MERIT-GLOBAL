@@ -6,55 +6,98 @@ import { query } from '../config/db.js';
 
 dotenv.config();
 
+function getLotusMerchantKey() {
+  return process.env.LOTUS_MERCHANT_KEY || '';
+}
+
+function getLotusWalletId() {
+  return process.env.LOTUS_WALLET_ID || 'master';
+}
+
 /**
  * Initialize membership payment
  * POST /api/membership/initialize
+ * Accepts payment_provider: 'paystack' (default) or 'lotus'
  */
 export const initializeMembershipPayment = async (req, res) => {
   try {
     const userId = req.user.id;
     const amount = 500; // Registration fee
-    // Fallback email for users who registered without one — Paystack requires a valid email
+    const provider = req.body.payment_provider || 'paystack';
     const email = req.user.email || `user${userId}@palmmeritglobal.com`;
 
     const reference = `PM-MEM-${uuidv4().substring(0, 8).toUpperCase()}`;
 
-    // Create pending transaction in our DB
-    const transaction = await createTransaction(userId, null, 'membership', amount, reference);
-
-    // Initialize Paystack transaction
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY || 'sk_test_mock';
-    
-    // Convert amount to kobo for Paystack (multiply by 100)
-    const paystackData = {
-      email,
-      amount: amount * 100,
-      reference: reference,
-      metadata: {
-        userId: userId,
-        type: 'membership'
-      }
-    };
-
-    let authorization_url = null;
+    // Create pending transaction in our DB with the correct payment provider
+    const transaction = await createTransaction(userId, null, 'membership', amount, reference, provider);
 
     const isMockMode = () => process.env.PAYMENT_MODE === 'mock';
     if (isMockMode()) {
       return res.status(201).json({ message: 'Membership payment initialized (mock)', transaction, authorization_url: null });
     }
 
-    const response = await axios.post('https://api.paystack.co/transaction/initialize', paystackData, {
-      headers: {
-        Authorization: `Bearer ${paystackSecret}`,
-        'Content-Type': 'application/json'
+    const baseUrl = (process.env.CLIENT_URL || process.env.FRONTEND_URL || process.env.WEBHOOK_BASE_URL || 'https://palmmeritglobal.com').replace(/\/$/, '');
+
+    let authorization_url = null;
+
+    if (provider === 'lotus') {
+      const merchantKey = getLotusMerchantKey();
+      if (!merchantKey) {
+        throw new Error('Lotus Bank is not configured. Please contact support.');
       }
-    });
-    authorization_url = response.data.data.authorization_url;
+
+      const returnUrl = `${baseUrl}/verify-deposit?trxref=${reference}`;
+
+      const lotusRes = await axios.post('https://partnerhub.lotusbank.com/api/v1/checkout/initialize', {
+        amount,
+        currency: 'NGN',
+        returnUrl,
+        walletId: getLotusWalletId(),
+        metadata: { userId, type: 'membership', reference }
+      }, {
+        headers: {
+          Authorization: merchantKey,
+          'Content-Type': 'application/json'
+        },
+        timeout: 15000
+      });
+
+      authorization_url = lotusRes.data?.data?.authorization_url;
+      if (!authorization_url) {
+        throw new Error('Lotus Bank did not return an authorization_url');
+      }
+    } else {
+      // Default: Paystack
+      const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+      if (!paystackSecret) {
+        throw new Error('Paystack is not configured. Please contact support.');
+      }
+
+      const paystackData = {
+        email,
+        amount: amount * 100,
+        reference,
+        callback_url: `${baseUrl}/verify-membership`,
+        metadata: {
+          userId,
+          type: 'membership'
+        }
+      };
+
+      const response = await axios.post('https://api.paystack.co/transaction/initialize', paystackData, {
+        headers: {
+          Authorization: `Bearer ${paystackSecret}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      authorization_url = response.data.data.authorization_url;
+    }
 
     res.status(201).json({
       message: 'Membership payment initialized',
       transaction,
-      authorization_url: authorization_url
+      authorization_url
     });
   } catch (error) {
     console.error('Error in initializeMembershipPayment:', error);

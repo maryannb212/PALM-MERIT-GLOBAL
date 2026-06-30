@@ -18,15 +18,15 @@ const RegisterPage = () => {
     nokName: '', nokRelationship: '', nokPhone: '', nokAddress: '', nokDob: '',
     email: '', password: '', confirmPassword: '', referredByCode: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const refCode = searchParams.get('ref');
-    if (refCode) {
-      setFormData(prev => ({ ...prev, referredByCode: refCode }));
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref');
+    if (ref && ref.trim()) {
+      setFormData(prev => ({ ...prev, referredByCode: ref.trim() }));
     }
-  }, [location]);
+  }, [location.search]);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -86,7 +86,7 @@ const RegisterPage = () => {
         nokName: formData.nokName,
         nokRelationship: formData.nokRelationship,
         nokPhone: formData.nokPhone,
-        referredByCode: formData.referredByCode
+        referredByCode: formData.referredByCode || undefined
       });
       
       navigate('/dashboard');
@@ -258,18 +258,6 @@ const RegisterPage = () => {
                   />
                 </div>
 
-                <div className="form-group full-width">
-                  <label>Referred By / Upline Code (Optional)</label>
-                  <input 
-                    type="text" 
-                    name="referredByCode" 
-                    value={formData.referredByCode || ''} 
-                    onChange={handleInputChange} 
-                    placeholder="e.g. CKO-72841"
-                    autoComplete="off"
-                  />
-                </div>
-                
                 <div className="auth-alert warning mt-3">
                   <small>
                     By clicking Complete Registration, you confirm that you have read and accepted our 

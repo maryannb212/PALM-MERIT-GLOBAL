@@ -2,6 +2,7 @@
 - Fix referral code processing on live server deployment and fix default/penalty system bugs causing incorrect customer defaults.
 - Deduction job pays contributions from wallet when possible; creates defaults when wallet can't cover even one account.
 - Defaults are settled exclusively via Lotus Bank payments — wallet balance is NEVER used to settle defaults.
+- Admin `/referrals` page downlines display — fixed self-referral noise (13 users had `referred_by` set to own ID).
 
 ## Constraints & Preferences
 - Cron jobs create a default when wallet can't cover even one full account's contribution.
@@ -11,6 +12,7 @@
 - All amounts must be whole numbers (`Math.floor()`).
 - All timezone handling must use Africa/Lagos (WAT) consistently across deduction job.
 - Live server referral code issue is confirmed to be a deployment/code version problem, not a database problem.
+- Self-referrals (`referred_by = own id`) must be excluded from downline counts and display — ~13 self-referrals found in production data.
 
 ## Progress
 ### Done
@@ -36,6 +38,16 @@
   - `initializeTransaction` creates pending `deposit` transaction (no plan_id), initializes Lotus checkout.
   - `lotusWebhook` → `handleLotusCheckout` → `processCompletedPayment` → `settleOutstandingPenalties` intercepts payment, settles oldest defaults first (full or partial), remainder credited to wallet.
   - `verifyTransaction` also calls `processCompletedPayment` idempotently (duplicate-safe).
+- **Fixed admin referrals downlines display** (`server/src/controllers/adminController.js`):
+  - Diagnosed: 13 of 28 users with `referred_by` had self-referrals (own ID), polluting the admin page.
+  - `getAdminReferralStats`: added `&& down.id !== u.id` to JS filter to exclude self-referrals from downlines.
+  - `getAllUsers`: added `AND sub.id != u.id` to SQL downline count subquery.
+  - After fix: 20→8 users shown with genuine downlines, 13 self-referral noise entries removed.
+- **Re-enabled referral code capture at registration** (`client/src/pages/auth/RegisterPage.jsx`):
+  - Diagnosed root cause: RegisterPage had stripped ALL referral tracking (no `useLocation`, no `?ref=` capture, no `referredByCode` sent to API). This meant every registration via a referral link produced 0 downlines for the referrer.
+  - Re-added `useLocation` to read `?ref=` URL parameter on mount.
+  - Added `referredByCode` to form state and passed it to `register()` API call.
+  - No visible input field shown to users — the code is silently captured from the URL.
 
 ### In Progress
 - (none)
@@ -50,10 +62,12 @@
 - `missed_date` in defaults table should consistently be Africa/Lagos date to match deduction job's 6PM WAT schedule.
 - `available_balance` only is read (no longer reads `wallet_balance`) from users table in deduction job since `wallet_balance` is derived.
 - `settleOutstandingPenalties` supports both full and partial default settlement from incoming deposits.
+- Self-referrals (`referred_by = own id`) must be excluded from downline counts — these are data errors where users registered using their own referral code.
 
 ## Next Steps
 - Deploy the updated `deductionJob.js` to the live server.
 - Verify live server has latest code for referral code processing.
+- Consider a data cleanup migration to NULL out self-referrals (13 rows: `UPDATE users SET referred_by = NULL WHERE id = referred_by`).
 
 ## Critical Context
 - `deductionJob.js` runs at 6PM WAT (`0 18 * * *` with `{ timezone: 'Africa/Lagos' }`).
@@ -63,6 +77,7 @@
 - Default settlement flow: Lotus Bank payment → `lotusWebhook` → `processCompletedPayment` → `settleOutstandingPenalties` — intercepts incoming `deposit`/`wallet_topup`/`contribution`, settles oldest defaults first, remainder goes to wallet.
 - `settleOutstandingPenalties` uses `FOR UPDATE` on defaults rows to prevent double-settlement from concurrent payments.
 - `penaltyJob.js` was never created on disk; only `deductionJob.js` handles deduction/default logic.
+- **Self-referral data issue**: 13 users in Neon have `referred_by` set to their own ID. Root cause: registration or `subscribeToPlan` allowed using one's own referral code. The `RegisterPage.jsx` no longer has the referral code field (removed), but existing data remains.
 
 ## Relevant Files
 - `server/src/jobs/deductionJob.js`: Main deduction cron (6PM WAT) — per-account granularity, no sweep logic.
@@ -73,3 +88,4 @@
 - `server/src/middleware/authMiddleware.js`: `protect`, `checkMembership` — gate the subscription endpoint.
 - `server/src/config/db.js`: DB connection pool, `getClient()` with monkey-patched query tracking.
 - `server/.env`: Local DB via `DB_*` fields; `DATABASE_URL` (Neon) is commented out.
+- `server/src/controllers/adminController.js`: `getAdminReferralStats` (line 570) — JS filter now excludes self-referrals; `getAllUsers` (line 20) — SQL subquery now excludes self-referrals.
