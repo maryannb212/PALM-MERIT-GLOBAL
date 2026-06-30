@@ -222,13 +222,6 @@ export const runDeductionJob = async () => {
           await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'savings', $3, 'completed', $4)`, [plan.user_id, plan.id, savingsAmount, ref]);
           await createWalletLedgerEntry(client, plan.user_id, 'debit', savingsAmount, ref, `Automatic savings deduction for ${plan.plan_name}`);
 
-          let msg = `Your automatic savings deduction of N${savingsAmount.toLocaleString()} for your ${plan.plan_name} plan was successful`;
-          if (savingsAmount < fullDue) {
-            const paidAccounts = savingsAmount / perAccountAmount;
-            msg += ` (${paidAccounts} of ${numAccounts} accounts paid)`;
-          }
-          msg += '.';
-          await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
           console.log(`Plan ${plan.id}: saved N${savingsAmount}.`);
         } else {
           console.log(`Plan ${plan.id}: insufficient funds (N${balance}) to cover even 1 account (N${perAccountAmount}). Defaulting N${fullDue}...`);
@@ -243,13 +236,23 @@ export const runDeductionJob = async () => {
           const skipRef = `SKIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
           await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'penalty', 0, 'completed', $3)`, [plan.user_id, plan.id, skipRef]);
           
-          await createNotification(plan.user_id, 'SYSTEM', 'Missed Contribution',
-            `Your ${plan.plan_name} plan contribution of N${fullDue.toLocaleString()} was not deducted due to insufficient wallet balance. A default of N${fullDue.toLocaleString()} has been recorded.`);
-          
           console.log(`Plan ${plan.id}: Default created for N${fullDue}.`);
         }
 
         await client.query('COMMIT');
+
+        if (savingsAmount > 0) {
+          let msg = `Your automatic savings deduction of N${savingsAmount.toLocaleString()} for your ${plan.plan_name} plan was successful`;
+          if (savingsAmount < fullDue) {
+            const paidAccounts = savingsAmount / perAccountAmount;
+            msg += ` (${paidAccounts} of ${numAccounts} accounts paid)`;
+          }
+          msg += '.';
+          await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
+        } else {
+          await createNotification(plan.user_id, 'SYSTEM', 'Missed Contribution',
+            `Your ${plan.plan_name} plan contribution of N${fullDue.toLocaleString()} was not deducted due to insufficient wallet balance. A default of N${fullDue.toLocaleString()} has been recorded.`);
+        }
       } catch (err) {
         await client.query('ROLLBACK');
         console.error(`Error processing deduction for plan ${plan.id}:`, err);
