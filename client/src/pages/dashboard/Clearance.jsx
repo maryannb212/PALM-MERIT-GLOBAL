@@ -273,7 +273,7 @@ const Clearance = () => {
                                 cursor: lotusLoading === lotusKey ? 'not-allowed' : 'pointer',
                                 display: 'inline-flex', alignItems: 'center', gap: 4
                               }}>
-                              {lotusLoading === lotusKey ? '...' : `Pay Account ${idx + 1} with Lotus`}
+                              {lotusLoading === lotusKey ? '...' : 'Pay with Lotus'}
                             </button>
                           );
                         })}
@@ -289,7 +289,7 @@ const Clearance = () => {
                             cursor: lotusLoading === `${plan.id}-bulk-lotus` ? 'not-allowed' : 'pointer',
                             display: 'inline-flex', alignItems: 'center', gap: 4
                           }}>
-                          {lotusLoading === `${plan.id}-bulk-lotus` ? '...' : `Pay All (${formatCurrency(remaining * 3000)}) with Lotus`}
+                          {lotusLoading === `${plan.id}-bulk-lotus` ? '...' : `Pay All with Lotus (${formatCurrency(remaining * 3000)})`}
                         </button>
                       )}
                     </div>

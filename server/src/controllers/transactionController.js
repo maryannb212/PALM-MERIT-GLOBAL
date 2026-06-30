@@ -94,8 +94,8 @@ export const initializeTransaction = async (req, res) => {
       return res.status(400).json({ message: 'A valid positive amount is required.' });
     }
 
-    // Savings Schedule Enforcement Validation
-    if (planId) {
+    // Savings Schedule Enforcement Validation (skip for clearance)
+    if (planId && type !== 'clearance') {
       const { rows: planRows } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
       if (planRows.length > 0) {
         const plan = planRows[0];
