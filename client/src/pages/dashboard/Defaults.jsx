@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMyDefaults, payWithLotus } from '../../services/api';
-import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock } from 'react-icons/fa';
+import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock, FaCreditCard } from 'react-icons/fa';
 import './Dashboard.css';
 import '../../components/DepositModal.css';
 
@@ -28,6 +28,7 @@ const Defaults = () => {
   const [showLotusModal, setShowLotusModal] = useState(false);
   const [lotusLoading, setLotusLoading] = useState(false);
   const [lotusError, setLotusError] = useState('');
+  const [planToClear, setPlanToClear] = useState(null);
 
   useEffect(() => {
     fetchDefaults();
@@ -64,11 +65,14 @@ const Defaults = () => {
 
   const handleLotusPay = async (e) => {
     e.preventDefault();
-    if (totalDefaults <= 0) return;
+    const amount = planToClear ? planToClear.total_default_amount : totalDefaults;
+    if (amount <= 0) return;
     setLotusLoading(true);
     setLotusError('');
     try {
-      const { data } = await payWithLotus({ amount: totalDefaults, type: 'deposit' });
+      const body = { amount, type: 'deposit' };
+      if (planToClear) body.planId = planToClear.plan_id;
+      const { data } = await payWithLotus(body);
       if (data.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
@@ -79,6 +83,18 @@ const Defaults = () => {
     } finally {
       setLotusLoading(false);
     }
+  };
+
+  const openPerPlanModal = (plan) => {
+    setPlanToClear(plan);
+    setLotusError('');
+    setShowLotusModal(true);
+  };
+
+  const openBulkModal = () => {
+    setPlanToClear(null);
+    setLotusError('');
+    setShowLotusModal(true);
   };
 
   const statsCards = [
@@ -121,9 +137,9 @@ const Defaults = () => {
             <FaWallet /> Fund Wallet
           </button>
           {totalDefaults > 0 && (
-            <button className="btn btn-secondary" onClick={() => setShowLotusModal(true)}
+            <button className="btn btn-secondary" onClick={openBulkModal}
               style={{ background: '#800020', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FaUniversity /> Clear Defaults • {formatCurrency(totalDefaults)}
+              <FaUniversity /> Clear All Defaults • {formatCurrency(totalDefaults)}
             </button>
           )}
         </div>
@@ -222,6 +238,11 @@ const Defaults = () => {
                         This program has <strong>{plan.default_count} default{plan.default_count > 1 ? 's' : ''}</strong> totaling {formatCurrency(plan.total_default_amount)}.
                         All {plan.number_of_accounts || 1} account{(plan.number_of_accounts || 1) > 1 ? 's are' : ' is'} affected.
                       </span>
+                      <button className="btn btn-sm"
+                        onClick={(e) => { e.stopPropagation(); openPerPlanModal(plan); }}
+                        style={{ marginLeft: 'auto', background: '#800020', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        <FaCreditCard /> Clear This Plan
+                      </button>
                     </div>
                   )}
 
@@ -284,10 +305,10 @@ const Defaults = () => {
                 padding: '16px 20px', margin: '10px 0 20px', textAlign: 'center'
               }}>
                 <div style={{ fontSize: '0.8rem', color: '#991b1b', fontWeight: 600, marginBottom: 4 }}>
-                  TOTAL OUTSTANDING DEFAULTS
+                  {planToClear ? `DEFAULTS FOR ${planToClear.plan_name}` : 'TOTAL OUTSTANDING DEFAULTS'}
                 </div>
                 <div style={{ fontSize: '2rem', fontWeight: 700, color: '#dc2626' }}>
-                  {formatCurrency(totalDefaults)}
+                  {planToClear ? formatCurrency(planToClear.total_default_amount) : formatCurrency(totalDefaults)}
                 </div>
               </div>
 
@@ -295,8 +316,12 @@ const Defaults = () => {
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                   <FaInfoCircle style={{ color: '#2563eb', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
-                    You'll be charged <strong>{formatCurrency(totalDefaults)}</strong> to clear all outstanding defaults.
-                    Any overpayment beyond your total defaults will be credited to your wallet.
+                    {planToClear ? (
+                      <>You'll be charged <strong>{formatCurrency(planToClear.total_default_amount)}</strong> to clear defaults for <strong>{planToClear.plan_name}</strong>.</>
+                    ) : (
+                      <>You'll be charged <strong>{formatCurrency(totalDefaults)}</strong> to clear all outstanding defaults.</>
+                    )}
+                    Any overpayment beyond the total will be credited to your wallet.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
@@ -308,7 +333,7 @@ const Defaults = () => {
                 <div style={{ display: 'flex', gap: 10 }}>
                   <FaCheckCircle style={{ color: '#16a34a', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
-                    Payment is auto-applied to settle defaults from oldest to newest. Partial settlements are supported.
+                    Payment is auto-applied to settle {planToClear ? 'defaults for this program' : 'defaults from oldest to newest'}. Partial settlements are supported.
                   </p>
                 </div>
               </div>
@@ -317,9 +342,10 @@ const Defaults = () => {
 
               <div className="modal-actions" style={{ marginTop: 24 }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowLotusModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={lotusLoading || totalDefaults <= 0}
+                <button type="submit" className="btn btn-primary"
+                  disabled={lotusLoading || (planToClear ? planToClear.total_default_amount <= 0 : totalDefaults <= 0)}
                   style={{ background: '#800020', borderColor: '#800020', padding: '12px 28px', fontSize: '1rem' }}>
-                  {lotusLoading ? 'Processing...' : `🏦 Pay ${formatCurrency(totalDefaults)} with Lotus`}
+                  {lotusLoading ? 'Processing...' : `🏦 Pay ${formatCurrency(planToClear ? planToClear.total_default_amount : totalDefaults)} with Lotus`}
                 </button>
               </div>
             </form>

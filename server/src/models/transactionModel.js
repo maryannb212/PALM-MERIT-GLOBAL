@@ -12,20 +12,22 @@ import { sendTermiiSMS } from '../utils/termiiService.js';
  * @param {string} paymentReference - Reference of the source payment
  * @returns {Promise<number>} Remaining amount after penalties settled
  */
-const settleOutstandingPenalties = async (client, userId, amount, paymentReference) => {
+const settleOutstandingPenalties = async (client, userId, amount, paymentReference, planId = null) => {
   if (amount <= 0) return 0;
 
   // Fetch unresolved defaults for the user, ordered by missed_date (oldest first)
   // FOR UPDATE prevents concurrent payments from double-settling the same defaults
+  // When planId is provided, only settle defaults for that specific plan
   const { rows: defaults } = await client.query(
     `
-      SELECT id, penalty_amount
+      SELECT id, penalty_amount, plan_id
       FROM defaults
       WHERE user_id = $1 AND resolved = FALSE
+      ${planId ? 'AND plan_id = $2' : ''}
       ORDER BY missed_date ASC
       FOR UPDATE
     `,
-    [userId]
+    planId ? [userId, planId] : [userId]
   );
 
   let remaining = amount;
@@ -247,9 +249,11 @@ export const processCompletedPayment = async (
     // =====================================================
 
     // Resolve any outstanding penalties before crediting the user.
+    // If transaction has a plan_id, only settle defaults for that plan (single plan clear).
+    // Otherwise, settle all unresolved defaults (bulk clear).
     let creditAmount = parseFloat(completedTx.amount);
     if (completedTx.type === 'deposit' || completedTx.type === 'wallet_topup' || completedTx.type === 'contribution') {
-      creditAmount = await settleOutstandingPenalties(client, completedTx.user_id, creditAmount, completedTx.reference);
+      creditAmount = await settleOutstandingPenalties(client, completedTx.user_id, creditAmount, completedTx.reference, completedTx.plan_id);
     }
 
     if (
