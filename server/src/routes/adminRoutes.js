@@ -27,7 +27,9 @@ import {
   updateDefault,
   resolveUserDefaults,
   reconcileLotusVA,
-  getDuePayments
+  getDuePayments,
+  getClearancePlans,
+  adminSettleClearance
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -74,6 +76,9 @@ router.get('/transaction-debug/:reference', getTransactionDebug);
 router.get('/transactions/recent', getRecentTransfers);
 router.delete('/payments/:id', deleteTestPayment);
 router.get('/due-payments', getDuePayments);
+// Clearance
+router.get('/clearance', getClearancePlans);
+router.post('/clearance/settle', adminSettleClearance);
 // User Defaults
 router.get('/users/:userId/defaults', getUserDefaults);
 router.put('/defaults/:id', updateDefault);

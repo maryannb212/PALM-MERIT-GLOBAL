@@ -3,6 +3,7 @@
 - Deduction job pays contributions from wallet when possible; creates defaults when wallet can't cover even one account.
 - Defaults are settled exclusively via Lotus Bank payments — wallet balance is NEVER used to settle defaults.
 - Admin `/referrals` page downlines display — fixed self-referral noise (13 users had `referred_by` set to own ID).
+- Build per-account clearance system (₦3,000/account) with user-facing and admin-facing clearance management.
 
 ## Constraints & Preferences
 - Cron jobs create a default when wallet can't cover even one full account's contribution.
@@ -13,6 +14,10 @@
 - All timezone handling must use Africa/Lagos (WAT) consistently across deduction job.
 - Live server referral code issue is confirmed to be a deployment/code version problem, not a database problem.
 - Self-referrals (`referred_by = own id`) must be excluded from downline counts and display — ~13 self-referrals found in production data.
+- Per-account clearance: each account in a plan costs ₦3,000 to clear; users can pay per-account or bulk per-plan.
+- Clearance is tracked via `accounts_cleared` column on `savings_plans` (0 up to `number_of_accounts`).
+- Plan transitions to `pending_settlement` only when `accounts_cleared >= number_of_accounts`.
+- Wallet balance is used for clearance payments (deducted from available_balance), NOT Lotus Bank.
 
 ## Progress
 ### Done
@@ -63,11 +68,15 @@
 - `available_balance` only is read (no longer reads `wallet_balance`) from users table in deduction job since `wallet_balance` is derived.
 - `settleOutstandingPenalties` supports both full and partial default settlement from incoming deposits.
 - Self-referrals (`referred_by = own id`) must be excluded from downline counts — these are data errors where users registered using their own referral code.
+- Clearance payments use wallet `available_balance` (deducted directly), NOT Lotus — different from defaults which require Lotus.
+- `accounts_cleared` is tracked incrementally per-account; `clearance_paid` only set `TRUE` on final account.
+- Paying `payClearanceFee` without `accountIndex` charges ₦3,000 × all remaining accounts (bulk per-plan).
 
 ## Next Steps
 - Deploy the updated `deductionJob.js` to the live server.
 - Verify live server has latest code for referral code processing.
 - Consider a data cleanup migration to NULL out self-referrals (13 rows: `UPDATE users SET referred_by = NULL WHERE id = referred_by`).
+- After deploy, run migration: `ALTER TABLE savings_plans ADD COLUMN IF NOT EXISTS accounts_cleared INTEGER DEFAULT 0;`
 
 ## Critical Context
 - `deductionJob.js` runs at 6PM WAT (`0 18 * * *` with `{ timezone: 'Africa/Lagos' }`).
@@ -84,8 +93,15 @@
 - `server/src/models/transactionModel.js`: Contains `settleOutstandingPenalties()` (with `FOR UPDATE`) for deposit-time settlement + `createWalletLedgerEntry()` for ledger entries.
 - `server/src/controllers/transactionController.js`: `lotusWebhook`, `handleLotusCheckout`, `handleLotusVADeposit`, `initializeTransaction` — the full Lotus payment pipeline.
 - `client/src/pages/dashboard/Defaults.jsx`: Frontend UI for paying defaults via Lotus.
-- `server/src/controllers/savingsController.js`: `subscribeToPlan` — referral code processing (confirmed working on Neon).
+- `server/src/controllers/savingsController.js`: `subscribeToPlan` (referral processing), `payClearanceFee` (per-account + bulk), `bulkClearance` (multi-plan bulk with accounts_cleared tracking).
+- `client/src/pages/dashboard/Clearance.jsx`: User-facing clearance page — per-account Pay buttons, bulk per-plan Pay All, progress bar.
+- `client/src/pages/admin/AdminClearance.jsx`: Admin clearance management — filter by status, Settle button for pending_settlement plans.
+- `server/src/controllers/adminController.js`: `getAdminReferralStats`, `getAllUsers` (self-referral exclusion), `getClearancePlans`, `adminSettleClearance`, `approveEligibility` (clearance notification).
+- `client/src/components/Sidebar.jsx`: Added "Clearance" link.
+- `client/src/components/AdminSidebar.jsx`: Added "Clearance" link.
+- `server/src/config/schema.sql`: Added `accounts_cleared INTEGER DEFAULT 0` column to `savings_plans`.
+- `server/src/routes/savingsRoutes.js`: Clearance routes (`pay-clearance`, `bulk-clearance`).
+- `server/src/routes/adminRoutes.js`: Clearance routes (`GET /clearance`, `POST /clearance/settle`).
 - `server/src/middleware/authMiddleware.js`: `protect`, `checkMembership` — gate the subscription endpoint.
 - `server/src/config/db.js`: DB connection pool, `getClient()` with monkey-patched query tracking.
 - `server/.env`: Local DB via `DB_*` fields; `DATABASE_URL` (Neon) is commented out.
-- `server/src/controllers/adminController.js`: `getAdminReferralStats` (line 570) — JS filter now excludes self-referrals; `getAllUsers` (line 20) — SQL subquery now excludes self-referrals.

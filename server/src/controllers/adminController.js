@@ -1,4 +1,4 @@
-import { query } from '../config/db.js';
+import { query, getClient } from '../config/db.js';
 import { createNotification } from '../models/notificationModel.js';
 import { logAudit } from '../models/auditModel.js';
 import { processCompletedPayment, createTransaction } from '../models/transactionModel.js';
@@ -725,33 +725,55 @@ export const approveEligibility = async (req, res) => {
       }
     }
 
-    await query('BEGIN');
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
 
-    // Update plan status
-    const updatePlanSql = `
-      UPDATE savings_plans 
-      SET status = $1, payout_date = $2, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
-      RETURNING *;
-    `;
-    const updatedPlanResult = await query(updatePlanSql, [newStatus, payoutDate, planId]);
+      const updatePlanSql = `
+        UPDATE savings_plans 
+        SET status = $1, payout_date = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+        RETURNING *;
+      `;
+      const updatedPlanResult = await client.query(updatePlanSql, [newStatus, payoutDate, planId]);
 
-    // Create payout record
-    const payoutType = plan.plan_name === 'GOLDEN_BASKET' ? 'goods' : 'cash';
-    await query(`
-      INSERT INTO payouts (user_id, plan_id, amount, payout_type, status, notes)
-      VALUES ($1, $2, $3, $4, 'pending', $5)
-    `, [plan.user_id, planId, approvedAmount, payoutType, notes || 'Approved by admin']);
+      const payoutType = plan.plan_name === 'GOLDEN_BASKET' ? 'goods' : 'cash';
+      await client.query(`
+        INSERT INTO payouts (user_id, plan_id, amount, payout_type, status, notes)
+        VALUES ($1, $2, $3, $4, 'pending', $5)
+      `, [plan.user_id, planId, approvedAmount, payoutType, notes || 'Approved by admin']);
 
-    await logAudit(req.user.id, 'APPROVE_ELIGIBILITY', 'savings_plan', planId, { approvedAmount, newStatus });
+      if (newStatus === 'pending_clearance') {
+        const accounts = plan.number_of_accounts || 1;
+        const totalFee = accounts * 3000;
+        const msg = `${plan.plan_name} program has passed eligibility review. Pay ₦${totalFee.toLocaleString()} clearance fee (₦3,000 × ${accounts} account(s)) to proceed to settlement.`;
+        await client.query(`
+          INSERT INTO notifications (user_id, title, message, type)
+          VALUES ($1, 'Clearance Required', $2, 'clearance')
+        `, [plan.user_id, msg]);
+      } else if (newStatus === 'pending_settlement') {
+        const dateStr = payoutDate ? new Date(payoutDate).toLocaleDateString('en-NG') : 'the scheduled date';
+        const msg = `${plan.plan_name} program has been approved for payout. Settlement will be processed on ${dateStr}.`;
+        await client.query(`
+          INSERT INTO notifications (user_id, title, message, type)
+          VALUES ($1, 'Plan Approved for Payout', $2, 'payout')
+        `, [plan.user_id, msg]);
+      }
 
-    await query('COMMIT');
+      await logAudit(req.user.id, 'APPROVE_ELIGIBILITY', 'savings_plan', planId, { approvedAmount, newStatus });
 
-    res.json({ message: 'Plan eligibility approved successfully', plan: updatedPlanResult.rows[0] });
+      await client.query('COMMIT');
+      res.json({ message: 'Plan eligibility approved successfully', plan: updatedPlanResult.rows[0] });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error approving eligibility:', error);
+      res.status(500).json({ message: 'Server error approving eligibility' });
+    } finally {
+      client.release();
+    }
   } catch (error) {
-    await query('ROLLBACK');
-    console.error('Error approving eligibility:', error);
-    res.status(500).json({ message: 'Server error approving eligibility' });
+    console.error('Error acquiring client in approveEligibility:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -1081,5 +1103,91 @@ export const getDuePayments = async (req, res) => {
   } catch (error) {
     console.error('Error fetching due payments:', error);
     res.status(500).json({ message: 'Server error fetching due payments' });
+  }
+};
+
+export const getClearancePlans = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const validStatuses = ['pending_clearance', 'pending_settlement', 'settled'];
+    const statusFilter = status && validStatuses.includes(status)
+      ? status
+      : ['pending_clearance', 'pending_settlement'];
+    const { rows } = await query(`
+      SELECT
+        sp.*,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone
+      FROM savings_plans sp
+      JOIN users u ON u.id = sp.user_id
+      WHERE sp.status = ANY($1::text[])
+        AND sp.clearance_required = TRUE
+      ORDER BY sp.updated_at DESC
+    `, [Array.isArray(statusFilter) ? statusFilter : [statusFilter]]);
+    res.json(rows.map(r => ({
+      ...r,
+      accounts_cleared: parseInt(r.accounts_cleared || 0, 10),
+      number_of_accounts: r.number_of_accounts || 1,
+    })));
+  } catch (error) {
+    console.error('Error fetching clearance plans:', error);
+    res.status(500).json({ message: 'Server error fetching clearance plans' });
+  }
+};
+
+export const adminSettleClearance = async (req, res) => {
+  try {
+    const { planId } = req.body;
+    if (!planId) return res.status(400).json({ message: 'Plan ID required' });
+
+    const client = await getClient();
+    try {
+      const { rows: plans } = await client.query('SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE', [planId]);
+      if (plans.length === 0) throw new Error('Plan not found');
+      const plan = plans[0];
+
+      if (plan.status !== 'pending_settlement') {
+        throw new Error('Plan is not in pending settlement status');
+      }
+
+      await client.query('BEGIN');
+
+      const { rows: updated } = await client.query(`
+        UPDATE savings_plans
+        SET status = 'settled', updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 RETURNING *
+      `, [planId]);
+
+      const accounts = plan.number_of_accounts || 1;
+      const alreadyCleared = parseInt(plan.accounts_cleared || 0, 10);
+      const remainingFee = (accounts - alreadyCleared) * 3000;
+
+      const reference = `SETTLE-${Date.now()}`;
+      await client.query(`
+        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+        VALUES ($1, $2, 'admin_settlement', $3, 'completed', $4)
+      `, [plan.user_id, planId, remainingFee, reference]);
+
+      const msg = `${plan.plan_name} program has been settled. Your payout is now available.`;
+      await client.query(`
+        INSERT INTO notifications (user_id, title, message, type)
+        VALUES ($1, 'Plan Settled', $2, 'payout')
+      `, [plan.user_id, msg]);
+
+      await logAudit(req.user.id, 'SETTLE_CLEARANCE', 'savings_plan', planId, {});
+      await client.query('COMMIT');
+
+      res.json({ message: 'Plan cleared and settled successfully', plan: updated[0] });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ message: error.message });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error settling clearance:', error);
+    res.status(500).json({ message: 'Server error settling clearance' });
   }
 };

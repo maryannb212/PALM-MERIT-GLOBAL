@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyPlans, payClearanceFee } from '../../services/api';
+import { getMyPlans } from '../../services/api';
 
 import './Dashboard.css';
 import { FaPlus, FaCheckCircle, FaClock, FaExclamationCircle, FaHandHoldingUsd } from 'react-icons/fa';
@@ -12,7 +12,6 @@ const Subscriptions = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
-  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchPlans();
@@ -27,27 +26,6 @@ const Subscriptions = () => {
       console.error('Failed to fetch subscriptions:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePayClearance = async (planId) => {
-    if (!user?.tshirt_paid) {
-      alert('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee (₦5,000) under the Wallet tab before you can pay clearance fees and collect payouts.');
-      navigate('/dashboard/wallet');
-      return;
-    }
-
-    if (!window.confirm('Pay ₦3,000 clearance fee from your wallet balance?')) return;
-    
-    setActionLoading(true);
-    try {
-      await payClearanceFee({ planId });
-      alert('Clearance fee paid! Your plan is now pending settlement.');
-      fetchPlans();
-    } catch (error) {
-      alert(error.response?.data?.message || 'Payment failed. Ensure you have enough wallet balance.');
-    } finally {
-      setActionLoading(false);
     }
   };
 
@@ -235,10 +213,9 @@ const Subscriptions = () => {
                   {plan.status === 'pending_clearance' && (
                     <button 
                       className="clearance-btn" 
-                      onClick={() => handlePayClearance(plan.id)}
-                      disabled={actionLoading}
+                      onClick={() => navigate('/dashboard/clearance')}
                     >
-                      <FaHandHoldingUsd /> {actionLoading ? 'Processing...' : 'Pay Clearance Fee (₦3,000)'}
+                      <FaHandHoldingUsd /> Manage Clearance (₦3,000/account)
                     </button>
                   )}
 

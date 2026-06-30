@@ -165,6 +165,15 @@ export const deleteAmbassador = (id) => API.delete(`/ambassadors/${id}`);
 
 export const getDuePayments = () => API.get('/admin/due-payments');
 
+// Clearance
+export const getMyClearancePlans = () => API.get('/savings/my-plans'); // re-uses getMyPlans
+export const payClearanceAccount = (data) => API.post('/savings/pay-clearance', data);
+export const getAdminClearance = (status) => {
+  const params = status ? `?status=${status}` : '';
+  return API.get(`/admin/clearance${params}`);
+};
+export const adminSettleClearance = (planId) => API.post('/admin/clearance/settle', { planId });
+
 // Admin Defaults
 export const getUserDefaults = (userId) => API.get(`/admin/users/${userId}/defaults`);
 export const updateDefault = (id, data) => API.put(`/admin/defaults/${id}`, data);

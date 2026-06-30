@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaHome, FaWallet, FaBoxOpen, FaHistory, FaHeadset, FaUserShield, FaCog, FaSignOutAlt, FaShieldAlt, FaCloudUploadAlt, FaUserFriends, FaExclamationTriangle } from 'react-icons/fa';
+import { FaHome, FaWallet, FaBoxOpen, FaHistory, FaHeadset, FaUserShield, FaCog, FaSignOutAlt, FaShieldAlt, FaCloudUploadAlt, FaUserFriends, FaExclamationTriangle, FaCheckCircle } from 'react-icons/fa';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
@@ -23,6 +23,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     { name: 'Fund Wallet', path: '/dashboard/wallet', icon: <FaWallet /> },
     { name: 'Cooperative Programs', path: '/dashboard/packages', icon: <FaBoxOpen /> },
     { name: 'Active Programs', path: '/dashboard/subscriptions', icon: <FaBoxOpen /> },
+    { name: 'Clearance', path: '/dashboard/clearance', icon: <FaCheckCircle /> },
     { name: 'Defaults', path: '/dashboard/defaults', icon: <FaExclamationTriangle /> },
     { name: 'Transactions History', path: '/dashboard/transactions', icon: <FaHistory /> },
     { name: 'Upload Receipt', path: '/dashboard/receipt', icon: <FaCloudUploadAlt /> },

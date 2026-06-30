@@ -213,7 +213,7 @@ export const getMyPlans = async (req, res) => {
 
 export const payClearanceFee = async (req, res) => {
   try {
-    const { planId } = req.body;
+    const { planId, accountIndex } = req.body;
     const userId = req.user.id;
 
     const client = await getClient();
@@ -228,7 +228,7 @@ export const payClearanceFee = async (req, res) => {
         throw new Error('Plan is not pending clearance payment');
       }
       if (plan.clearance_paid) {
-        throw new Error('Clearance already paid');
+        throw new Error('Clearance already paid fully');
       }
 
       const { rows: users } = await client.query('SELECT available_balance, wallet_balance, tshirt_paid FROM users WHERE id = $1 FOR UPDATE', [userId]);
@@ -239,52 +239,73 @@ export const payClearanceFee = async (req, res) => {
       }
 
       const accounts = plan.number_of_accounts || 1;
-      const clearanceFee = 3000.00 * accounts;
+      const accountsCleared = parseInt(plan.accounts_cleared || 0, 10);
+      const remainingAccounts = accounts - accountsCleared;
 
-      if (parseFloat(user.available_balance) >= clearanceFee) {
-        // Option 1: Deduct from Wallet
-        await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [clearanceFee, userId]);
-        
-        // Log transaction
-        const reference = `CLR-${Date.now()}`;
-        await client.query(`
-          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-          VALUES ($1, $2, 'clearance', $3, 'completed', $4)
-        `, [userId, planId, clearanceFee, reference]);
+      if (remainingAccounts <= 0) throw new Error('All accounts already cleared');
 
-        // Ledger entry
-        await createWalletLedgerEntry(client, userId, 'debit', clearanceFee, reference, `Clearance Fee for Plan: ${plan.plan_name}`);
+      // Per-account mode: charge ₦3,000 for one account; bulk: charge for remaining
+      const isPerAccount = typeof accountIndex === 'number' || accountIndex !== undefined;
+      if (isPerAccount && (accountIndex < 0 || accountIndex >= accounts)) {
+        throw new Error('Invalid account index');
+      }
+      if (isPerAccount && accountIndex < accountsCleared) {
+        throw new Error('Account already cleared');
+      }
+      const clearanceFee = isPerAccount ? 3000.00 : (3000.00 * remainingAccounts);
 
-      } else {
-        throw new Error('Insufficient available balance. Please top up your wallet to pay the clearance fee.');
+      if (parseFloat(user.available_balance) < clearanceFee) {
+        throw new Error(`Insufficient available balance. This requires ₦${clearanceFee.toLocaleString()}. Please top up your wallet.`);
       }
 
-      let payoutDate;
-      const planStart = new Date(plan.start_date);
-      switch (plan.plan_name) {
-        case 'CREST':
-          payoutDate = new Date(planStart.getTime() + (98 * 24 * 60 * 60 * 1000));
-          break;
-        case 'SILVER':
-        case 'GOLDEN_BASKET':
-          payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
-          break;
-        default:
-          payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
-      }
-      
-      const updatePlanText = `
-        UPDATE savings_plans 
-        SET status = 'pending_settlement', clearance_paid = TRUE, clearance_date = CURRENT_TIMESTAMP, payout_date = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2 RETURNING *;
-      `;
-      const { rows: updatedPlans } = await client.query(updatePlanText, [payoutDate, planId]);
+      await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [clearanceFee, userId]);
 
-      // Note: Payout record has already been created by the Admin during the Eligibility Review phase.
-      // We only need to transition the plan to pending_settlement.
+      const reference = `CLR-${Date.now()}-${plan.id}`;
+      const label = isPerAccount ? `Clearance Fee for ${plan.plan_name} (Account ${(accountIndex || 0) + 1})` : `Clearance Fee for ${plan.plan_name} (${accounts} account(s))`;
+      await client.query(`
+        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+        VALUES ($1, $2, 'clearance', $3, 'completed', $4)
+      `, [userId, planId, clearanceFee, reference]);
+      await createWalletLedgerEntry(client, userId, 'debit', clearanceFee, reference, label);
+
+      // Update accounts_cleared
+      const newCleared = isPerAccount ? accountsCleared + 1 : accounts;
+      if (isPerAccount) {
+        await client.query(
+          'UPDATE savings_plans SET accounts_cleared = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [newCleared, planId]
+        );
+      }
+
+      // Only transition to pending_settlement when all accounts cleared
+      let payoutDate = null;
+      if (newCleared >= accounts) {
+        const planStart = new Date(plan.start_date);
+        switch (plan.plan_name) {
+          case 'CREST':
+            payoutDate = new Date(planStart.getTime() + (98 * 24 * 60 * 60 * 1000));
+            break;
+          case 'SILVER':
+          case 'GOLDEN_BASKET':
+            payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
+            break;
+          default:
+            payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
+        }
+
+        const { rows: updatedPlans } = await client.query(`
+          UPDATE savings_plans 
+          SET status = 'pending_settlement', clearance_paid = TRUE, clearance_date = CURRENT_TIMESTAMP, accounts_cleared = $1, payout_date = $2, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $3 RETURNING *;
+        `, [newCleared, payoutDate, planId]);
+
+        await client.query('COMMIT');
+        return res.json({ message: 'All clearance fees paid! Plan moved to pending settlement.', plan: updatedPlans[0] });
+      }
 
       await client.query('COMMIT');
-      res.json({ message: 'Clearance fee paid successfully', plan: updatedPlans[0] });
+      const remaining = accounts - newCleared;
+      res.json({ message: `Account ${(accountIndex || 0) + 1} cleared. ${remaining} account(s) remaining for this plan.`, accounts_cleared: newCleared, accounts_remaining: remaining });
     } catch (error) {
       await client.query('ROLLBACK');
       res.status(400).json({ message: error.message });
@@ -355,9 +376,9 @@ export const bulkClearance = async (req, res) => {
         throw new Error('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee of ₦5,000 before bulk clearance.');
       }
 
-      // Fetch all pending_clearance plans for this user
+      // Fetch all pending_clearance plans for this user (where not fully cleared)
       const { rows: plans } = await client.query(
-        `SELECT * FROM savings_plans WHERE user_id = $1 AND status = 'pending_clearance' AND clearance_paid = FALSE FOR UPDATE`,
+        `SELECT * FROM savings_plans WHERE user_id = $1 AND status = 'pending_clearance' AND accounts_cleared < number_of_accounts FOR UPDATE`,
         [userId]
       );
 
@@ -365,15 +386,17 @@ export const bulkClearance = async (req, res) => {
         throw new Error('No plans pending clearance payment');
       }
 
-      // Calculate total fee (3000 per account per plan)
+      // Calculate total fee (3000 per remaining account per plan)
       let totalFee = 0;
       for (const plan of plans) {
         const accounts = plan.number_of_accounts || 1;
-        totalFee += 3000 * accounts;
+        const alreadyCleared = parseInt(plan.accounts_cleared || 0, 10);
+        const remaining = accounts - alreadyCleared;
+        totalFee += 3000 * remaining;
       }
 
       if (parseFloat(user.available_balance) < totalFee) {
-        throw new Error(`Insufficient balance. Bulk clearance requires ₦${totalFee.toLocaleString()} (₦${totalFee.toLocaleString()} total for ${plans.length} plan(s)), but your wallet has ₦${parseFloat(user.available_balance).toLocaleString()}.`);
+        throw new Error(`Insufficient balance. Bulk clearance requires ₦${totalFee.toLocaleString()} for remaining accounts.`);
       }
 
       // Deduct total from wallet
@@ -383,7 +406,10 @@ export const bulkClearance = async (req, res) => {
       const updatedPlans = [];
       for (const plan of plans) {
         const accounts = plan.number_of_accounts || 1;
-        const fee = 3000 * accounts;
+        const alreadyCleared = parseInt(plan.accounts_cleared || 0, 10);
+        const remaining = accounts - alreadyCleared;
+        const fee = 3000 * remaining;
+        const newCleared = accounts;
 
         const reference = `CLR-${Date.now()}-${plan.id}`;
         await client.query(`
@@ -391,7 +417,7 @@ export const bulkClearance = async (req, res) => {
           VALUES ($1, $2, 'clearance', $3, 'completed', $4)
         `, [userId, plan.id, fee, reference]);
 
-        await createWalletLedgerEntry(client, userId, 'debit', fee, reference, `Clearance Fee for Plan: ${plan.plan_name} (${accounts} account(s))`);
+        await createWalletLedgerEntry(client, userId, 'debit', fee, reference, `Bulk Clearance Fee for Plan: ${plan.plan_name} (${remaining} remaining account(s))`);
 
         let payoutDate;
         const planStart = new Date(plan.start_date);
@@ -409,9 +435,9 @@ export const bulkClearance = async (req, res) => {
 
         const { rows: updated } = await client.query(`
           UPDATE savings_plans
-          SET status = 'pending_settlement', clearance_paid = TRUE, clearance_date = CURRENT_TIMESTAMP, payout_date = $1, updated_at = CURRENT_TIMESTAMP
-          WHERE id = $2 RETURNING *
-        `, [payoutDate, plan.id]);
+          SET status = 'pending_settlement', clearance_paid = TRUE, clearance_date = CURRENT_TIMESTAMP, accounts_cleared = $1, payout_date = $2, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $3 RETURNING *
+        `, [newCleared, payoutDate, plan.id]);
 
         updatedPlans.push(updated[0]);
       }

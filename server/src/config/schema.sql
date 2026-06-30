@@ -117,6 +117,7 @@ CREATE TABLE savings_plans (
     clearance_required BOOLEAN DEFAULT FALSE,
     clearance_paid BOOLEAN DEFAULT FALSE,
     clearance_date TIMESTAMP WITH TIME ZONE,
+    accounts_cleared INTEGER DEFAULT 0,
     maturity_date TIMESTAMP WITH TIME ZONE,
     payout_date TIMESTAMP WITH TIME ZONE,
     refund_only BOOLEAN DEFAULT FALSE,

@@ -36,6 +36,7 @@ const Settings = lazy(() => import('./pages/dashboard/Settings'));
 const Referrals = lazy(() => import('./pages/dashboard/Referrals'));
 const Defaults = lazy(() => import('./pages/dashboard/Defaults'));
 const DefaultDetail = lazy(() => import('./pages/dashboard/DefaultDetail'));
+const Clearance = lazy(() => import('./pages/dashboard/Clearance'));
 const VerifyMembership = lazy(() => import('./pages/VerifyMembership'));
 const VerifyDeposit = lazy(() => import('./pages/VerifyDeposit'));
 
@@ -56,6 +57,7 @@ const AdminReferrals = lazy(() => import('./pages/admin/AdminReferrals'));
 const AdminSecurity = lazy(() => import('./pages/admin/AdminSecurity'));
 const EligibilityQueue = lazy(() => import('./pages/admin/EligibilityQueue'));
 const DuePaymentsPage = lazy(() => import('./pages/admin/DuePaymentsPage'));
+const AdminClearance = lazy(() => import('./pages/admin/AdminClearance'));
 
 const LoadingSpinner = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
@@ -108,6 +110,7 @@ const AppLayout = () => {
               <Route path="referrals" element={<Referrals />} />
               <Route path="defaults/:planId" element={<DefaultDetail />} />
               <Route path="defaults" element={<Defaults />} />
+              <Route path="clearance" element={<Clearance />} />
             </Route>
 
             {/* Admin Routes */}
@@ -133,6 +136,7 @@ const AppLayout = () => {
               <Route path="eligibility-queue" element={<AdminLockedRoute pageName="eligibility" title="Eligibility Review"><EligibilityQueue /></AdminLockedRoute>} />
               <Route path="referrals" element={<AdminLockedRoute pageName="referrals" title="Referral Audits"><AdminReferrals /></AdminLockedRoute>} />
               <Route path="due-payments" element={<AdminLockedRoute pageName="due-payments" title="Due Payments"><DuePaymentsPage /></AdminLockedRoute>} />
+              <Route path="clearance" element={<AdminLockedRoute pageName="clearance" title="Clearance Management"><AdminClearance /></AdminLockedRoute>} />
             </Route>
           </Routes>
         </Suspense>

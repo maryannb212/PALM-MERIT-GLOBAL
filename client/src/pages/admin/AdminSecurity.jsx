@@ -15,6 +15,8 @@ const ADMIN_PAGES = [
   { id: 'plans', title: 'Savings Plans' },
   { id: 'referrals', title: 'Referral Audits' },
   { id: 'payouts', title: 'Payout Management' },
+  { id: 'due-payments', title: 'Due Payments' },
+  { id: 'clearance', title: 'Clearance Management' },
   { id: 'security', title: 'Security & Locks (This Page)' },
 ];
 
