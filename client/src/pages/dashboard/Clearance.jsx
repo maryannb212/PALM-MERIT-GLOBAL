@@ -246,18 +246,20 @@ const Clearance = () => {
                           );
                         })}
                       </div>
-                      <button className="btn btn-secondary btn-sm"
-                        onClick={() => handlePayAllRemaining(plan.id)}
-                        disabled={payingAccount === `${plan.id}-bulk`}
-                        style={{
-                          background: payingAccount === `${plan.id}-bulk` ? '#94a3b8' : '#1e293b',
-                          color: '#fff', border: 'none', padding: '6px 14px',
-                          borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
-                          cursor: payingAccount === `${plan.id}-bulk` ? 'not-allowed' : 'pointer',
-                          display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 6
-                        }}>
-                        {payingAccount === `${plan.id}-bulk` ? 'Processing...' : `💰 Pay All (${formatCurrency(remaining * 3000)})`}
-                      </button>
+                      {accounts > 1 && (
+                        <button className="btn btn-secondary btn-sm"
+                          onClick={() => handlePayAllRemaining(plan.id)}
+                          disabled={payingAccount === `${plan.id}-bulk`}
+                          style={{
+                            background: payingAccount === `${plan.id}-bulk` ? '#94a3b8' : '#1e293b',
+                            color: '#fff', border: 'none', padding: '6px 14px',
+                            borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
+                            cursor: payingAccount === `${plan.id}-bulk` ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 6
+                          }}>
+                          {payingAccount === `${plan.id}-bulk` ? 'Processing...' : `💰 Pay All (${formatCurrency(remaining * 3000)})`}
+                        </button>
+                      )}
                     </div>
                   )}
 
