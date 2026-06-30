@@ -388,7 +388,7 @@ const ReconciliationPage = () => {
                       <td style={{ fontWeight: '600' }}>{tx.first_name} {tx.last_name}</td>
                       <td style={{ fontSize: '0.85rem' }}>{tx.email}</td>
                       <td>
-                        <span className={`badge-pill ${tx.type === 'wallet_topup' ? 'pill-burgundy' : tx.type === 'membership' ? 'pill-dark' : 'pill-success'}`}>
+                        <span className={`badge-pill ${tx.type === 'wallet_topup' ? 'pill-burgundy' : tx.type === 'membership' ? 'pill-dark' : tx.type === 'clearance' ? 'pill-warning' : 'pill-success'}`}>
                           {tx.type.replace('_', ' ').toUpperCase()}
                         </span>
                       </td>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getAdminStats } from '../../services/api';
-import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink } from 'react-icons/fa';
+import { getAdminStats, getRecentTransfers } from '../../services/api';
+import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink, FaCreditCard } from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
 import './Admin.css';
 
@@ -21,6 +21,7 @@ const AdminDashboard = () => {
     totalReferralCodes: 0,
     recentUsers: []
   });
+  const [recentTransfers, setRecentTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,6 +48,8 @@ const AdminDashboard = () => {
         totalReferralCodes: data.totalReferralCodes || 0,
         recentUsers: data.recentUsers || []
       });
+      const { data: transfers } = await getRecentTransfers(48);
+      setRecentTransfers(transfers.slice(0, 10));
     } catch (error) {
       console.error('Error fetching admin stats:', error);
     } finally {
@@ -187,6 +190,41 @@ const AdminDashboard = () => {
             </div>
             <button className="btn-text-only" onClick={() => navigate('/admin/members')} style={{ width: '100%', padding: '10px', borderTop: '1px solid rgba(0,0,0,0.05)', color: '#800020', fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer' }}>
               View All Members
+            </button>
+          </div>
+        </div>
+
+        <div className="dashboard-section" style={{ marginTop: 0 }}>
+          <div className="section-header">
+            <h3>Recent Payments</h3>
+          </div>
+          <div className="admin-card recent-activity-card">
+            <div className="recent-list">
+              {recentTransfers.length === 0 ? (
+                <p className="text-muted p-3">No recent payments.</p>
+              ) : (
+                recentTransfers.map((tx, idx) => (
+                  <div key={tx.id} className="recent-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderBottom: idx === recentTransfers.length - 1 ? 'none' : '1px solid rgba(0,0,0,0.05)' }}>
+                    <div className="recent-avatar" style={{ width: '35px', height: '35px', borderRadius: '50%', background: tx.type === 'clearance' ? '#f59e0b' : tx.type === 'membership' ? '#1e293b' : '#800020', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                      <FaCreditCard />
+                    </div>
+                    <div className="recent-info" style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{tx.first_name} {tx.last_name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', gap: 8 }}>
+                        <span style={{ textTransform: 'capitalize' }}>{tx.type.replace('_', ' ')}</span>
+                        <span>•</span>
+                        <span>{new Date(tx.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div style={{ fontWeight: '700', color: '#15803d', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+                      {new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(tx.amount)}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <button className="btn-text-only" onClick={() => navigate('/admin/reconciliation')} style={{ width: '100%', padding: '10px', borderTop: '1px solid rgba(0,0,0,0.05)', color: '#800020', fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer' }}>
+              View All Transactions
             </button>
           </div>
         </div>
