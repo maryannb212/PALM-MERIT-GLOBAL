@@ -2,31 +2,64 @@ import { query, getClient } from '../config/db.js';
 import { createNotification } from '../models/notificationModel.js';
 import { sendTermiiSMS } from '../utils/termiiService.js';
 
+const parseDefaultIdFromReference = (reference) => {
+  if (!reference) return null;
+  const parts = reference.split('@@');
+  if (parts[0] === 'PM-DFT' && parts.length >= 3) return parts[1];
+  return null;
+};
+
 /**
  * Settle any outstanding penalties (defaults) for a user before applying credit.
  * Returns the remaining amount after applying to penalties.
+ *
+ * When targetDefaultId is provided, only that specific default is settled.
+ * Otherwise all unresolved defaults are settled oldest-first.
  *
  * @param {object} client - Database client with transaction
  * @param {string} userId - User identifier
  * @param {number} amount - Incoming payment amount to apply
  * @param {string} paymentReference - Reference of the source payment
+ * @param {string|null} planId - Optional plan ID filter (bulk per-plan clear)
+ * @param {string|null} targetDefaultId - Optional specific default to settle (per-default pay)
  * @returns {Promise<number>} Remaining amount after penalties settled
  */
-const settleOutstandingPenalties = async (client, userId, amount, paymentReference) => {
+const settleOutstandingPenalties = async (client, userId, amount, paymentReference, planId = null, targetDefaultId = null) => {
   if (amount <= 0) return 0;
 
-  // Fetch unresolved defaults for the user, ordered by missed_date (oldest first)
-  // FOR UPDATE prevents concurrent payments from double-settling the same defaults
-  const { rows: defaults } = await client.query(
-    `
-      SELECT id, penalty_amount
+  let queryStr, params;
+  if (targetDefaultId) {
+    // Per-default: settle only the specified default
+    queryStr = `
+      SELECT id, penalty_amount, plan_id
+      FROM defaults
+      WHERE user_id = $1 AND resolved = FALSE AND id = $2
+      ORDER BY missed_date ASC
+      FOR UPDATE
+    `;
+    params = [userId, targetDefaultId];
+  } else if (planId) {
+    // Per-plan: settle all unresolved defaults for this plan
+    queryStr = `
+      SELECT id, penalty_amount, plan_id
+      FROM defaults
+      WHERE user_id = $1 AND resolved = FALSE AND plan_id = $2
+      ORDER BY missed_date ASC
+      FOR UPDATE
+    `;
+    params = [userId, planId];
+  } else {
+    // Bulk clear: settle ALL unresolved defaults
+    queryStr = `
+      SELECT id, penalty_amount, plan_id
       FROM defaults
       WHERE user_id = $1 AND resolved = FALSE
       ORDER BY missed_date ASC
       FOR UPDATE
-    `,
-    [userId]
-  );
+    `;
+    params = [userId];
+  }
+  const { rows: defaults } = await client.query(queryStr, params);
 
   let remaining = amount;
 
@@ -247,9 +280,12 @@ export const processCompletedPayment = async (
     // =====================================================
 
     // Resolve any outstanding penalties before crediting the user.
+    // Parse defaultId from reference if this is a per-default payment.
+    // For per-plan or bulk clear, planId from the transaction is used instead.
     let creditAmount = parseFloat(completedTx.amount);
     if (completedTx.type === 'deposit' || completedTx.type === 'wallet_topup' || completedTx.type === 'contribution') {
-      creditAmount = await settleOutstandingPenalties(client, completedTx.user_id, creditAmount, completedTx.reference);
+      const targetDefaultId = parseDefaultIdFromReference(completedTx.reference);
+      creditAmount = await settleOutstandingPenalties(client, completedTx.user_id, creditAmount, completedTx.reference, completedTx.plan_id, targetDefaultId);
     }
 
     if (

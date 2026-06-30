@@ -84,7 +84,7 @@ const verifyWithPaystack = async (reference, secret) => {
  */
 export const initializeTransaction = async (req, res) => {
   try {
-    const { amount, planId, type, payment_provider } = req.body;
+    const { amount, planId, type, payment_provider, defaultId } = req.body;
     const userId = req.user.id;
     // Fallback email for users who registered without one — payment gateways require a valid email
     const email = req.user.email || `user${userId}@palmmeritglobal.com`;
@@ -111,7 +111,14 @@ export const initializeTransaction = async (req, res) => {
       }
     }
 
-    const reference = `PM-${uuidv4().replace(/-/g, '').substring(0, 12).toUpperCase()}`;
+    let reference;
+    if (defaultId) {
+      // Per-default payment — encode the default ID in the reference for settlement routing
+      const shortRandom = uuidv4().replace(/-/g, '').substring(0, 8).toUpperCase();
+      reference = `PM-DFT@@${defaultId}@@${shortRandom}`;
+    } else {
+      reference = `PM-${uuidv4().replace(/-/g, '').substring(0, 12).toUpperCase()}`;
+    }
 
     // Create pending record
     const transaction = await createTransaction(userId, planId || null, type || 'deposit', Number(amount), reference, provider);

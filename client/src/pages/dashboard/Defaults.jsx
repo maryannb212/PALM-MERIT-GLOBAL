@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMyDefaults, payWithLotus } from '../../services/api';
-import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock } from 'react-icons/fa';
+import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock, FaCreditCard } from 'react-icons/fa';
 import './Dashboard.css';
 import '../../components/DepositModal.css';
 
@@ -28,6 +28,7 @@ const Defaults = () => {
   const [showLotusModal, setShowLotusModal] = useState(false);
   const [lotusLoading, setLotusLoading] = useState(false);
   const [lotusError, setLotusError] = useState('');
+  const [payingDefaultId, setPayingDefaultId] = useState(null);
 
   useEffect(() => {
     fetchDefaults();
@@ -81,6 +82,22 @@ const Defaults = () => {
     }
   };
 
+  const handleSingleDefaultPay = async (defaultId, amount) => {
+    setPayingDefaultId(defaultId.toString());
+    try {
+      const { data } = await payWithLotus({ amount, type: 'deposit', defaultId: defaultId.toString() });
+      if (data.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        setPayingDefaultId(null);
+        alert('Lotus Bank did not return a payment link. Try again.');
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Payment failed. Try again.');
+      setPayingDefaultId(null);
+    }
+  };
+
   const statsCards = [
     {
       icon: <FaExclamationTriangle />,
@@ -123,7 +140,7 @@ const Defaults = () => {
           {totalDefaults > 0 && (
             <button className="btn btn-secondary" onClick={() => setShowLotusModal(true)}
               style={{ background: '#800020', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FaUniversity /> Clear Defaults • {formatCurrency(totalDefaults)}
+              <FaUniversity /> Clear All Defaults • {formatCurrency(totalDefaults)}
             </button>
           )}
         </div>
@@ -238,6 +255,7 @@ const Defaults = () => {
                               <span>Date Missed</span>
                               <span>Penalty Amount</span>
                               <span>Status</span>
+                              <span>Action</span>
                             </div>
                             {plan.defaults.map(d => (
                               <div key={d.id} className={`defaults-table-row ${d.resolved ? 'resolved' : ''}`}>
@@ -248,6 +266,27 @@ const Defaults = () => {
                                     <span className="defaults-badge safe"><FaCheckCircle /> Resolved</span>
                                   ) : (
                                     <span className="defaults-badge danger"><FaTimesCircle /> Unresolved</span>
+                                  )}
+                                </span>
+                                <span>
+                                  {!d.resolved && (
+                                    <button className="btn btn-sm btn-pay-default"
+                                      onClick={(e) => { e.stopPropagation(); handleSingleDefaultPay(d.id, d.penalty_amount); }}
+                                      disabled={payingDefaultId === d.id}
+                                      style={{
+                                        background: payingDefaultId === d.id ? '#94a3b8' : '#800020',
+                                        color: '#fff', border: 'none', padding: '4px 12px',
+                                        borderRadius: 4, fontSize: '0.75rem', fontWeight: 600,
+                                        cursor: payingDefaultId === d.id ? 'not-allowed' : 'pointer',
+                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                      {payingDefaultId === d.id ? (
+                                        <>Processing...</>
+                                      ) : (
+                                        <><FaCreditCard /> Pay Now</>
+                                      )}
+                                    </button>
                                   )}
                                 </span>
                               </div>
