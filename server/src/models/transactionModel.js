@@ -416,6 +416,7 @@ export const processCompletedPayment = async (
             SELECT *
             FROM savings_plans
             WHERE id = $1
+            FOR UPDATE
           `,
           [completedTx.plan_id]
         );
@@ -423,86 +424,143 @@ export const processCompletedPayment = async (
       if (planRows.length > 0) {
 
         const plan = planRows[0];
-
-        let payoutDate;
-        const planStart = new Date(plan.start_date);
-        switch (plan.plan_name) {
-          case 'CREST':
-            payoutDate = new Date(planStart.getTime() + (98 * 24 * 60 * 60 * 1000));
-            break;
-          case 'SILVER':
-          case 'GOLDEN_BASKET':
-            payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
-            break;
-          default:
-            payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
-        }
-
-        await client.query(
-          `
-            UPDATE savings_plans
-            SET
-              status = 'pending_settlement',
-              clearance_paid = TRUE,
-              clearance_date = CURRENT_TIMESTAMP,
-              payout_date = $1,
-              updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
-          `,
-          [
-            payoutDate,
-            completedTx.plan_id
-          ]
+        const accounts = plan.number_of_accounts || 1;
+        const accountsCleared = parseInt(
+          plan.accounts_cleared || 0, 10
         );
 
-        const expectedAmount =
-          plan.plan_name === 'CREST'
-            ? 96000
-            : plan.plan_name === 'SILVER'
-            ? 150000
-            : plan.target_amount;
+        let isBulk = true;
+        let accountIndex = -1;
+        if (completedTx.reference) {
+          const parts =
+            completedTx.reference.split('@@');
+          if (
+            parts[0] === 'PM-CLR' &&
+            parts.length >= 3
+          ) {
+            if (parts[1] === 'ALL') {
+              isBulk = true;
+            } else {
+              const parsed = parseInt(parts[1], 10);
+              if (!isNaN(parsed)) {
+                accountIndex = parsed;
+                isBulk = false;
+              }
+            }
+          }
+        }
 
-        const { rows: payoutRows } =
+        const newCleared = isBulk
+          ? accounts
+          : Math.min(accountsCleared + 1, accounts);
+
+        if (newCleared < accounts) {
+
           await client.query(
             `
-              SELECT *
-              FROM payouts
-              WHERE plan_id = $1
+              UPDATE savings_plans
+              SET
+                accounts_cleared = $1,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = $2
             `,
-            [completedTx.plan_id]
+            [newCleared, completedTx.plan_id]
           );
 
-        if (payoutRows.length === 0) {
+        } else {
+
+          let payoutDate;
+          const planStart = new Date(plan.start_date);
+          switch (plan.plan_name) {
+            case 'CREST':
+              payoutDate = new Date(
+                planStart.getTime() +
+                  (98 * 24 * 60 * 60 * 1000)
+              );
+              break;
+            case 'SILVER':
+            case 'GOLDEN_BASKET':
+              payoutDate = new Date(
+                planStart.getTime() +
+                  (364 * 24 * 60 * 60 * 1000)
+              );
+              break;
+            default:
+              payoutDate = new Date(
+                Date.now() +
+                  (14 * 24 * 60 * 60 * 1000)
+              );
+          }
 
           await client.query(
             `
-              INSERT INTO payouts
-              (
-                user_id,
-                plan_id,
-                amount,
-                payout_type,
-                status
-              )
-              VALUES
-              (
-                $1,
-                $2,
-                $3,
-                'cash',
-                'pending'
-              )
+              UPDATE savings_plans
+              SET
+                status = 'pending_settlement',
+                clearance_paid = TRUE,
+                clearance_date = CURRENT_TIMESTAMP,
+                accounts_cleared = $1,
+                payout_date = $2,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = $3
             `,
             [
-              completedTx.user_id,
-              completedTx.plan_id,
-              expectedAmount
+              newCleared,
+              payoutDate,
+              completedTx.plan_id
             ]
           );
+
+          const expectedAmount =
+            plan.plan_name === 'CREST'
+              ? 96000
+              : plan.plan_name === 'SILVER'
+              ? 150000
+              : plan.target_amount;
+
+          const { rows: payoutRows } =
+            await client.query(
+              `
+                SELECT *
+                FROM payouts
+                WHERE plan_id = $1
+              `,
+              [completedTx.plan_id]
+            );
+
+          if (payoutRows.length === 0) {
+
+            await client.query(
+              `
+                INSERT INTO payouts
+                (
+                  user_id,
+                  plan_id,
+                  amount,
+                  payout_type,
+                  status
+                )
+                VALUES
+                (
+                  $1,
+                  $2,
+                  $3,
+                  'cash',
+                  'pending'
+                )
+              `,
+              [
+                completedTx.user_id,
+                completedTx.plan_id,
+                expectedAmount
+              ]
+            );
+          }
         }
 
         console.log(
-          '[CLEARANCE PAYMENT PROCESSED]'
+          '[CLEARANCE PAYMENT PROCESSED]',
+          completedTx.plan_id
         );
       }
     }
