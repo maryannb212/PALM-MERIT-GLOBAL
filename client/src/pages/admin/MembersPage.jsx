@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser } from '../../services/api';
 import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle, FaLink, FaUserFriends } from 'react-icons/fa';
 import EditMemberModal from './EditMemberModal';
@@ -81,11 +82,12 @@ const MembersPage = () => {
   const handleEditSave = async (userId, data) => {
     try {
       await updateAdminUser(userId, data);
+      toast.success('User updated successfully');
       setIsEditModalOpen(false);
       setEditingMember(null);
       fetchMembers();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update user');
+      toast.error(err.response?.data?.message || 'Failed to update user');
     }
   };
 

@@ -142,25 +142,33 @@ export const updateUser = async (req, res) => {
     const { id } = req.params;
     const { first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date } = req.body;
 
+    const toNum = (val) => {
+      if (val === '' || val === null || val === undefined) return null;
+      const n = Number(val);
+      return isNaN(n) ? null : n;
+    };
+
+    const toUUID = (val) => (val === '' || val === null || val === undefined ? null : val);
+
     const sql = `
       UPDATE users 
-      SET first_name = COALESCE($1, first_name),
-          last_name = COALESCE($2, last_name),
-          email = COALESCE($3, email),
-          phone = COALESCE($4, phone),
-          role = COALESCE($5, role),
+      SET first_name = COALESCE(NULLIF($1, ''), first_name),
+          last_name = COALESCE(NULLIF($2, ''), last_name),
+          email = COALESCE(NULLIF($3, ''), email),
+          phone = COALESCE(NULLIF($4, ''), phone),
+          role = COALESCE(NULLIF($5, ''), role),
           has_paid_membership = COALESCE($6, has_paid_membership),
-          wallet_balance = COALESCE($7, wallet_balance),
-          available_balance = COALESCE($8, available_balance),
-          held_balance = COALESCE($9, held_balance),
-          referral_code = COALESCE($10, referral_code),
+          wallet_balance = COALESCE($7::numeric, wallet_balance),
+          available_balance = COALESCE($8::numeric, available_balance),
+          held_balance = COALESCE($9::numeric, held_balance),
+          referral_code = COALESCE(NULLIF($10, ''), referral_code),
           referred_by = COALESCE($11, referred_by),
-          referral_unlock_date = COALESCE($12, referral_unlock_date),
-          referral_expiry_date = COALESCE($13, referral_expiry_date)
+          referral_unlock_date = COALESCE($12::timestamp, referral_unlock_date),
+          referral_expiry_date = COALESCE($13::timestamp, referral_expiry_date)
       WHERE id = $14
       RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date;
     `;
-    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date, id]);
+    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, toNum(wallet_balance), toNum(available_balance), toNum(held_balance), referral_code, toUUID(referred_by), referral_unlock_date || null, referral_expiry_date || null, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
