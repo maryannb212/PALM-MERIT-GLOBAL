@@ -138,20 +138,33 @@ export const subscribeToPlan = async (req, res) => {
       }
 
       // Process referral code if provided
-      if (usedReferralCodeId) {
-        await client.query(
-          "UPDATE users SET referred_by = $1 WHERE id = $2",
-          [referredById, userId]
-        );
-        await client.query(
-          "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-          [usedReferralCodeId, userId]
-        );
-      } else if (referredById && !usedReferralCodeId) {
-        await client.query(
-          "UPDATE users SET referred_by = $1 WHERE id = $2",
-          [referredById, userId]
-        );
+      if (referredById) {
+        // Self-referral check: skip if user entered their own code
+        if (referredById === userId) {
+          // Don't mark self-referral codes as used — preserve them for genuine referrals
+          if (usedReferralCodeId) {
+            console.warn(`[subscribeToPlan] User ${userId} attempted self-referral using code ${usedReferralCodeId}, skipped`);
+          }
+        } else {
+          // Check if user already has a referrer — never overwrite an existing referral
+          const { rows: existingUser } = await client.query(
+            'SELECT referred_by FROM users WHERE id = $1',
+            [userId]
+          );
+          if (!existingUser[0].referred_by) {
+            await client.query(
+              "UPDATE users SET referred_by = $1 WHERE id = $2",
+              [referredById, userId]
+            );
+          }
+          // Mark referral code as used (referrer gets credit for the consumption)
+          if (usedReferralCodeId) {
+            await client.query(
+              "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+              [usedReferralCodeId, userId]
+            );
+          }
+        }
       }
 
       // Generate one referral code per account
