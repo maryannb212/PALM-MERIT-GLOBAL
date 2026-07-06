@@ -75,14 +75,14 @@ export const runStartupCatchupDeductions = async () => {
         const currentAmount = parseFloat(lockedPlans[0].current_amount || 0);
 
         if (currentAmount < expectedTotal) {
-          const owedAmount = expectedTotal - currentAmount;
+          const owedAmount = Math.floor(expectedTotal - currentAmount);
           console.log(`Plan ${plan.id} (${plan.plan_name}) is behind. Expected: N${expectedTotal}, Actual: N${currentAmount}. Catching up N${owedAmount}...`);
 
           const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
           if (users.length === 0) throw new Error('User not found');
 
           const user = users[0];
-          const availableBalance = parseFloat(user.available_balance);
+          const availableBalance = Math.floor(parseFloat(user.available_balance));
 
           if (availableBalance >= owedAmount) {
             const reference = `CATCHUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -201,7 +201,7 @@ const processDuePlan = async (plan, config, watDateStr, todayDayName, todayStrin
     const fullDue = perAccountAmount * numAccounts;
     const payableAccounts = Math.floor(balance / perAccountAmount);
     const payableAmount = payableAccounts * perAccountAmount;
-    const savingsAmount = Math.min(payableAmount, fullDue);
+    const savingsAmount = Math.floor(Math.min(payableAmount, fullDue));
 
     if (savingsAmount > 0) {
       await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
@@ -213,10 +213,11 @@ const processDuePlan = async (plan, config, watDateStr, todayDayName, todayStrin
     } else {
       console.log(`Plan ${plan.id}: insufficient funds (N${balance}) to cover even 1 account (N${perAccountAmount}). Defaulting N${fullDue}...`);
 
+      const doubledDue = Math.floor(fullDue * 2);
       await client.query(`
         INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
         VALUES ($1, $2, $3::date, $4)
-      `, [plan.user_id, plan.id, watDateStr, fullDue]);
+      `, [plan.user_id, plan.id, watDateStr, doubledDue]);
 
       const skipRef = `SKIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       await client.query(`INSERT INTO transactions (user_id, plan_id, type, amount, status, reference) VALUES ($1, $2, 'penalty', 0, 'completed', $3)`, [plan.user_id, plan.id, skipRef]);
@@ -236,7 +237,7 @@ const processDuePlan = async (plan, config, watDateStr, todayDayName, todayStrin
       await createNotification(plan.user_id, 'SYSTEM', 'Savings Deduction Successful', msg);
     } else {
       await createNotification(plan.user_id, 'SYSTEM', 'Missed Contribution',
-        `Your ${plan.plan_name} plan contribution of N${fullDue.toLocaleString()} was not deducted due to insufficient wallet balance. A default of N${fullDue.toLocaleString()} has been recorded.`);
+        `Your ${plan.plan_name} plan contribution of N${fullDue.toLocaleString()} was not deducted due to insufficient wallet balance. A default of N${doubledDue.toLocaleString()} (missed contribution + penalty) has been recorded.`);
     }
   } catch (err) {
     await client.query('ROLLBACK');

@@ -18,9 +18,24 @@ export const createSavingsPlan = async (userId, planName, targetAmount, numberOf
 
 export const getUserSavingsPlans = async (userId) => {
   const sql = `
-    SELECT * FROM savings_plans 
-    WHERE user_id = $1 
-    ORDER BY created_at DESC;
+    SELECT sp.*,
+      COALESCE(
+        json_agg(
+          json_build_object(
+            'id', rc.id,
+            'code', rc.code,
+            'status', rc.status,
+            'unlock_date', rc.unlock_date,
+            'used_by_user_id', rc.used_by_user_id
+          ) ORDER BY rc.created_at
+        ) FILTER (WHERE rc.id IS NOT NULL),
+        '[]'::json
+      ) as referral_codes
+    FROM savings_plans sp
+    LEFT JOIN referral_codes rc ON rc.plan_id = sp.id
+    WHERE sp.user_id = $1
+    GROUP BY sp.id
+    ORDER BY sp.created_at DESC;
   `;
   const result = await query(sql, [userId]);
   return result.rows;

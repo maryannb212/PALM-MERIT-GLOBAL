@@ -1,15 +1,15 @@
 ## Goal
 - Fix referral code processing on live server deployment and fix default/penalty system bugs causing incorrect customer defaults.
 - Deduction job pays contributions from wallet when possible; creates defaults when wallet can't cover even one account.
-- Defaults are settled exclusively via Lotus Bank payments — wallet balance is NEVER used to settle defaults.
+- **Defaults are DOUBLED** (2x per account: missed contribution + equal penalty) and cleared via **wallet balance** on the defaults page.
 - Admin `/referrals` page downlines display — fixed self-referral noise (13 users had `referred_by` set to own ID).
 - Build per-account clearance system (₦3,000/account) with user-facing and admin-facing clearance management.
 
 ## Constraints & Preferences
 - Cron jobs create a default when wallet can't cover even one full account's contribution.
-- Cron jobs NEVER clear defaults — only via Lotus Bank payment or admin from user management dashboard.
+- Cron jobs NEVER clear defaults — only via wallet clearance button or admin from user management dashboard.
 - When wallet has enough for ≥1 account: pay for those full accounts, no default created.
-- When wallet can't cover even 1 account: create a default for the full contribution amount (penalty = perAccountAmount × numAccounts).
+- When wallet can't cover even 1 account: create a default for the double penalty (penalty = perAccountAmount × numAccounts × 2).
 - All amounts must be whole numbers (`Math.floor()`).
 - All timezone handling must use Africa/Lagos (WAT) consistently across deduction job.
 - Live server referral code issue is confirmed to be a deployment/code version problem, not a database problem.
@@ -38,11 +38,19 @@
   - **Removed incorrect sweep block** that used wallet balance to settle defaults — defaults are only settled via Lotus Bank payments.
 - Fixed `settleOutstandingPenalties` in `transactionModel.js`:
   - Added `FOR UPDATE` lock on defaults query to prevent race conditions on concurrent payments.
-- Verified the full Lotus Bank → default settlement flow:
+- Verified the full Lotus Bank → default settlement flow (legacy — no longer used for user-facing defaults):
   - Frontend (`Defaults.jsx`) sends `type: 'deposit'` with total default amount.
   - `initializeTransaction` creates pending `deposit` transaction (no plan_id), initializes Lotus checkout.
   - `lotusWebhook` → `handleLotusCheckout` → `processCompletedPayment` → `settleOutstandingPenalties` intercepts payment, settles oldest defaults first (full or partial), remainder credited to wallet.
   - `verifyTransaction` also calls `processCompletedPayment` idempotently (duplicate-safe).
+- **Replaced Lotus payment with wallet-based default clearance**:
+  - `deductionJob.js`: Default penalty_amount is now **doubled** — `fullDue * 2` (missed contribution + equal penalty, 2x per account).
+  - `savingsController.js`: Added `clearDefaults` endpoint (`POST /api/savings/clear-defaults`) — debits wallet, splits half to plan savings (current_amount) and half to penalty settlement.
+  - `savingsRoutes.js`: Added route for `clear-defaults`.
+  - `client/src/pages/dashboard/Defaults.jsx`: Removed Lotus Bank payment modal. Added "Clear All Defaults" wallet-based button with confirmation modal. Removed per-default "Pay Now" buttons.
+  - `client/src/services/api.js`: Added `clearDefaults()` API function.
+  - `getMyDefaults` & `getPlanDefaultsDetail`: Updated `planConfig` to show doubled `penalty_per_account` (e.g., SILVER: 1500→3000).
+  - Partial clearance: clears as many accounts as wallet balance allows (per-account granularity).
 - **Fixed admin referrals downlines display** (`server/src/controllers/adminController.js`):
   - Diagnosed: 13 of 28 users with `referred_by` had self-referrals (own ID), polluting the admin page.
   - `getAdminReferralStats`: added `&& down.id !== u.id` to JS filter to exclude self-referrals from downlines.
@@ -53,6 +61,37 @@
   - Re-added `useLocation` to read `?ref=` URL parameter on mount.
   - Added `referredByCode` to form state and passed it to `register()` API call.
   - No visible input field shown to users — the code is silently captured from the URL.
+- **Fixed `createReferralCodeForPlan` for all plan types** (`server/src/models/referralModel.js`):
+  - Previously only CREST and SILVER generated codes; GOLDEN_BASKET and ISUSU returned `null`.
+  - Now all 4 plan types generate one referral code per account.
+  - CREST: `locked` (30-day unlock); SILVER/GOLDEN_BASKET/ISUSU: `available`.
+- **Added referral codes display on subscriptions page** (`client/src/pages/dashboard/Subscriptions.jsx`, `server/src/models/savingsModel.js`):
+  - `getUserSavingsPlans` now LEFT JOINs `referral_codes` and aggregates them as JSON array per plan.
+  - Each plan card shows a "Referral Codes" section with each code's monospace display + status pill (Active/Locked/Used).
+- **Fixed `subscribeToPlan` referral logic** (`server/src/controllers/savingsController.js`):
+  - **Self-referral now works**: User can use their own code to create another account → code is consumed, `referred_by` set to own ID, user becomes their own downline.
+  - **Codes no longer wasted**: If a user already has a `referred_by`, new codes they enter are NOT consumed (warn and skip). Code stays available for others.
+  - **Race condition prevention**: Added `SELECT ... FOR UPDATE` lock inside the transaction on the `referral_codes` row before marking as used.
+  - **Diagnostics confirmed live DB bugs**: 232 self-use codes (consumed by owner), 552 total used codes, multiple subscribers consumed codes from different owners wasting their codes.
+- **Fixed `authController.register`** (`server/src/controllers/authController.js`):
+  - Added re-check that code is still `available` before marking as used (race condition guard).
+- **Decimal consistency fixes** across codebase:
+  - `deductionJob.js`: `Math.floor()` on catch-up `availableBalance`, `savingsAmount`
+  - `transactionModel.js`: `Math.floor()` in `settleOutstandingPenalties` and `creditAmount`
+  - `savingsController.js`: `Math.floor()` on refund amount
+- **Changed downline calculation from `referred_by`-only to `referred_by` + `referral_codes`** across 6 query locations:
+  - `adminController.js:getAllUsers`: downline_count subquery adds `COUNT(DISTINCT used_by_user_id)` from `referral_codes` WHERE `user_id = u.id`
+  - `adminController.js:getUserById`: `WHERE referred_by = $1 OR id IN (SELECT used_by_user_id FROM referral_codes WHERE user_id = $1)`
+  - `adminController.js:getDashboardStats`: total_downlines adds `COUNT(DISTINCT used_by_user_id)` from `referral_codes`
+  - `adminController.js:getAdminReferralStats`: pre-fetches all code refs into a Map, merges with `referredByDownlines` via a `seen` Set (dedup'd)
+  - `referralHelper.js:getReferredDownlines`: Uses `DISTINCT ON (u.id)` with both `referred_by` and `referral_codes` subquery
+- **Fixed 7 self-referrals in DB** (`referred_by = own id` → `NULL`): Chinonye Sodiyan, Damilola Bayo, Ogechi Obimma, IFEOMA EZEWANMA, Jane Osufe, Chiazaram Okonkwo, Chinaro Maduako
+- **Diagnosed live DB history** via 3 diagnostic scripts:
+  - Scenario A (fixable, code consumed, no `referred_by`): **0 rows** — no cases found
+  - Scenario B (stolen, code consumed, different `referred_by`): **138 rows** across **9 subscribers** (Charity Eke consumed 28 codes from 4 owners, Chiamaka Nwanozie consumed 24 codes from 5 owners, etc.)
+  - Scenario C (self-consumed, no `referred_by`): **93 rows** across **13 users** (Gabriel Egele: 27 self-codes, Chioma Ugochukwu: 18, chiemerie Okoye: 9)
+  - Scenario D (self-referrals `referred_by = own id`): **7 users** (fixed)
+- **Fixed Scenarios B & C via query changes** — all 138 stolen + 93 self-consumed downlines now appear in the respective code owner's downline lists because queries reference `referral_codes` table directly. No `referred_by` column changes needed for B & C.
 
 ### In Progress
 - (none)
@@ -62,21 +101,27 @@
 
 ## Key Decisions
 - Referral code issue on live is a deployment/code version mismatch — database and local code are both fine.
-- **Wallet balance is NEVER used to settle defaults.** Defaults are cleared only when user pays via Lotus Bank (user defaults page) or admin action.
+- **Downline calculation now uses `referral_codes` table** alongside `referred_by`. This means ALL code owners see their downlines even if the subscriber already had a different `referred_by` from registration. "Stolen" and self-consumed downlines are returned to their code owners automatically — no `referred_by` column changes needed.
+- **Wallet balance IS used to settle defaults** (via the Clear Defaults button on the defaults page). Lotus Bank is no longer used for user-facing default clearance.
 - Deduction job only: (a) pays contributions if wallet can afford ≥1 account, (b) creates a default if can't cover even 1 account.
 - `missed_date` in defaults table should consistently be Africa/Lagos date to match deduction job's 6PM WAT schedule.
 - `available_balance` only is read (no longer reads `wallet_balance`) from users table in deduction job since `wallet_balance` is derived.
-- `settleOutstandingPenalties` supports both full and partial default settlement from incoming deposits.
-- Self-referrals (`referred_by = own id`) must be excluded from downline counts — these are data errors where users registered using their own referral code.
+- `settleOutstandingPenalties` supports both full and partial default settlement from incoming deposits (legacy — still works for general deposits but defaults page no longer uses Lotus).
+- Self-referrals are now ALLOWED: a user can use their own referral code to create another account and become their own downline. The `referred_by` is set to their own ID and the code is consumed.
+- If a user already has `referred_by` set (from a previous subscription or registration), new codes they enter are NOT consumed — the code stays available for genuine referrals.
 - Clearance payments use wallet `available_balance` (deducted directly), NOT Lotus — different from defaults which require Lotus.
 - `accounts_cleared` is tracked incrementally per-account; `clearance_paid` only set `TRUE` on final account.
 - Paying `payClearanceFee` without `accountIndex` charges ₦3,000 × all remaining accounts (bulk per-plan).
+- Default penalty_amount is DOUBLED in deductionJob: `perAccountAmount * numAccounts * 2` (missed contribution + equal penalty).
+- When user clears defaults via wallet: half of payment goes to plan savings (current_amount), half settles the penalty (reduces penalty_amount until resolved).
+- Partial per-account clearance: user can clear only as many accounts as their wallet balance covers. Each account costs `perAccountAmount * 2`. Oldest defaults are processed first.
 
 ## Next Steps
-- Deploy the updated `deductionJob.js` to the live server.
-- Verify live server has latest code for referral code processing.
-- Consider a data cleanup migration to NULL out self-referrals (13 rows: `UPDATE users SET referred_by = NULL WHERE id = referred_by`).
-- After deploy, run migration: `ALTER TABLE savings_plans ADD COLUMN IF NOT EXISTS accounts_cleared INTEGER DEFAULT 0;`
+- Deploy all updated files to the live server (Neon).
+- After deploy, verify: existing 232 self-consumed codes and 552 used codes now appear as downlines (via `referral_codes`-based queries). No `referred_by` changes needed.
+- Monitor admin `/referrals` page, `/admin/users/:id` downline lists, and user-facing downlines to confirm all stolen and self-consumed downlines appear correctly.
+- Verify that `DISTINCT ON` works in Neon PostgreSQL (should — it's standard PG).
+- Run `UPDATE users SET referred_by = NULL WHERE id = referred_by;` if not already done (7 self-referrals fixed in this session).
 
 ## Critical Context
 - `deductionJob.js` runs at 6PM WAT (`0 18 * * *` with `{ timezone: 'Africa/Lagos' }`).
@@ -84,24 +129,31 @@
 - `generateUniqueReferralCode()` in `savingsController.js` uses pool-level `query()` instead of transaction `client.query()` — potential race condition but not causing current issues.
 - Marker transactions (`type='penalty', amount=0`) are inserted for "skipped" days to prevent the isDue check from firing again the next day.
 - Default settlement flow: Lotus Bank payment → `lotusWebhook` → `processCompletedPayment` → `settleOutstandingPenalties` — intercepts incoming `deposit`/`wallet_topup`/`contribution`, settles oldest defaults first, remainder goes to wallet.
+- Defaults page uses **wallet-based clearance** (`POST /api/savings/clear-defaults`) instead of Lotus Bank.
 - `settleOutstandingPenalties` uses `FOR UPDATE` on defaults rows to prevent double-settlement from concurrent payments.
 - `penaltyJob.js` was never created on disk; only `deductionJob.js` handles deduction/default logic.
-- **Self-referral data issue**: 13 users in Neon have `referred_by` set to their own ID. Root cause: registration or `subscribeToPlan` allowed using one's own referral code. The `RegisterPage.jsx` no longer has the referral code field (removed), but existing data remains.
+- **Self-referral data issue**: 13 users in Neon have `referred_by` set to their own ID. Root cause: registration or `subscribeToPlan` allowed using one's own referral code. The `RegisterPage.jsx` no longer has the referral code field (removed), but existing data remains. **7 of these were fixed by setting `referred_by = NULL`** where `id = referred_by`.
+- **232 self-consumed codes**: codes where `used_by_user_id = user_id` (owner used own code). Caused by live server's `subscribeToPlan` lacking a self-referral check — the code was marked as 'used' by the owner but `referred_by` was never set. Now fixed: self-referral both marks the code and sets `referred_by`. These 232 self-consumed downlines now appear in the owner's downline lists via `referral_codes`-based queries.
+- **Multiple code consumption bug**: subscribers like Charity (930ea164) consumed codes from 4 different owners, but only the FIRST owner who set `referred_by` gets credit. Now fixed: codes are only consumed if `referred_by` is actually set by this operation.
+- `authController.register` now re-checks code availability before marking as used to prevent race conditions.
+- `subscribeToPlan` uses `SELECT ... FOR UPDATE` inside the transaction before marking referral_codes as used.
 
 ## Relevant Files
 - `server/src/jobs/deductionJob.js`: Main deduction cron (6PM WAT) — per-account granularity, no sweep logic.
 - `server/src/models/transactionModel.js`: Contains `settleOutstandingPenalties()` (with `FOR UPDATE`) for deposit-time settlement + `createWalletLedgerEntry()` for ledger entries.
 - `server/src/controllers/transactionController.js`: `lotusWebhook`, `handleLotusCheckout`, `handleLotusVADeposit`, `initializeTransaction` — the full Lotus payment pipeline.
-- `client/src/pages/dashboard/Defaults.jsx`: Frontend UI for paying defaults via Lotus.
-- `server/src/controllers/savingsController.js`: `subscribeToPlan` (referral processing), `payClearanceFee` (per-account + bulk), `bulkClearance` (multi-plan bulk with accounts_cleared tracking).
+- `client/src/pages/dashboard/Defaults.jsx`: Frontend UI for paying defaults via wallet (Clear All Defaults button).
+- `server/src/controllers/savingsController.js`: `subscribeToPlan` (referral processing), `payClearanceFee` (per-account + bulk), `bulkClearance` (multi-plan bulk with accounts_cleared tracking), `clearDefaults` (wallet-based default clearance with per-account granularity).
 - `client/src/pages/dashboard/Clearance.jsx`: User-facing clearance page — per-account Pay buttons, bulk per-plan Pay All, progress bar.
 - `client/src/pages/admin/AdminClearance.jsx`: Admin clearance management — filter by status, Settle button for pending_settlement plans.
 - `server/src/controllers/adminController.js`: `getAdminReferralStats`, `getAllUsers` (self-referral exclusion), `getClearancePlans`, `adminSettleClearance`, `approveEligibility` (clearance notification).
 - `client/src/components/Sidebar.jsx`: Added "Clearance" link.
 - `client/src/components/AdminSidebar.jsx`: Added "Clearance" link.
 - `server/src/config/schema.sql`: Added `accounts_cleared INTEGER DEFAULT 0` column to `savings_plans`.
-- `server/src/routes/savingsRoutes.js`: Clearance routes (`pay-clearance`, `bulk-clearance`).
+- `server/src/routes/savingsRoutes.js`: Clearance routes (`pay-clearance`, `bulk-clearance`, `clear-defaults`) + `clear-default` (per-default).
 - `server/src/routes/adminRoutes.js`: Clearance routes (`GET /clearance`, `POST /clearance/settle`).
 - `server/src/middleware/authMiddleware.js`: `protect`, `checkMembership` — gate the subscription endpoint.
 - `server/src/config/db.js`: DB connection pool, `getClient()` with monkey-patched query tracking.
 - `server/.env`: Local DB via `DB_*` fields; `DATABASE_URL` (Neon) is commented out.
+- `server/src/models/referralModel.js`: `createReferralCodeForPlan` (per-account code generation), `generateUniqueReferralCode`, `getUserReferralCodes`.
+- `server/src/controllers/authController.js`: `register` (referral code handling with race condition guard).

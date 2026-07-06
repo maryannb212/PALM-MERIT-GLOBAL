@@ -25,11 +25,9 @@ export const createReferralCodeForPlan = async (client, userId, planId, planName
     const d = new Date();
     d.setDate(d.getDate() + 30);
     baseUnlockDate = d.toISOString();
-  } else if (planName === 'SILVER') {
+  } else {
     status = 'available';
     baseUnlockDate = new Date().toISOString();
-  } else {
-    return null;
   }
 
   const codes = [];

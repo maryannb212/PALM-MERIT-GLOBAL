@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMyDefaults, payWithLotus } from '../../services/api';
+import { getMyDefaults, clearDefaults, clearDefaultById } from '../../services/api';
 import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock, FaCreditCard } from 'react-icons/fa';
 import './Dashboard.css';
 import '../../components/DepositModal.css';
 
 const PLAN_ICONS = {
-  CREST: '👑',
-  SILVER: '🥈',
-  GOLDEN_BASKET: '🧺',
-  ISUSU: '🔄'
+  CREST: '\uD83D\uDC51',
+  SILVER: '\uD83E\uDD48',
+  GOLDEN_BASKET: '\uD83E\uDDFA',
+  ISUSU: '\uD83D\uDD04'
 };
 
 const PLAN_COLORS = {
@@ -25,10 +25,11 @@ const Defaults = () => {
   const [loading, setLoading] = useState(true);
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [totalDefaults, setTotalDefaults] = useState(0);
-  const [showLotusModal, setShowLotusModal] = useState(false);
-  const [lotusLoading, setLotusLoading] = useState(false);
-  const [lotusError, setLotusError] = useState('');
-  const [payingDefaultId, setPayingDefaultId] = useState(null);
+  const [clearing, setClearing] = useState(false);
+  const [clearingDefaultId, setClearingDefaultId] = useState(null);
+  const [clearResult, setClearResult] = useState(null);
+  const [error, setError] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     fetchDefaults();
@@ -63,38 +64,35 @@ const Defaults = () => {
 
   const periodLabel = (plan) => isDaily(plan) ? 'Daily' : 'Weekly';
 
-  const handleLotusPay = async (e) => {
-    e.preventDefault();
+  const handleClearDefaults = async () => {
     if (totalDefaults <= 0) return;
-    setLotusLoading(true);
-    setLotusError('');
+    setClearing(true);
+    setError('');
+    setClearResult(null);
     try {
-      const { data } = await payWithLotus({ amount: totalDefaults, type: 'deposit' });
-      if (data.authorization_url) {
-        window.location.href = data.authorization_url;
-      } else {
-        setLotusError('Lotus Bank did not return a payment link. Try again.');
-      }
+      const { data } = await clearDefaults();
+      setClearResult(data);
+      setShowConfirm(false);
+      await fetchDefaults();
     } catch (err) {
-      setLotusError(err.response?.data?.message || 'Payment failed. Try again.');
+      setError(err.response?.data?.message || 'Failed to clear defaults. Insufficient balance?');
     } finally {
-      setLotusLoading(false);
+      setClearing(false);
     }
   };
 
-  const handleSingleDefaultPay = async (defaultId, amount) => {
-    setPayingDefaultId(defaultId.toString());
+  const handleClearDefault = async (defaultId, penaltyAmount) => {
+    setClearingDefaultId(defaultId);
+    setError('');
+    setClearResult(null);
     try {
-      const { data } = await payWithLotus({ amount, type: 'deposit', defaultId: defaultId.toString() });
-      if (data.authorization_url) {
-        window.location.href = data.authorization_url;
-      } else {
-        setPayingDefaultId(null);
-        alert('Lotus Bank did not return a payment link. Try again.');
-      }
+      const { data } = await clearDefaultById(defaultId);
+      setClearResult(data);
+      await fetchDefaults();
     } catch (err) {
-      alert(err.response?.data?.message || 'Payment failed. Try again.');
-      setPayingDefaultId(null);
+      setError(err.response?.data?.message || 'Failed to clear this default. Insufficient balance?');
+    } finally {
+      setClearingDefaultId(null);
     }
   };
 
@@ -138,13 +136,52 @@ const Defaults = () => {
             <FaWallet /> Fund Wallet
           </button>
           {totalDefaults > 0 && (
-            <button className="btn btn-secondary" onClick={() => setShowLotusModal(true)}
+            <button className="btn btn-secondary" onClick={() => setShowConfirm(true)}
+              disabled={clearing}
               style={{ background: '#800020', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FaUniversity /> Clear All Defaults • {formatCurrency(totalDefaults)}
+              <FaCreditCard /> {clearing ? 'Processing...' : `Clear All Defaults \u2022 ${formatCurrency(totalDefaults)}`}
             </button>
           )}
         </div>
       </header>
+
+      {/* Result Banner */}
+      {clearResult && (
+        <div style={{
+          background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8,
+          padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 12
+        }}>
+          <FaCheckCircle style={{ color: '#16a34a', fontSize: 20, flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <strong style={{ color: '#166534' }}>Defaults Cleared!</strong>
+            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#166534' }}>
+              {clearResult.message}
+            </p>
+          </div>
+          <button onClick={() => setClearResult(null)}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a', fontWeight: 700 }}>
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* Error Banner */}
+      {error && (
+        <div style={{
+          background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
+          padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 12
+        }}>
+          <FaTimesCircle style={{ color: '#dc2626', fontSize: 20, flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <strong style={{ color: '#991b1b' }}>Clearance Failed</strong>
+            <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#991b1b' }}>{error}</p>
+          </div>
+          <button onClick={() => setError('')}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700 }}>
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="defaults-stats-grid">
@@ -195,13 +232,13 @@ const Defaults = () => {
                 >
                   <div className="defaults-plan-header">
                     <div className="defaults-plan-left">
-                      <span className="defaults-plan-icon">{PLAN_ICONS[plan.plan_name] || '📋'}</span>
+                      <span className="defaults-plan-icon">{PLAN_ICONS[plan.plan_name] || '\uD83D\uDCCB'}</span>
                       <div>
                         <h4 className="defaults-plan-name">{plan.plan_name}</h4>
                         <span className="defaults-plan-meta">
                           {plan.number_of_accounts || 1} account{(plan.number_of_accounts || 1) > 1 ? 's' : ''}
-                          {plan.plan_status === 'active' ? ' • Active' : ` • ${plan.plan_status}`}
-                          {isDailyPlan && ' • Daily'}
+                          {plan.plan_status === 'active' ? ' \u2022 Active' : ` \u2022 ${plan.plan_status}`}
+                          {isDailyPlan && ' \u2022 Daily'}
                         </span>
                       </div>
                     </div>
@@ -223,7 +260,7 @@ const Defaults = () => {
                       <span className="dps-value">{formatCurrency(contributionPerAccount)}</span>
                     </div>
                     <div className="defaults-plan-stat">
-                      <span className="dps-label">Penalty per Account</span>
+                      <span className="dps-label">Penalty per Account (2x)</span>
                       <span className="dps-value penalty">{formatCurrency(defaultPerAccount)}</span>
                     </div>
                     <div className="defaults-plan-stat highlight-danger">
@@ -237,14 +274,13 @@ const Defaults = () => {
                       <FaExclamationTriangle />
                       <span>
                         This program has <strong>{plan.default_count} default{plan.default_count > 1 ? 's' : ''}</strong> totaling {formatCurrency(plan.total_default_amount)}.
-                        All {plan.number_of_accounts || 1} account{(plan.number_of_accounts || 1) > 1 ? 's are' : ' is'} affected.
+                        Each default includes the missed contribution plus an equal penalty (2x).
                       </span>
                     </div>
                   )}
 
                   {expandedPlan === plan.plan_id && (
                     <div className="defaults-plan-details">
-
 
                       {/* Individual Defaults */}
                       {plan.defaults && plan.defaults.length > 0 && (
@@ -253,7 +289,7 @@ const Defaults = () => {
                           <div className="defaults-table">
                             <div className="defaults-table-header">
                               <span>Date Missed</span>
-                              <span>Penalty Amount</span>
+                              <span>Total Owed (2x)</span>
                               <span>Status</span>
                               <span>Action</span>
                             </div>
@@ -271,20 +307,20 @@ const Defaults = () => {
                                 <span>
                                   {!d.resolved && (
                                     <button className="btn btn-sm btn-pay-default"
-                                      onClick={(e) => { e.stopPropagation(); handleSingleDefaultPay(d.id, d.penalty_amount); }}
-                                      disabled={payingDefaultId === d.id}
+                                      onClick={(e) => { e.stopPropagation(); handleClearDefault(d.id, d.penalty_amount); }}
+                                      disabled={clearingDefaultId === d.id}
                                       style={{
-                                        background: payingDefaultId === d.id ? '#94a3b8' : '#800020',
+                                        background: clearingDefaultId === d.id ? '#94a3b8' : '#16a34a',
                                         color: '#fff', border: 'none', padding: '4px 12px',
                                         borderRadius: 4, fontSize: '0.75rem', fontWeight: 600,
-                                        cursor: payingDefaultId === d.id ? 'not-allowed' : 'pointer',
+                                        cursor: clearingDefaultId === d.id ? 'not-allowed' : 'pointer',
                                         display: 'inline-flex', alignItems: 'center', gap: 4,
                                         whiteSpace: 'nowrap'
                                       }}>
-                                      {payingDefaultId === d.id ? (
+                                      {clearingDefaultId === d.id ? (
                                         <>Processing...</>
                                       ) : (
-                                        <><FaCreditCard /> Pay Now</>
+                                        <><FaWallet /> Clear</>
                                       )}
                                     </button>
                                   )}
@@ -309,15 +345,15 @@ const Defaults = () => {
         )}
       </div>
 
-      {/* Lotus Payment Modal — Clear Defaults */}
-      {showLotusModal && (
-        <div className="modal-overlay" onClick={() => setShowLotusModal(false)}>
+      {/* Confirmation Modal — Clear Defaults via Wallet */}
+      {showConfirm && (
+        <div className="modal-overlay" onClick={() => { if (!clearing) setShowConfirm(false); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <header className="modal-header" style={{ background: '#800020' }}>
-              <h3><FaUniversity style={{ marginRight: 8 }} /> Clear Defaults with Lotus Bank</h3>
-              <button className="close-btn" onClick={() => setShowLotusModal(false)}>&times;</button>
+              <h3><FaWallet style={{ marginRight: 8 }} /> Clear Defaults via Wallet</h3>
+              <button className="close-btn" onClick={() => { if (!clearing) setShowConfirm(false); }}>&times;</button>
             </header>
-            <form onSubmit={handleLotusPay} className="modal-form">
+            <div className="modal-form">
               <div style={{
                 background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
                 padding: '16px 20px', margin: '10px 0 20px', textAlign: 'center'
@@ -334,34 +370,34 @@ const Defaults = () => {
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                   <FaInfoCircle style={{ color: '#2563eb', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
-                    You'll be charged <strong>{formatCurrency(totalDefaults)}</strong> to clear all outstanding defaults.
-                    Any overpayment beyond your total defaults will be credited to your wallet.
+                    You'll be charged <strong>{formatCurrency(totalDefaults)}</strong> from your wallet balance.
+                    Half of the amount goes to your missed contributions (savings), the other half settles the penalty.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                  <FaLock style={{ color: '#16a34a', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
+                  <FaWallet style={{ color: '#16a34a', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
-                    Secured payment via Lotus Bank. You'll be redirected to complete the transaction.
+                    Your wallet must have sufficient balance. If you can't cover all defaults at once,
+                    the system will clear as many accounts as your balance allows.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <FaCheckCircle style={{ color: '#16a34a', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
-                    Payment is auto-applied to settle defaults from oldest to newest. Partial settlements are supported.
+                    Defaults are processed from oldest to newest. Partial clearance is supported.
                   </p>
                 </div>
               </div>
 
-              {lotusError && <p className="error-message">{lotusError}</p>}
-
               <div className="modal-actions" style={{ marginTop: 24 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowLotusModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={lotusLoading || totalDefaults <= 0}
+                <button type="button" className="btn btn-secondary" onClick={() => setShowConfirm(false)} disabled={clearing}>Cancel</button>
+                <button type="button" className="btn btn-primary" disabled={clearing || totalDefaults <= 0}
+                  onClick={handleClearDefaults}
                   style={{ background: '#800020', borderColor: '#800020', padding: '12px 28px', fontSize: '1rem' }}>
-                  {lotusLoading ? 'Processing...' : `🏦 Pay ${formatCurrency(totalDefaults)} with Lotus`}
+                  {clearing ? 'Processing...' : `\u{1F4B3} Pay ${formatCurrency(totalDefaults)} from Wallet`}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

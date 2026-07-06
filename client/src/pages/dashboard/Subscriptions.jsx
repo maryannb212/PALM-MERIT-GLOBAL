@@ -183,7 +183,7 @@ const Subscriptions = () => {
                     </div>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '15px', fontSize: '0.9rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px', fontSize: '0.9rem' }}>
                     <p style={{ margin: 0 }}><strong>Target Savings:</strong> {formatCurrency(individualTarget)}</p>
                     <p style={{ margin: 0 }}><strong>{plan.plan_name === 'ISUSU' ? 'Daily Savings:' : 'Weekly Savings:'}</strong> {getWeeklySavingsAmount(plan.plan_name)}</p>
                     <p style={{ margin: 0 }}><strong>Saved:</strong> {formatCurrency(individualSaved)}</p>
@@ -191,6 +191,41 @@ const Subscriptions = () => {
                     <p style={{ margin: 0 }}><strong>Schedule:</strong> {plan.preferred_day || (plan.plan_name === 'ISUSU' ? 'Daily' : 'Friday')}</p>
                     <p style={{ margin: 0 }}><strong>Expected ROI:</strong> {formatCurrency(individualROI)} {plan.plan_name === 'GOLDEN_BASKET' ? '(Goods)' : ''}</p>
                   </div>
+
+                  {plan.referral_codes && plan.referral_codes.length > 0 && (
+                    <div style={{ marginBottom: '12px', padding: '10px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                      <p style={{ margin: '0 0 6px 0', fontSize: '0.8rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Referral Codes</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {plan.referral_codes.map(rc => (
+                          <span key={rc.id} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '6px',
+                            padding: '4px 10px', borderRadius: '4px',
+                            background: rc.status === 'available' ? '#ecfdf5' :
+                                        rc.status === 'locked' ? '#fffbeb' :
+                                        rc.status === 'used' ? '#f1f5f9' : '#fef2f2',
+                            border: rc.status === 'available' ? '1px solid #a7f3d0' :
+                                    rc.status === 'locked' ? '1px solid #fde68a' :
+                                    rc.status === 'used' ? '1px solid #e2e8f0' : '1px solid #fecaca',
+                            fontSize: '0.8rem', fontFamily: 'monospace'
+                          }}>
+                            <strong>{rc.code}</strong>
+                            <span style={{
+                              fontSize: '0.65rem', fontWeight: '600', textTransform: 'uppercase',
+                              padding: '1px 5px', borderRadius: '3px',
+                              color: rc.status === 'available' ? '#059669' :
+                                     rc.status === 'locked' ? '#d97706' :
+                                     rc.status === 'used' ? '#64748b' : '#dc2626',
+                              background: rc.status === 'available' ? '#d1fae5' :
+                                          rc.status === 'locked' ? '#fef3c7' :
+                                          rc.status === 'used' ? '#f1f5f9' : '#fee2e2'
+                            }}>
+                              {rc.status === 'available' ? 'Active' : rc.status}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   
                   {plan.status === 'active' && (
                     <div style={{ marginTop: '10px' }}>

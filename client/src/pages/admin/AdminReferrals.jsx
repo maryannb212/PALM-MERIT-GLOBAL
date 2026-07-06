@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FaSearch, FaExclamationTriangle, FaUserFriends, 
+  FaSearch, FaUserFriends, 
   FaClock, FaUserCheck, FaChevronDown, FaChevronUp,
-  FaLink, FaShieldAlt
+  FaLink, FaShieldAlt, FaChevronLeft, FaChevronRight,
+  FaUsers
 } from 'react-icons/fa';
 import API from '../../services/api';
 import './Admin.css';
@@ -10,49 +11,122 @@ import './Admin.css';
 const AdminReferrals = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [stats, setStats] = useState({ totalReferrals: 0, totalUnlocks: 0 });
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterSuspicious, setFilterSuspicious] = useState(false);
+  const [filterHasDownlines, setFilterHasDownlines] = useState(false);
   const [expandedUser, setExpandedUser] = useState(null);
   const [error, setError] = useState('');
 
+  const fetchReferralStats = async (page = 1, hasDownlines = filterHasDownlines) => {
+    try {
+      setLoading(true);
+      const res = await API.get(`/admin/referrals?page=${page}&limit=20${hasDownlines ? '&hasDownlines=true' : ''}`);
+      setData(res.data.users);
+      setPagination(res.data.pagination);
+      setStats(res.data.stats);
+      setError('');
+    } catch (err) {
+      console.error('Error fetching admin referrals:', err);
+      setError('Failed to load administrative referral details.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchReferralStats = async () => {
-      try {
-        setLoading(true);
-        const res = await API.get('/admin/referrals');
-        setData(res.data);
-        setError('');
-      } catch (err) {
-        console.error('Error fetching admin referrals:', err);
-        setError('Failed to load administrative referral details.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchReferralStats();
+    fetchReferralStats(1, false);
+    // eslint-disable-next-line
   }, []);
 
   const filteredUsers = data.filter(user => {
     const nameMatch = `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       (user.referralCode && user.referralCode.toLowerCase().includes(searchTerm.toLowerCase())) ||
                       (user.phone && user.phone.includes(searchTerm));
-    const suspiciousMatch = filterSuspicious ? user.isSuspicious : true;
-    return nameMatch && suspiciousMatch;
+    return nameMatch;
   });
 
   const toggleExpandUser = (userId) => {
     setExpandedUser(prev => prev === userId ? null : userId);
   };
 
-  const totalUnlocks = data.filter(u => u.referralUnlockDate && new Date(u.referralUnlockDate) <= new Date()).length;
-  const totalSuspicious = data.filter(u => u.isSuspicious).length;
-  const totalReferrals = data.reduce((sum, u) => sum + u.downlinesCount, 0);
+  const toggleHasDownlines = () => {
+    const next = !filterHasDownlines;
+    setFilterHasDownlines(next);
+    fetchReferralStats(1, next);
+    setExpandedUser(null);
+  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
     return new Date(dateStr).toLocaleDateString('en-US', {
       year: 'numeric', month: 'short', day: 'numeric'
     });
+  };
+
+  const goToPage = (page) => {
+    if (page < 1 || page > pagination.totalPages) return;
+    fetchReferralStats(page);
+    setExpandedUser(null);
+  };
+
+  const renderPagination = () => {
+    if (pagination.totalPages <= 1) return null;
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, pagination.page - Math.floor(maxVisible / 2));
+    let end = Math.min(pagination.totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+
+    pages.push(
+      <button key="prev" className="btn btn-sm" style={{ margin: '0 2px' }}
+        disabled={pagination.page === 1}
+        onClick={() => goToPage(pagination.page - 1)}>
+        <FaChevronLeft size={10} />
+      </button>
+    );
+    if (start > 1) {
+      pages.push(
+        <button key={1} className="btn btn-sm" style={{ margin: '0 2px' }}
+          onClick={() => goToPage(1)}>1</button>
+      );
+      if (start > 2) {
+        pages.push(<span key="dots1" style={{ color: '#64748b', margin: '0 4px' }}>...</span>);
+      }
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(
+        <button key={i} className={`btn btn-sm ${i === pagination.page ? 'btn-primary' : ''}`}
+          style={{ margin: '0 2px', minWidth: '32px' }}
+          onClick={() => goToPage(i)}>{i}</button>
+      );
+    }
+    if (end < pagination.totalPages) {
+      if (end < pagination.totalPages - 1) {
+        pages.push(<span key="dots2" style={{ color: '#64748b', margin: '0 4px' }}>...</span>);
+      }
+      pages.push(
+        <button key={pagination.totalPages} className="btn btn-sm" style={{ margin: '0 2px' }}
+          onClick={() => goToPage(pagination.totalPages)}>{pagination.totalPages}</button>
+      );
+    }
+    pages.push(
+      <button key="next" className="btn btn-sm" style={{ margin: '0 2px' }}
+        disabled={pagination.page === pagination.totalPages}
+        onClick={() => goToPage(pagination.page + 1)}>
+        <FaChevronRight size={10} />
+      </button>
+    );
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '16px 0', marginTop: '12px' }}>
+        {pages}
+        <span style={{ color: '#64748b', fontSize: '0.8rem', marginLeft: '12px' }}>
+          Page {pagination.page} of {pagination.totalPages} ({pagination.total} users)
+        </span>
+      </div>
+    );
   };
 
   return (
@@ -62,7 +136,7 @@ const AdminReferrals = () => {
           <div className="header-icon"><FaUserFriends /></div>
           <div>
             <h2>Referral Oversight & Auditing</h2>
-            <p className="text-muted">Monitor invitation chains, prevent self-referral abuse, and audit payout eligibility</p>
+            <p className="text-muted">Monitor invitation chains and audit payout eligibility</p>
           </div>
         </div>
 
@@ -78,12 +152,12 @@ const AdminReferrals = () => {
             />
           </div>
           <button
-            className={`btn btn-sm ${filterSuspicious ? 'btn-danger' : 'btn-secondary'}`}
-            onClick={() => setFilterSuspicious(!filterSuspicious)}
+            className={`btn btn-sm ${filterHasDownlines ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={toggleHasDownlines}
             style={{ padding: '8px 14px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
           >
-            <FaExclamationTriangle size={12} style={{ marginRight: 6 }} />
-            {filterSuspicious ? 'Show All' : 'Suspicious Only'}
+            <FaUsers size={12} style={{ marginRight: 6 }} />
+            {filterHasDownlines ? 'Show All' : 'Has Downlines'}
           </button>
         </div>
       </header>
@@ -101,7 +175,7 @@ const AdminReferrals = () => {
             <FaShieldAlt size={40} style={{ color: '#ef4444' }} />
             <h3>Failed to Load Referral Data</h3>
             <p style={{ maxWidth: 400, margin: '0 auto' }}>{error}</p>
-            <button className="btn btn-primary" onClick={() => window.location.reload()} style={{ marginTop: 15 }}>
+            <button className="btn btn-primary" onClick={() => fetchReferralStats(1)} style={{ marginTop: 15 }}>
               Retry
             </button>
           </div>
@@ -115,7 +189,7 @@ const AdminReferrals = () => {
               </div>
               <div className="stat-info">
                 <h3>Total Downlines</h3>
-                <div className="stat-value">{totalReferrals}</div>
+                <div className="stat-value">{stats.totalReferrals}</div>
                 <p className="stat-label">Invited across all members</p>
               </div>
             </div>
@@ -125,18 +199,18 @@ const AdminReferrals = () => {
               </div>
               <div className="stat-info">
                 <h3>Unlocked Links</h3>
-                <div className="stat-value">{totalUnlocks}</div>
+                <div className="stat-value">{stats.totalUnlocks}</div>
                 <p className="stat-label">Active referral codes</p>
               </div>
             </div>
-            <div className="stat-card" style={{ borderColor: totalSuspicious > 0 ? '#dc2626' : undefined }}>
-              <div className="stat-icon-wrapper" style={{ background: totalSuspicious > 0 ? 'rgba(220, 38, 38, 0.1)' : undefined }}>
-                <FaExclamationTriangle style={{ color: totalSuspicious > 0 ? '#dc2626' : '#64748b' }} />
+            <div className="stat-card">
+              <div className="stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)' }}>
+                <FaUsers style={{ color: '#10b981' }} />
               </div>
               <div className="stat-info">
-                <h3>Suspicious Flags</h3>
-                <div className="stat-value" style={{ color: totalSuspicious > 0 ? '#dc2626' : 'white' }}>{totalSuspicious}</div>
-                <p className="stat-label">Self-referral alerts</p>
+                <h3>With Downlines</h3>
+                <div className="stat-value">{pagination.total}</div>
+                <p className="stat-label">{filterHasDownlines ? 'Members with downlines' : 'Total members'}</p>
               </div>
             </div>
           </div>
@@ -159,7 +233,6 @@ const AdminReferrals = () => {
                       <th>Unlock Date</th>
                       <th className="text-right">Invites</th>
                       <th className="text-right">Qualified (≥2)</th>
-                      <th className="text-right">Anti-Abuse</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -172,7 +245,7 @@ const AdminReferrals = () => {
                           <tr
                             className="table-row-hover"
                             onClick={() => toggleExpandUser(user.id)}
-                            style={{ cursor: 'pointer', background: user.isSuspicious ? 'rgba(220, 38, 38, 0.05)' : undefined }}
+                            style={{ cursor: 'pointer' }}
                           >
                             <td onClick={(e) => { e.stopPropagation(); toggleExpandUser(user.id); }}>
                               {isExpanded ? <FaChevronUp size={12} style={{ color: '#d4af37' }} /> : <FaChevronDown size={12} style={{ color: '#64748b' }} />}
@@ -181,7 +254,7 @@ const AdminReferrals = () => {
                               <div className="member-cell">
                                 <div
                                   className="member-avatar"
-                                  style={{ background: user.isSuspicious ? '#dc2626' : '#800020', width: '32px', height: '32px', fontSize: '0.75rem' }}
+                                  style={{ background: '#800020', width: '32px', height: '32px', fontSize: '0.75rem' }}
                                 >
                                   {(user.firstName?.[0] || 'U')}{(user.lastName?.[0] || '')}
                                 </div>
@@ -217,20 +290,10 @@ const AdminReferrals = () => {
                                 <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Standard (x1)</span>
                               )}
                             </td>
-                            <td className="text-right">
-                              {user.isSuspicious ? (
-                                <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                  title="Duplicate bank details detected with downlines">
-                                  <FaExclamationTriangle /> Self-Referral
-                                </span>
-                              ) : (
-                                <span style={{ color: '#10b981', fontSize: '0.8rem' }}>No Issues</span>
-                              )}
-                            </td>
                           </tr>
                           {isExpanded && (
                             <tr>
-                              <td colSpan="7" style={{ padding: '0', background: 'rgba(255, 255, 255, 0.03)' }}>
+                              <td colSpan="6" style={{ padding: '0', background: 'rgba(255, 255, 255, 0.03)' }}>
                                 <div style={{ padding: '20px 25px' }}>
                                   <h4 style={{ color: '#d4af37', margin: '0 0 12px 0', fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.03em' }}>
                                     Referred Downlines ({user.downlines.length})
@@ -283,6 +346,7 @@ const AdminReferrals = () => {
                     })}
                   </tbody>
                 </table>
+                {renderPagination()}
               </div>
             )}
           </div>

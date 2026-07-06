@@ -38,11 +38,13 @@ const calculateDownlineStatus = (user, plans) => {
  */
 export const getReferredDownlines = async (userId) => {
   const sql = `
-    SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at, u.referral_code, u.referral_unlock_date, u.referral_expiry_date, r.code as used_specific_code
+    SELECT DISTINCT ON (u.id)
+      u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at, u.referral_code, u.referral_unlock_date, u.referral_expiry_date,
+      (SELECT code FROM referral_codes WHERE used_by_user_id = u.id AND user_id = $1 LIMIT 1) as used_specific_code
     FROM users u
-    LEFT JOIN referral_codes r ON u.id = r.used_by_user_id
     WHERE u.referred_by = $1
-    ORDER BY u.created_at DESC
+       OR u.id IN (SELECT used_by_user_id FROM referral_codes WHERE user_id = $1 AND used_by_user_id IS NOT NULL)
+    ORDER BY u.id, u.created_at DESC
   `;
   const { rows: downlines } = await query(sql, [userId]);
 

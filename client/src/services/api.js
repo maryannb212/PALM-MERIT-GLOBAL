@@ -80,6 +80,8 @@ export const payTshirtFee = () => API.post('/savings/pay-tshirt');
 export const cancelSubscription = (planId) => API.delete(`/savings/cancel/${planId}`);
 export const getMyDefaults = () => API.get('/savings/my-defaults');
 export const getPlanDefaults = (planId) => API.get(`/savings/defaults/${planId}`);
+export const clearDefaults = () => API.post('/savings/clear-defaults');
+export const clearDefaultById = (defaultId) => API.post(`/savings/clear-default/${defaultId}`);
 
 // Transaction endpoints
 export const initializeTransaction = (data) => API.post('/transactions/initialize', data);

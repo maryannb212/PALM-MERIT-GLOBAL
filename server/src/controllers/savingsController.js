@@ -139,11 +139,24 @@ export const subscribeToPlan = async (req, res) => {
 
       // Process referral code if provided
       if (referredById) {
-        // Self-referral check: skip if user entered their own code
         if (referredById === userId) {
-          // Don't mark self-referral codes as used — preserve them for genuine referrals
+          // Self-referral: user used their own code — mark as used, set referred_by to own id
           if (usedReferralCodeId) {
-            console.warn(`[subscribeToPlan] User ${userId} attempted self-referral using code ${usedReferralCodeId}, skipped`);
+            // Lock the code row inside the transaction to prevent concurrent consumption
+            const { rows: locked } = await client.query(
+              'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
+              [usedReferralCodeId]
+            );
+            if (locked.length > 0 && locked[0].status !== 'used') {
+              await client.query(
+                "UPDATE users SET referred_by = $1 WHERE id = $2",
+                [userId, userId]
+              );
+              await client.query(
+                "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+                [usedReferralCodeId, userId]
+              );
+            }
           }
         } else {
           // Check if user already has a referrer — never overwrite an existing referral
@@ -152,17 +165,31 @@ export const subscribeToPlan = async (req, res) => {
             [userId]
           );
           if (!existingUser[0].referred_by) {
-            await client.query(
-              "UPDATE users SET referred_by = $1 WHERE id = $2",
-              [referredById, userId]
-            );
-          }
-          // Mark referral code as used (referrer gets credit for the consumption)
-          if (usedReferralCodeId) {
-            await client.query(
-              "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-              [usedReferralCodeId, userId]
-            );
+            if (usedReferralCodeId) {
+              // Lock the code row inside the transaction to prevent concurrent consumption
+              const { rows: locked } = await client.query(
+                'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
+                [usedReferralCodeId]
+              );
+              if (locked.length > 0 && locked[0].status !== 'used') {
+                await client.query(
+                  "UPDATE users SET referred_by = $1 WHERE id = $2",
+                  [referredById, userId]
+                );
+                await client.query(
+                  "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+                  [usedReferralCodeId, userId]
+                );
+              }
+            } else {
+              // Legacy referral (no referral_codes entry) — just set referred_by
+              await client.query(
+                "UPDATE users SET referred_by = $1 WHERE id = $2",
+                [referredById, userId]
+              );
+            }
+          } else if (usedReferralCodeId) {
+            console.warn(`[subscribeToPlan] User ${userId} already has referrer ${existingUser[0].referred_by}, code ${usedReferralCodeId} was NOT consumed`);
           }
         }
       }
@@ -495,10 +522,10 @@ export const getMyDefaults = async (req, res) => {
     `, [userId]);
 
     const planConfig = {
-      CREST: { weekly: 4000, penalty: 4000 },
-      SILVER: { weekly: 1500, penalty: 1500 },
-      GOLDEN_BASKET: { weekly: 2000, penalty: 2000 },
-      ISUSU: { daily: 500, penalty: 500 }
+      CREST: { weekly: 4000, penalty: 8000 },
+      SILVER: { weekly: 1500, penalty: 3000 },
+      GOLDEN_BASKET: { weekly: 2000, penalty: 4000 },
+      ISUSU: { daily: 500, penalty: 1000 }
     };
 
     const result = rows.map(r => ({
@@ -551,10 +578,10 @@ export const getPlanDefaultsDetail = async (req, res) => {
     );
 
     const planConfig = {
-      CREST: { weekly: 4000, penalty: 4000, duration: '12 weeks', target: 96000 },
-      SILVER: { weekly: 1500, penalty: 1500, duration: '50 weeks', target: 150000 },
-      GOLDEN_BASKET: { weekly: 2000, penalty: 2000, duration: '50 weeks', target: 200000 },
-      ISUSU: { daily: 500, penalty: 500, duration: '30 days', target: 15000 }
+      CREST: { weekly: 4000, penalty: 8000, duration: '12 weeks', target: 96000 },
+      SILVER: { weekly: 1500, penalty: 3000, duration: '50 weeks', target: 150000 },
+      GOLDEN_BASKET: { weekly: 2000, penalty: 4000, duration: '50 weeks', target: 200000 },
+      ISUSU: { daily: 500, penalty: 1000, duration: '30 days', target: 15000 }
     };
     const config = planConfig[plan.plan_name] || {};
 
@@ -638,7 +665,7 @@ export const cancelSubscription = async (req, res) => {
         throw new Error('Only active plans can be deleted/cancelled.');
       }
 
-      const refundAmount = parseFloat(plan.current_amount || 0);
+      const refundAmount = Math.floor(parseFloat(plan.current_amount || 0));
 
       if (refundAmount > 0) {
         // Refund to wallet
@@ -677,6 +704,238 @@ export const cancelSubscription = async (req, res) => {
   } catch (error) {
     console.error('Error cancelling subscription:', error);
     res.status(500).json({ message: 'Server error during cancellation' });
+  }
+};
+
+const PLANS_CONFIG = {
+  'CREST': 4000,
+  'SILVER': 1500,
+  'GOLDEN_BASKET': 2000,
+  'ISUSU': 500
+};
+
+export const clearDefaults = async (req, res) => {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const userId = req.user.id;
+
+    const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
+    if (users.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const balance = Math.floor(parseFloat(users[0].available_balance));
+
+    const { rows: defaults } = await client.query(`
+      SELECT d.id, d.plan_id, d.penalty_amount, d.missed_date, sp.plan_name, sp.number_of_accounts, sp.current_amount
+      FROM defaults d
+      JOIN savings_plans sp ON d.plan_id = sp.id
+      WHERE d.user_id = $1 AND d.resolved = FALSE
+      ORDER BY d.missed_date ASC
+      FOR UPDATE
+    `, [userId]);
+
+    if (defaults.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'No outstanding defaults to clear' });
+    }
+
+    let remainingBalance = balance;
+    let totalDeducted = 0;
+    let totalToSavings = 0;
+    let resolvedDefaults = 0;
+    const results = [];
+
+    for (const d of defaults) {
+      if (remainingBalance <= 0) break;
+
+      const perAccountAmount = PLANS_CONFIG[d.plan_name];
+      if (!perAccountAmount) continue;
+
+      const numAccounts = parseInt(d.number_of_accounts) || 1;
+      let penaltyAmount = Math.floor(parseFloat(d.penalty_amount));
+      const perAccountCost = perAccountAmount * 2;
+      const remainingAccounts = Math.floor(penaltyAmount / perAccountCost);
+      const affordable = Math.floor(remainingBalance / perAccountCost);
+      const accountsToClear = Math.min(affordable, remainingAccounts);
+
+      if (accountsToClear <= 0) continue;
+
+      const cost = accountsToClear * perAccountCost;
+      const savingsPortion = accountsToClear * perAccountAmount;
+
+      remainingBalance -= cost;
+      totalDeducted += cost;
+      totalToSavings += savingsPortion;
+
+      await client.query(
+        'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [savingsPortion, d.plan_id]
+      );
+
+      const newPenalty = penaltyAmount - cost;
+      if (newPenalty <= 0) {
+        await client.query(
+          'UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1',
+          [d.id]
+        );
+        resolvedDefaults++;
+      } else {
+        await client.query(
+          'UPDATE defaults SET penalty_amount = $1 WHERE id = $2',
+          [newPenalty, d.id]
+        );
+      }
+
+      results.push({
+        defaultId: d.id,
+        plan_name: d.plan_name,
+        accountsCleared: accountsToClear,
+        amountPaid: cost,
+        fullyResolved: newPenalty <= 0
+      });
+    }
+
+    if (totalDeducted <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        message: 'Insufficient wallet balance to clear any defaults',
+        neededPerAccount: `₦${(PLANS_CONFIG[defaults[0]?.plan_name] || 1500) * 2}`
+      });
+    }
+
+    await client.query(
+      'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
+      [totalDeducted, userId]
+    );
+
+    const reference = `CLRDFT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    await client.query(
+      `INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+       VALUES ($1, NULL, 'default_clearance', $2, 'completed', $3)`,
+      [userId, totalDeducted, reference]
+    );
+
+    await createWalletLedgerEntry(client, userId, 'debit', totalDeducted, reference, `Wallet clearance of defaults: ₦${totalDeducted.toLocaleString()} (₦${totalToSavings.toLocaleString()} to savings, ₦${(totalDeducted - totalToSavings).toLocaleString()} penalty settled)`);
+
+    await client.query('COMMIT');
+
+    const { rows: updatedUser } = await client.query(
+      'SELECT available_balance FROM users WHERE id = $1',
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      message: `Defaults cleared successfully. ₦${totalDeducted.toLocaleString()} deducted from wallet. ₦${totalToSavings.toLocaleString()} credited to savings plans.`,
+      totalDeducted,
+      totalToSavings,
+      resolvedDefaults,
+      newBalance: Math.floor(parseFloat(updatedUser[0].available_balance)),
+      results
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error in clearDefaults:', error);
+    res.status(500).json({ message: 'Server error clearing defaults' });
+  } finally {
+    client.release();
+  }
+};
+
+export const clearDefaultById = async (req, res) => {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const userId = req.user.id;
+    const { defaultId } = req.params;
+
+    const { rows: defaults } = await client.query(`
+      SELECT d.id, d.penalty_amount, d.plan_id, d.missed_date, sp.plan_name, sp.number_of_accounts
+      FROM defaults d
+      JOIN savings_plans sp ON d.plan_id = sp.id
+      WHERE d.id = $1 AND d.user_id = $2 AND d.resolved = FALSE
+      FOR UPDATE
+    `, [defaultId, userId]);
+
+    if (defaults.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Default not found or already resolved' });
+    }
+
+    const d = defaults[0];
+    const perAccountAmount = PLANS_CONFIG[d.plan_name];
+    if (!perAccountAmount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Unknown plan' });
+    }
+
+    const penaltyAmount = Math.floor(parseFloat(d.penalty_amount));
+
+    const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
+    const balance = Math.floor(parseFloat(users[0].available_balance));
+
+    if (balance < penaltyAmount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        message: `Insufficient balance. You need ₦${penaltyAmount.toLocaleString()} to clear this default. You have ₦${balance.toLocaleString()}.`,
+        needed: penaltyAmount,
+        balance
+      });
+    }
+
+    const savingsPortion = Math.floor(penaltyAmount / 2);
+
+    await client.query(
+      'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
+      [penaltyAmount, userId]
+    );
+
+    await client.query(
+      'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [savingsPortion, d.plan_id]
+    );
+
+    await client.query(
+      'UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [d.id]
+    );
+
+    const reference = `CLRDFT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    await client.query(
+      `INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+       VALUES ($1, $2, 'default_clearance', $3, 'completed', $4)`,
+      [userId, d.plan_id, penaltyAmount, reference]
+    );
+
+    await createWalletLedgerEntry(client, userId, 'debit', penaltyAmount, reference,
+      `Cleared default for ${d.plan_name}: ₦${savingsPortion.toLocaleString()} to savings, ₦${savingsPortion.toLocaleString()} penalty settled`);
+
+    await client.query('COMMIT');
+
+    const { rows: updatedUser } = await client.query(
+      'SELECT available_balance FROM users WHERE id = $1', [userId]
+    );
+
+    res.json({
+      success: true,
+      message: `Default cleared. ₦${penaltyAmount.toLocaleString()} deducted from wallet. ₦${savingsPortion.toLocaleString()} credited to ${d.plan_name} savings.`,
+      defaultId: d.id,
+      amountDeducted: penaltyAmount,
+      savingsCredited: savingsPortion,
+      planName: d.plan_name,
+      newBalance: Math.floor(parseFloat(updatedUser[0].available_balance))
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error in clearDefaultById:', error);
+    res.status(500).json({ message: 'Server error clearing default' });
+  } finally {
+    client.release();
   }
 };
 

@@ -160,9 +160,15 @@ export const registerUser = async (req, res) => {
     ]);
     const user = newUser[0];
 
-    // If they used a plan-specific referral code, mark it as used
+    // If they used a plan-specific referral code, mark it as used (only if still available)
     if (usedReferralCodeId && user) {
-      await query('UPDATE referral_codes SET status = $1, used_by_user_id = $2 WHERE id = $3', ['used', user.id, usedReferralCodeId]);
+      const { rows: check } = await query(
+        'SELECT status FROM referral_codes WHERE id = $1 AND status = $2',
+        [usedReferralCodeId, 'available']
+      );
+      if (check.length > 0) {
+        await query('UPDATE referral_codes SET status = $1, used_by_user_id = $2 WHERE id = $3', ['used', user.id, usedReferralCodeId]);
+      }
     }
 
     if (user) {

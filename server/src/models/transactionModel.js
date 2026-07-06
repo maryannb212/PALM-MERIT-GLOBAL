@@ -61,11 +61,11 @@ const settleOutstandingPenalties = async (client, userId, amount, paymentReferen
   }
   const { rows: defaults } = await client.query(queryStr, params);
 
-  let remaining = amount;
+  let remaining = Math.floor(amount);
 
   for (const d of defaults) {
     if (remaining <= 0) break;
-    const penalty = parseFloat(d.penalty_amount);
+    const penalty = Math.floor(parseFloat(d.penalty_amount));
     if (remaining >= penalty) {
       // Fully settle this default
       await client.query(`UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1`, [d.id]);
@@ -101,7 +101,7 @@ const settleOutstandingPenalties = async (client, userId, amount, paymentReferen
     } else {
       // Partially settle this default
       const settlementRef = `${paymentReference}-STL-${d.id.slice(0, 8)}`;
-      const newPenalty = penalty - remaining;
+      const newPenalty = Math.floor(penalty - remaining);
       await client.query(`UPDATE defaults SET penalty_amount = $1 WHERE id = $2`, [newPenalty, d.id]);
 
       // Ledger entry for partial settlement
@@ -124,7 +124,7 @@ const settleOutstandingPenalties = async (client, userId, amount, paymentReferen
   }
 
   // Return any leftover amount to be credited after penalties are handled
-  return remaining;
+  return Math.floor(remaining);
 };
 
 
@@ -282,7 +282,7 @@ export const processCompletedPayment = async (
     // Resolve any outstanding penalties before crediting the user.
     // Parse defaultId from reference if this is a per-default payment.
     // For per-plan or bulk clear, planId from the transaction is used instead.
-    let creditAmount = parseFloat(completedTx.amount);
+    let creditAmount = Math.floor(parseFloat(completedTx.amount));
     if (completedTx.type === 'deposit' || completedTx.type === 'wallet_topup' || completedTx.type === 'contribution') {
       const targetDefaultId = parseDefaultIdFromReference(completedTx.reference);
       creditAmount = await settleOutstandingPenalties(client, completedTx.user_id, creditAmount, completedTx.reference, completedTx.plan_id, targetDefaultId);
