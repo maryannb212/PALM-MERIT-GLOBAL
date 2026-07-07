@@ -451,8 +451,8 @@ const Referrals = () => {
                           ) : goldenBasketOnly ? (
                             <span className="plan-pill golden" title="Excluded from referrals">Golden Basket</span>
                           ) : (
-                            downline.plans.filter(p => p.planName !== 'GOLDEN_BASKET').map(p => (
-                              <span key={p.planName} className="plan-pill">{p.planName}</span>
+                            [...new Set(downline.plans.filter(p => p.planName !== 'GOLDEN_BASKET').map(p => p.planName))].map(name => (
+                              <span key={name} className="plan-pill">{name}</span>
                             ))
                           )}
                         </td>
