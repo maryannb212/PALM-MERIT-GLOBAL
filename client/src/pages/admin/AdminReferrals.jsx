@@ -26,7 +26,9 @@ const AdminReferrals = () => {
       if (Array.isArray(responseData)) {
         setData(responseData);
         setPagination({ page: 1, limit: 20, total: responseData.length, totalPages: 1 });
-        setStats({ totalReferrals: 0, totalUnlocks: 0 });
+        const totalReferrals = responseData.reduce((sum, u) => sum + (u.downlinesCount || 0), 0);
+        const totalUnlocks = responseData.filter(u => u.referralUnlockDate && new Date(u.referralUnlockDate) <= new Date()).length;
+        setStats({ totalReferrals, totalUnlocks });
       } else {
         setData(responseData?.users || []);
         setPagination(responseData?.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 });
