@@ -181,6 +181,9 @@ export const getUserDefaults = (userId) => API.get(`/admin/users/${userId}/defau
 export const updateDefault = (id, data) => API.put(`/admin/defaults/${id}`, data);
 export const resolveUserDefaults = (userId) => API.post(`/admin/users/${userId}/resolve-defaults`);
 
+// Admin Impersonation
+export const impersonateUser = (userId) => API.post(`/admin/impersonate/${userId}`);
+
 // Admin Security & Page Locks
 export const getPageLocks = () => API.get('/admin/security/locks');
 export const updatePageLock = (data) => API.put('/admin/security/locks', data);

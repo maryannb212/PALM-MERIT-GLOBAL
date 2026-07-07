@@ -29,7 +29,8 @@ import {
   reconcileLotusVA,
   getDuePayments,
   getClearancePlans,
-  adminSettleClearance
+  adminSettleClearance,
+  impersonateUser
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -83,6 +84,8 @@ router.post('/clearance/settle', adminSettleClearance);
 router.get('/users/:userId/defaults', getUserDefaults);
 router.put('/defaults/:id', updateDefault);
 router.post('/users/:userId/resolve-defaults', resolveUserDefaults);
+// Impersonation
+router.post('/impersonate/:userId', impersonateUser);
 // Security Locks
 router.get('/security/locks', getPageLocks);
 router.put('/security/locks', updatePageLock);

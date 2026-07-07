@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser } from '../../services/api';
-import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle, FaLink, FaUserFriends } from 'react-icons/fa';
+import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser, impersonateUser } from '../../services/api';
+import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle, FaLink, FaUserFriends, FaMask } from 'react-icons/fa';
 import EditMemberModal from './EditMemberModal';
 import MemberDetailsModal from './MemberDetailsModal';
 import UserDefaultsModal from './UserDefaultsModal';
@@ -21,6 +21,7 @@ const MembersPage = () => {
   const [defaultsUserId, setDefaultsUserId] = useState(null);
   const [defaultsUserName, setDefaultsUserName] = useState('');
   const [isDefaultsModalOpen, setIsDefaultsModalOpen] = useState(false);
+  const [impersonatingId, setImpersonatingId] = useState(null);
 
   const avatarColors = ['#800020', '#D4AF37', '#1e293b', '#475569', '#64748b'];
 
@@ -76,6 +77,22 @@ const MembersPage = () => {
       alert('User successfully deleted.');
     } catch (err) {
       alert(err.response?.data?.message || 'Deletion failed');
+    }
+  };
+
+  const handleImpersonate = async (userId, userName) => {
+    if (!window.confirm(`Impersonate ${userName}? You will be logged in as this user and can view their dashboard exactly as they see it.`)) return;
+    try {
+      setImpersonatingId(userId);
+      const { data } = await impersonateUser(userId);
+      const backup = localStorage.getItem('palmmerit_user');
+      if (backup) sessionStorage.setItem('palmmerit_user_backup', backup);
+      localStorage.setItem('palmmerit_user', JSON.stringify(data));
+      window.open('/dashboard', '_blank');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Impersonation failed');
+    } finally {
+      setImpersonatingId(null);
     }
   };
 
@@ -294,6 +311,15 @@ const MembersPage = () => {
                           style={{ padding: '4px 8px', fontSize: '12px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #f87171' }}
                         >
                           <FaTrashAlt />
+                        </button>
+                        <button 
+                          onClick={() => handleImpersonate(member.id, `${member.first_name || 'Unknown'} ${member.last_name || ''}`)}
+                          className="btn btn-sm"
+                          title="Impersonate User"
+                          disabled={impersonatingId === member.id}
+                          style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.3)' }}
+                        >
+                          <FaMask />
                         </button>
                       </div>
                     </td>

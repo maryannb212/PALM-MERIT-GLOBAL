@@ -3,6 +3,7 @@ import { createNotification } from '../models/notificationModel.js';
 import { logAudit } from '../models/auditModel.js';
 import { processCompletedPayment, createTransaction } from '../models/transactionModel.js';
 import * as withdrawalController from './withdrawalController.js';
+import jsonwebtoken from 'jsonwebtoken';
 
 /**
  * Get all users
@@ -1191,6 +1192,53 @@ export const getClearancePlans = async (req, res) => {
   } catch (error) {
     console.error('Error fetching clearance plans:', error);
     res.status(500).json({ message: 'Server error fetching clearance plans' });
+  }
+};
+
+export const impersonateUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const adminId = req.user.id;
+
+    const { rows } = await query(`
+      SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status,
+             profile_image, referral_code, referral_unlock_date, referral_expiry_date, status, created_at
+      FROM users WHERE id = $1
+    `, [userId]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const u = rows[0];
+
+    const token = jsonwebtoken.sign(
+      { id: u.id, impersonatedBy: adminId },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: '2h' }
+    );
+
+    res.json({
+      id: u.id,
+      firstName: u.first_name,
+      lastName: u.last_name,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      hasPaidMembership: u.has_paid_membership,
+      kycStatus: u.kyc_status,
+      profileImage: u.profile_image,
+      referralCode: u.referral_code,
+      referralUnlockDate: u.referral_unlock_date,
+      referralExpiryDate: u.referral_expiry_date,
+      status: u.status,
+      createdAt: u.created_at,
+      token,
+      impersonatedBy: adminId
+    });
+  } catch (error) {
+    console.error('Error impersonating user:', error);
+    res.status(500).json({ message: 'Server error during impersonation' });
   }
 };
 
