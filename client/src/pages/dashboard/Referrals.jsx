@@ -125,22 +125,6 @@ const Referrals = () => {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'qualified':
-        return <span className="badge-status qualified"><FaCheckCircle /> Qualified</span>;
-      case 'active':
-        return <span className="badge-status active"><FaCheckCircle /> Active</span>;
-      case 'pending':
-        return <span className="badge-status pending"><FaExclamationTriangle /> Pending</span>;
-      case 'disqualified':
-        return <span className="badge-status disqualified"><FaTimesCircle /> Disqualified</span>;
-      case 'inactive':
-      default:
-        return <span className="badge-status inactive"><FaInfoCircle /> Inactive</span>;
-    }
-  };
-
   if (loading) {
     return (
       <div className="dashboard-container">
@@ -434,7 +418,6 @@ const Referrals = () => {
                     <th>Code Used</th>
                     <th>Joined Date</th>
                     <th>Date Used</th>
-                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -447,7 +430,6 @@ const Referrals = () => {
                         <td>
                           {downline.usedAt ? new Date(downline.usedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
                         </td>
-                        <td>{getStatusBadge(downline.referralStatus)}</td>
                       </tr>
                     );
                   })}
