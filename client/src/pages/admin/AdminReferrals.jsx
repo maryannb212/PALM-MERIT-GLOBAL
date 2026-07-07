@@ -22,9 +22,16 @@ const AdminReferrals = () => {
     try {
       setLoading(true);
       const res = await API.get(`/admin/referrals?page=${page}&limit=20${hasDownlines ? '&hasDownlines=true' : ''}`);
-      setData(res.data?.users || []);
-      setPagination(res.data?.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 });
-      setStats(res.data?.stats || { totalReferrals: 0, totalUnlocks: 0 });
+      const responseData = res.data;
+      if (Array.isArray(responseData)) {
+        setData(responseData);
+        setPagination({ page: 1, limit: 20, total: responseData.length, totalPages: 1 });
+        setStats({ totalReferrals: 0, totalUnlocks: 0 });
+      } else {
+        setData(responseData?.users || []);
+        setPagination(responseData?.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 });
+        setStats(responseData?.stats || { totalReferrals: 0, totalUnlocks: 0 });
+      }
       setError('');
     } catch (err) {
       console.error('Error fetching admin referrals:', err);
