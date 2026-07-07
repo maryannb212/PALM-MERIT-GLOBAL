@@ -79,12 +79,13 @@
   - `deductionJob.js`: `Math.floor()` on catch-up `availableBalance`, `savingsAmount`
   - `transactionModel.js`: `Math.floor()` in `settleOutstandingPenalties` and `creditAmount`
   - `savingsController.js`: `Math.floor()` on refund amount
-- **Changed downline calculation from `referred_by`-only to `referred_by` + `referral_codes`** across 6 query locations:
-  - `adminController.js:getAllUsers`: downline_count subquery adds `COUNT(DISTINCT used_by_user_id)` from `referral_codes` WHERE `user_id = u.id`
-  - `adminController.js:getUserById`: `WHERE referred_by = $1 OR id IN (SELECT used_by_user_id FROM referral_codes WHERE user_id = $1)`
-  - `adminController.js:getDashboardStats`: total_downlines adds `COUNT(DISTINCT used_by_user_id)` from `referral_codes`
-  - `adminController.js:getAdminReferralStats`: pre-fetches all code refs into a Map, merges with `referredByDownlines` via a `seen` Set (dedup'd)
-  - `referralHelper.js:getReferredDownlines`: Uses `DISTINCT ON (u.id)` with both `referred_by` and `referral_codes` subquery
+- **Downline display now counts each referral code usage as a separate entry** (same person appears multiple times if they used multiple codes). Fixed across all 6 locations:
+  - `adminController.js:getAllUsers`: downline_count = `COUNT(*) FROM referral_codes WHERE used_by_user_id IS NOT NULL AND user_id = u.id`
+  - `adminController.js:getUserById`: JOINs `referral_codes` with `users` — each code usage is one row, no dedup
+  - `adminController.js:getDashboardStats`: total_downlines = `COUNT(*) FROM referral_codes WHERE used`
+  - `adminController.js:getAdminReferralStats`: pre-fetches all individual code usages as array (not Set), each usage = one entry in downline list
+  - `referralHelper.js:getReferredDownlines`: JOINs `referral_codes` with `users` — each code usage is one row, no dedup
+  - `adminController.js:getAdminReferralStats` aggregate: total = `COUNT(*) FROM referral_codes WHERE used`
 - **Fixed 7 self-referrals in DB** (`referred_by = own id` → `NULL`): Chinonye Sodiyan, Damilola Bayo, Ogechi Obimma, IFEOMA EZEWANMA, Jane Osufe, Chiazaram Okonkwo, Chinaro Maduako
 - **Diagnosed live DB history** via 3 diagnostic scripts:
   - Scenario A (fixable, code consumed, no `referred_by`): **0 rows** — no cases found
@@ -92,6 +93,16 @@
   - Scenario C (self-consumed, no `referred_by`): **93 rows** across **13 users** (Gabriel Egele: 27 self-codes, Chioma Ugochukwu: 18, chiemerie Okoye: 9)
   - Scenario D (self-referrals `referred_by = own id`): **7 users** (fixed)
 - **Fixed Scenarios B & C via query changes** — all 138 stolen + 93 self-consumed downlines now appear in the respective code owner's downline lists because queries reference `referral_codes` table directly. No `referred_by` column changes needed for B & C.
+
+### Done (new)
+- **Removed `runStartupCatchupDeductions` server startup calls** from both `app.js:151` and `server.js:57`. Deductions now only run at 6PM WAT via the cron job.
+- **Fixed downline double-counting bug**: `getAllUsers`, `getDashboardStats`, and `getAdminReferralStats` aggregate were adding `COUNT(referred_by) + COUNT(DISTINCT code_users)`, double-counting people who appeared in both. Fixed all 3 to count each code usage as a separate entry.
+- **Ann Chukwuemeka downlines**: Now correctly shows **20** downlines (Taiwo ×5, Charity ×15) instead of 4 or 2.
+
+### Done (new)
+- **Added referral code usage timestamp (`usedAt`) to admin referral audit display**:
+  - Backend: Added `rc.updated_at` to all 3 downline queries (`getAdminReferralStats`, `getUserById`, `getReferredDownlines`) and passed it through as `usedAt` in results.
+  - Frontend admin (`AdminReferrals.jsx`): Added "Code" and "Date Used" columns to the expanded downline sub-table, showing the referral code used and when it was consumed.
 
 ### In Progress
 - (none)

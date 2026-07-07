@@ -309,14 +309,22 @@ const AdminReferrals = () => {
                                           <tr>
                                             <th style={{ padding: '10px 14px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Name</th>
                                             <th style={{ padding: '10px 14px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Email</th>
+                                            <th style={{ padding: '10px 14px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Code</th>
+                                            <th style={{ padding: '10px 14px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Date Used</th>
                                             <th style={{ padding: '10px 14px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Status</th>
                                           </tr>
                                         </thead>
                                         <tbody>
-                                          {user.downlines.map((down) => (
-                                            <tr key={down.id}>
+                                          {user.downlines.map((down, idx) => (
+                                            <tr key={`${down.id}-${idx}`}>
                                               <td style={{ padding: '10px 14px', color: '#e2e8f0', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{down.firstName} {down.lastName}</td>
                                               <td style={{ padding: '10px 14px', color: '#94a3b8', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>{down.email || 'N/A'}</td>
+                                              <td style={{ padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                                <code style={{ color: '#d4af37', fontFamily: 'monospace', fontWeight: 600, fontSize: '0.75rem' }}>{down.usedCode}</code>
+                                              </td>
+                                              <td style={{ padding: '10px 14px', color: '#94a3b8', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                                {down.usedAt ? formatDate(down.usedAt) : 'N/A'}
+                                              </td>
                                               <td style={{ padding: '10px 14px', textAlign: 'right', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                                                 {down.referralStatus === 'qualified' && (
                                                   <span style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: 600 }}>Qualified savings downline</span>

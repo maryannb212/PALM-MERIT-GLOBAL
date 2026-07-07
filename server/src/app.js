@@ -7,7 +7,8 @@ import 'express-async-errors';
 import rateLimit from 'express-rate-limit';
 import logger from './utils/logger.js';
 
-import { runStartupCatchupDeductions } from './jobs/deductionJob.js';
+
+
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -146,8 +147,5 @@ app.use((err, req, res, next) => {
     stack: process.env.NODE_ENV === 'production' ? null : err.stack
   });
 });
-
-// Run one-time startup catch-up for any missed deductions
-runStartupCatchupDeductions();
 
 export default app;

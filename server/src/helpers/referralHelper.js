@@ -38,13 +38,13 @@ const calculateDownlineStatus = (user, plans) => {
  */
 export const getReferredDownlines = async (userId) => {
   const sql = `
-    SELECT DISTINCT ON (u.id)
-      u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at, u.referral_code, u.referral_unlock_date, u.referral_expiry_date,
-      (SELECT code FROM referral_codes WHERE used_by_user_id = u.id AND user_id = $1 LIMIT 1) as used_specific_code
-    FROM users u
-    WHERE u.referred_by = $1
-       OR u.id IN (SELECT used_by_user_id FROM referral_codes WHERE user_id = $1 AND used_by_user_id IS NOT NULL)
-    ORDER BY u.id, u.created_at DESC
+    SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at,
+           u.referral_code, u.referral_unlock_date, u.referral_expiry_date,
+           rc.code as used_specific_code, rc.updated_at as used_at
+    FROM referral_codes rc
+    JOIN users u ON u.id = rc.used_by_user_id
+    WHERE rc.user_id = $1 AND rc.used_by_user_id IS NOT NULL
+    ORDER BY rc.created_at DESC
   `;
   const { rows: downlines } = await query(sql, [userId]);
 
@@ -80,7 +80,8 @@ export const getReferredDownlines = async (userId) => {
         createdAt: p.created_at
       })),
       referralStatus: status, // locked, inactive, pending, active, disqualified
-      usedSpecificCode: downline.used_specific_code || 'Legacy'
+      usedSpecificCode: downline.used_specific_code || 'Legacy',
+      usedAt: downline.used_at
     });
   }
 

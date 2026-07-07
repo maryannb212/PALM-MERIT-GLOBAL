@@ -17,8 +17,7 @@ export const getAllUsers = async (req, res) => {
         u.referral_code, u.referred_by,
         referrer.first_name AS referrer_first_name,
         referrer.last_name AS referrer_last_name,
-        (SELECT COUNT(*) FROM users sub WHERE sub.referred_by = u.id AND sub.id != u.id)
-          + (SELECT COUNT(DISTINCT rc.used_by_user_id) FROM referral_codes rc WHERE rc.user_id = u.id AND rc.used_by_user_id IS NOT NULL)
+        (SELECT COUNT(*) FROM referral_codes rc WHERE rc.user_id = u.id AND rc.used_by_user_id IS NOT NULL)
         AS downline_count,
         COALESCE(d.outstanding, 0) as outstanding_default,
         COALESCE(d.cnt, 0) as default_count
@@ -72,13 +71,13 @@ export const getUserById = async (req, res) => {
       user.referred_by_user = referrer.length > 0 ? referrer[0] : null;
     }
 
-    // Fetch downlines (via referred_by + referral_codes)
+    // Fetch downlines — each referral code usage is a separate entry
     const { rows: downlines } = await query(`
-      SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at
-      FROM users u
-      WHERE u.referred_by = $1
-         OR u.id IN (SELECT used_by_user_id FROM referral_codes WHERE user_id = $1 AND used_by_user_id IS NOT NULL)
-      ORDER BY u.created_at DESC
+      SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at, rc.code as used_code, rc.updated_at as used_at
+      FROM referral_codes rc
+      JOIN users u ON u.id = rc.used_by_user_id
+      WHERE rc.user_id = $1 AND rc.used_by_user_id IS NOT NULL
+      ORDER BY rc.created_at DESC
     `, [id]);
     user.downlines = downlines;
     user.downline_count = downlines.length;
@@ -225,7 +224,8 @@ export const getDashboardStats = async (req, res) => {
         (SELECT COALESCE(SUM(available_balance + held_balance), 0) FROM users WHERE role = 'user') as total_liabilities,
         (SELECT COUNT(*) FROM tickets WHERE status = 'open') as open_tickets,
         (SELECT COUNT(*) FROM users WHERE kyc_status = 'pending') as pending_kyc,
-        ((SELECT COUNT(*) FROM users WHERE referred_by IS NOT NULL) + (SELECT COUNT(DISTINCT used_by_user_id) FROM referral_codes WHERE used_by_user_id IS NOT NULL)) as total_downlines,
+        (SELECT COUNT(*) FROM referral_codes WHERE used_by_user_id IS NOT NULL)
+        as total_downlines,
         (SELECT COUNT(*) FROM users WHERE referral_code IS NOT NULL AND referral_code != '') as total_referral_codes
     `;
     const result = await query(sql);
@@ -589,13 +589,10 @@ export const getAdminReferralStats = async (req, res) => {
     const { rows: [{ total_unlocks }] } = await query(
       `SELECT COUNT(*) FROM users WHERE referral_unlock_date IS NOT NULL AND referral_unlock_date <= NOW()`
     );
-    const { rows: [{ referred_downlines }] } = await query(
-      `SELECT COUNT(*) FROM users WHERE referred_by IS NOT NULL`
+    const { rows: [{ total_referrals_agg }] } = await query(
+      `SELECT COUNT(*) FROM referral_codes WHERE used_by_user_id IS NOT NULL`
     );
-    const { rows: [{ code_downlines }] } = await query(
-      `SELECT COUNT(DISTINCT used_by_user_id) FROM referral_codes WHERE used_by_user_id IS NOT NULL`
-    );
-    const totalReferralsAgg = parseInt(referred_downlines, 10) + parseInt(code_downlines, 10);
+    const totalReferralsAgg = parseInt(total_referrals_agg, 10);
     const totalUnlocksAgg = parseInt(total_unlocks, 10);
 
     const { rows: users } = await query(`
@@ -606,14 +603,18 @@ export const getAdminReferralStats = async (req, res) => {
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 
-    // Pre-fetch ALL referral_codes mappings
-    const { rows: allCodeRefs } = await query(`
-      SELECT user_id, used_by_user_id FROM referral_codes WHERE used_by_user_id IS NOT NULL
+    // Pre-fetch ALL individual code usages (each = one downline entry)
+    const { rows: allCodeUsages } = await query(`
+      SELECT rc.user_id, rc.used_by_user_id, rc.code, rc.updated_at,
+             u.first_name, u.last_name, u.email, u.phone, u.status
+      FROM referral_codes rc
+      JOIN users u ON u.id = rc.used_by_user_id
+      WHERE rc.used_by_user_id IS NOT NULL
     `);
-    const codeDownlineMap = {};
-    for (const cr of allCodeRefs) {
-      if (!codeDownlineMap[cr.user_id]) codeDownlineMap[cr.user_id] = new Set();
-      codeDownlineMap[cr.user_id].add(cr.used_by_user_id);
+    const codeUsagesByUser = {};
+    for (const cu of allCodeUsages) {
+      if (!codeUsagesByUser[cu.user_id]) codeUsagesByUser[cu.user_id] = [];
+      codeUsagesByUser[cu.user_id].push(cu);
     }
 
     // Pre-fetch ALL savings plans grouped by user
@@ -626,48 +627,20 @@ export const getAdminReferralStats = async (req, res) => {
       plansByUser[p.user_id].push(p);
     }
 
-    // We need downline user details — fetch them all in one shot
-    const { rows: allUsers } = await query(
-      `SELECT id, first_name, last_name, email, phone, status, referred_by FROM users`
-    );
-    const userMap = {};
-    for (const u of allUsers) {
-      userMap[u.id] = u;
-    }
-
     const result = [];
     for (const u of users) {
-      const referredByDownlines = [];
-      for (const d of allUsers) {
-        if (d.referred_by === u.id && d.id !== u.id) {
-          referredByDownlines.push(d);
-        }
-      }
-      const codeBasedDownlineIds = codeDownlineMap[u.id] || new Set();
-      const seen = new Set();
-      const directDownlines = [];
-      for (const d of referredByDownlines) {
-        seen.add(d.id);
-        directDownlines.push(d);
-      }
-      for (const dId of codeBasedDownlineIds) {
-        if (!seen.has(dId)) {
-          const d = userMap[dId];
-          if (d) { seen.add(dId); directDownlines.push(d); }
-        }
-      }
-      
+      const entries = codeUsagesByUser[u.id] || [];
       let activeQualifiedCount = 0;
       const downlineDetails = [];
-      
-      for (const down of directDownlines) {
-        const plans = plansByUser[down.id] || [];
-        const isSuspended = down.status && down.status.toLowerCase() !== 'active';
+
+      for (const entry of entries) {
+        const plans = plansByUser[entry.used_by_user_id] || [];
+        const isSuspended = entry.status && entry.status.toLowerCase() !== 'active';
         const hasGoldenBasket = plans.some(p => p.plan_name === 'GOLDEN_BASKET');
         const hasStandardPlan = plans.some(p => p.plan_name !== 'GOLDEN_BASKET');
         const totalStandardPaid = plans.filter(p => p.plan_name !== 'GOLDEN_BASKET')
                                        .reduce((sum, p) => sum + parseFloat(p.current_amount || 0), 0);
-        
+
         let referralStatus = 'inactive';
         if (isSuspended) {
           referralStatus = 'disqualified';
@@ -683,11 +656,13 @@ export const getAdminReferralStats = async (req, res) => {
         }
 
         downlineDetails.push({
-          id: down.id,
-          firstName: down.first_name,
-          lastName: down.last_name,
-          email: down.email,
-          referralStatus
+          id: entry.used_by_user_id,
+          firstName: entry.first_name,
+          lastName: entry.last_name,
+          email: entry.email,
+          referralStatus,
+          usedCode: entry.code,
+          usedAt: entry.updated_at
         });
       }
 
@@ -702,7 +677,7 @@ export const getAdminReferralStats = async (req, res) => {
         referralCode: u.referral_code,
         referralUnlockDate: u.referral_unlock_date,
         referralExpiryDate: u.referral_expiry_date,
-        downlinesCount: directDownlines.length,
+        downlinesCount: entries.length,
         activeQualifiedCount,
         isEligible: activeQualifiedCount >= 2,
         downlines: downlineDetails
