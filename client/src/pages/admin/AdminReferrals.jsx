@@ -59,6 +59,7 @@ const AdminReferrals = () => {
   const filteredUsers = data.filter(user => {
     const nameMatch = `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       (user.referralCode && user.referralCode.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
                       (user.phone && user.phone.includes(searchTerm));
     return nameMatch;
   });
