@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   FaSearch, FaUserFriends, 
   FaClock, FaUserCheck, FaChevronDown, FaChevronUp,
@@ -17,6 +17,7 @@ const AdminReferrals = () => {
   const [filterHasDownlines, setFilterHasDownlines] = useState(false);
   const [expandedUser, setExpandedUser] = useState(null);
   const [error, setError] = useState('');
+  const [isArrayData, setIsArrayData] = useState(false);
 
   const fetchReferralStats = async (page = 1, hasDownlines = filterHasDownlines) => {
     try {
@@ -24,12 +25,15 @@ const AdminReferrals = () => {
       const res = await API.get(`/admin/referrals?page=${page}&limit=20${hasDownlines ? '&hasDownlines=true' : ''}`);
       const responseData = res.data;
       if (Array.isArray(responseData)) {
+        setIsArrayData(true);
         setData(responseData);
-        setPagination({ page: 1, limit: 20, total: responseData.length, totalPages: 1 });
+        const totalPages = Math.max(1, Math.ceil(responseData.length / 20));
+        setPagination({ page: 1, limit: 20, total: responseData.length, totalPages });
         const totalReferrals = responseData.reduce((sum, u) => sum + (u.downlinesCount || 0), 0);
         const totalUnlocks = responseData.filter(u => u.referralUnlockDate && new Date(u.referralUnlockDate) <= new Date()).length;
         setStats({ totalReferrals, totalUnlocks });
       } else {
+        setIsArrayData(false);
         setData(responseData?.users || []);
         setPagination(responseData?.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 });
         setStats(responseData?.stats || { totalReferrals: 0, totalUnlocks: 0 });
@@ -48,12 +52,22 @@ const AdminReferrals = () => {
     // eslint-disable-next-line
   }, []);
 
+  useEffect(() => {
+    if (isArrayData) setPagination(prev => ({ ...prev, page: 1 }));
+  }, [searchTerm, isArrayData]);
+
   const filteredUsers = data.filter(user => {
     const nameMatch = `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       (user.referralCode && user.referralCode.toLowerCase().includes(searchTerm.toLowerCase())) ||
                       (user.phone && user.phone.includes(searchTerm));
     return nameMatch;
   });
+
+  const displayUsers = useMemo(() => {
+    if (!isArrayData) return filteredUsers;
+    const start = (pagination.page - 1) * pagination.limit;
+    return filteredUsers.slice(start, start + pagination.limit);
+  }, [filteredUsers, isArrayData, pagination.page, pagination.limit]);
 
   const toggleExpandUser = (userId) => {
     setExpandedUser(prev => prev === userId ? null : userId);
@@ -75,7 +89,11 @@ const AdminReferrals = () => {
 
   const goToPage = (page) => {
     if (page < 1 || page > pagination.totalPages) return;
-    fetchReferralStats(page);
+    if (isArrayData) {
+      setPagination(prev => ({ ...prev, page }));
+    } else {
+      fetchReferralStats(page);
+    }
     setExpandedUser(null);
   };
 
@@ -225,7 +243,7 @@ const AdminReferrals = () => {
           </div>
 
           <div className="admin-card table-card">
-            {filteredUsers.length === 0 ? (
+            {displayUsers.length === 0 ? (
               <div className="table-empty">
                 <div className="empty-icon"><FaUserFriends size={32} /></div>
                 <h3>No Referral Data Found</h3>
@@ -245,7 +263,7 @@ const AdminReferrals = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredUsers.map((user) => {
+                    {displayUsers.map((user) => {
                       const isExpanded = expandedUser === user.id;
                       const isUnlocked = user.referralUnlockDate && new Date(user.referralUnlockDate) <= new Date();
 
