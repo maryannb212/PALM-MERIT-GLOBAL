@@ -433,28 +433,19 @@ const Referrals = () => {
                     <th>Name</th>
                     <th>Code Used</th>
                     <th>Joined Date</th>
-                    <th>Active Programs</th>
+                    <th>Date Used</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stats.downlines.map((downline) => {
-                    const goldenBasketOnly = downline.plans.length > 0 && downline.plans.every(p => p.planName === 'GOLDEN_BASKET');
                     return (
                       <tr key={downline.id}>
                         <td style={{fontWeight: '600'}}>{downline.firstName} {downline.lastName}</td>
                         <td><span style={{background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#475569'}}>{downline.usedSpecificCode}</span></td>
                         <td>{new Date(downline.createdAt).toLocaleDateString()}</td>
                         <td>
-                          {downline.plans.length === 0 ? (
-                            <span className="plan-pill none">None</span>
-                          ) : goldenBasketOnly ? (
-                            <span className="plan-pill golden" title="Excluded from referrals">Golden Basket</span>
-                          ) : (
-                            [...new Set(downline.plans.filter(p => p.planName !== 'GOLDEN_BASKET').map(p => p.planName))].map(name => (
-                              <span key={name} className="plan-pill">{name}</span>
-                            ))
-                          )}
+                          {downline.usedAt ? new Date(downline.usedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
                         </td>
                         <td>{getStatusBadge(downline.referralStatus)}</td>
                       </tr>
