@@ -220,7 +220,7 @@ const AdminReferrals = () => {
               <div className="table-empty">
                 <div className="empty-icon"><FaUserFriends size={32} /></div>
                 <h3>No Referral Data Found</h3>
-                <p>{searchTerm || filterSuspicious ? 'Your search returned no matches.' : 'No referral records are available in the system yet.'}</p>
+                <p>{searchTerm ? 'Your search returned no matches.' : 'No referral records are available in the system yet.'}</p>
               </div>
             ) : (
               <div className="table-responsive">
