@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const productionURL = 'https://palm-merit-global.onrender.com';
+const productionURL = 'https://palmmeritglobal.com';
 const baseURL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? productionURL : '')) + '/api';
 
 const API = axios.create({
