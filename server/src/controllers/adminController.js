@@ -631,9 +631,12 @@ export const getAdminReferralStats = async (req, res) => {
     // Pre-fetch ALL referral codes grouped by owner
     const { rows: allCodes } = await query(`
       SELECT rc.user_id, rc.code, rc.status, rc.unlock_date, rc.used_by_user_id, rc.created_at, rc.updated_at,
+             rc.plan_id,
+             sp.plan_name,
              u.first_name AS used_by_first_name, u.last_name AS used_by_last_name, u.email AS used_by_email
       FROM referral_codes rc
       LEFT JOIN users u ON rc.used_by_user_id = u.id
+      LEFT JOIN savings_plans sp ON rc.plan_id = sp.id
       ORDER BY rc.created_at DESC
     `);
     const codesByUser = {};
@@ -696,6 +699,7 @@ export const getAdminReferralStats = async (req, res) => {
           code: c.code,
           status: c.status,
           unlockDate: c.unlock_date,
+          planName: c.plan_name || 'N/A',
           usedBy: c.used_by_user_id ? `${c.used_by_first_name} ${c.used_by_last_name}` : null,
           usedByEmail: c.used_by_email || null,
           usedAt: c.updated_at,
