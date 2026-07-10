@@ -637,19 +637,15 @@ export const getAdminReferralStats = async (req, res) => {
       for (const entry of entries) {
         const plans = plansByUser[entry.used_by_user_id] || [];
         const isSuspended = entry.status && entry.status.toLowerCase() !== 'active';
-        const hasGoldenBasket = plans.some(p => p.plan_name === 'GOLDEN_BASKET');
-        const hasStandardPlan = plans.some(p => p.plan_name !== 'GOLDEN_BASKET');
-        const totalStandardPaid = plans.filter(p => p.plan_name !== 'GOLDEN_BASKET')
-                                       .reduce((sum, p) => sum + parseFloat(p.current_amount || 0), 0);
+        const silverPlans = plans.filter(p => p.plan_name === 'SILVER');
+        const totalSilverPaid = silverPlans.reduce((sum, p) => sum + parseFloat(p.current_amount || 0), 0);
 
         let referralStatus = 'inactive';
         if (isSuspended) {
           referralStatus = 'disqualified';
         } else if (plans.length === 0) {
           referralStatus = 'inactive';
-        } else if (plans.length > 0 && !hasStandardPlan) {
-          referralStatus = 'disqualified';
-        } else if (totalStandardPaid > 0) {
+        } else if (silverPlans.length > 0 && totalSilverPaid > 0) {
           referralStatus = 'qualified';
           activeQualifiedCount++;
         } else {
