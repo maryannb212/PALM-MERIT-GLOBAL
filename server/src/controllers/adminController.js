@@ -1298,51 +1298,68 @@ export const adminSettleClearance = async (req, res) => {
 };
 
 /**
- * Get daily account creation stats
- * GET /api/admin/daily-accounts?days=30
+ * Get account creation stats with date filtering
+ * GET /api/admin/daily-accounts?filter=today|yesterday|thisMonth|custom&from=YYYY-MM-DD&to=YYYY-MM-DD
  */
 export const getDailyAccountStats = async (req, res) => {
   try {
-    const days = parseInt(req.query.days) || 30;
+    const filter = req.query.filter || 'today';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const { rows: dailyStats } = await query(`
-      SELECT 
-        DATE(created_at) AS date,
-        COUNT(*) AS total_accounts,
-        SUM(number_of_accounts) AS total_account_count,
-        COALESCE(SUM(current_amount), 0) AS total_initial_savings,
-        plan_name,
-        COUNT(DISTINCT user_id) AS unique_users
-      FROM savings_plans
-      WHERE created_at >= NOW() - INTERVAL '1 day' * $1
-      GROUP BY DATE(created_at), plan_name
-      ORDER BY DATE(created_at) DESC, plan_name ASC
-    `, [days]);
+    let startDate, endDate;
 
-    const { rows: summary } = await query(`
-      SELECT 
-        COUNT(*) AS total_plans,
-        SUM(number_of_accounts) AS total_accounts,
-        COUNT(DISTINCT user_id) AS unique_users,
-        COALESCE(SUM(current_amount), 0) AS total_initial_savings
-      FROM savings_plans
-      WHERE created_at >= NOW() - INTERVAL '1 day' * $1
-    `, [days]);
+    if (filter === 'today') {
+      startDate = new Date(today);
+      endDate = new Date(today);
+      endDate.setDate(endDate.getDate() + 1);
+    } else if (filter === 'yesterday') {
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 1);
+      endDate = new Date(today);
+    } else if (filter === 'thisMonth') {
+      startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      endDate = new Date(today);
+      endDate.setDate(endDate.getDate() + 1);
+    } else if (filter === 'custom' && req.query.from && req.query.to) {
+      startDate = new Date(req.query.from);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(req.query.to);
+      endDate.setDate(endDate.getDate() + 1);
+    } else {
+      startDate = new Date(today);
+      endDate = new Date(today);
+      endDate.setDate(endDate.getDate() + 1);
+    }
 
-    const { rows: todayStats } = await query(`
+    const { rows: accounts } = await query(`
       SELECT 
-        COUNT(*) AS plans_today,
-        COALESCE(SUM(number_of_accounts), 0) AS accounts_today,
-        COUNT(DISTINCT user_id) AS users_today
-      FROM savings_plans
-      WHERE DATE(created_at) = DATE(NOW())
-    `);
+        sp.id,
+        sp.plan_name,
+        sp.number_of_accounts,
+        sp.current_amount,
+        sp.created_at,
+        sp.status,
+        u.first_name,
+        u.last_name,
+        u.email
+      FROM savings_plans sp
+      JOIN users u ON sp.user_id = u.id
+      WHERE sp.created_at >= $1 AND sp.created_at < $2
+      ORDER BY sp.created_at DESC
+    `, [startDate.toISOString(), endDate.toISOString()]);
+
+    const totalAccounts = accounts.reduce((sum, a) => sum + (a.number_of_accounts || 1), 0);
 
     res.json({
-      dailyStats,
-      summary: summary[0],
-      today: todayStats[0],
-      days
+      accounts,
+      total: accounts.length,
+      totalAccounts,
+      filter,
+      dateRange: {
+        from: startDate.toISOString(),
+        to: endDate.toISOString()
+      }
     });
   } catch (error) {
     console.error('Error fetching daily account stats:', error);

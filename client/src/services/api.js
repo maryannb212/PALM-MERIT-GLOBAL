@@ -155,7 +155,11 @@ export const broadcastNotification = (data) => API.post('/admin/notifications/br
 export const approveManualPayment = (transactionId, data) => API.post(`/admin/approve-payment/${transactionId}`, data);
 export const getCashflow = () => API.get('/admin/cashflow');
 
-export const getDailyAccountStats = (days = 30) => API.get(`/admin/daily-accounts?days=${days}`);
+export const getDailyAccountStats = (filter = 'today', from, to) => {
+  let url = `/admin/daily-accounts?filter=${filter}`;
+  if (filter === 'custom' && from && to) url += `&from=${from}&to=${to}`;
+  return API.get(url);
+};
 export const getWebhookLogs = () => API.get('/admin/webhook-logs');
 export const getRecentTransfers = (hours = 24) => API.get(`/admin/transactions/recent?hours=${hours}`);
 
