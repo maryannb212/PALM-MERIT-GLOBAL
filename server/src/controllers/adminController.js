@@ -628,6 +628,20 @@ export const getAdminReferralStats = async (req, res) => {
       plansByUser[p.user_id].push(p);
     }
 
+    // Pre-fetch ALL referral codes grouped by owner
+    const { rows: allCodes } = await query(`
+      SELECT rc.user_id, rc.code, rc.status, rc.unlock_date, rc.used_by_user_id, rc.created_at, rc.updated_at,
+             u.first_name AS used_by_first_name, u.last_name AS used_by_last_name, u.email AS used_by_email
+      FROM referral_codes rc
+      LEFT JOIN users u ON rc.used_by_user_id = u.id
+      ORDER BY rc.created_at DESC
+    `);
+    const codesByUser = {};
+    for (const c of allCodes) {
+      if (!codesByUser[c.user_id]) codesByUser[c.user_id] = [];
+      codesByUser[c.user_id].push(c);
+    }
+
     const result = [];
     for (const u of users) {
       const entries = codeUsagesByUser[u.id] || [];
@@ -677,7 +691,16 @@ export const getAdminReferralStats = async (req, res) => {
         downlinesCount: entries.length,
         activeQualifiedCount,
         isEligible: activeQualifiedCount >= 2,
-        downlines: downlineDetails
+        downlines: downlineDetails,
+        referralCodes: (codesByUser[u.id] || []).map(c => ({
+          code: c.code,
+          status: c.status,
+          unlockDate: c.unlock_date,
+          usedBy: c.used_by_user_id ? `${c.used_by_first_name} ${c.used_by_last_name}` : null,
+          usedByEmail: c.used_by_email || null,
+          usedAt: c.updated_at,
+          createdAt: c.created_at
+        }))
       });
     }
 
