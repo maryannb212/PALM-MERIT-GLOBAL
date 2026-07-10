@@ -217,11 +217,8 @@ const Defaults = () => {
         ) : plans.length === 0 ? (
           <div className="defaults-empty">
             <FaCheckCircle className="defaults-empty-icon" />
-            <h4>No Programs Found</h4>
-            <p>You haven't subscribed to any savings programs yet.</p>
-            <button className="btn btn-primary" onClick={() => navigate('/dashboard/packages')}>
-              Browse Programs
-            </button>
+            <h4>No Defaults</h4>
+            <p>You have no outstanding defaults. All your contributions are up to date.</p>
           </div>
         ) : (
           <div className="defaults-plans-list">
