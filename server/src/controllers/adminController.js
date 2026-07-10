@@ -1335,6 +1335,7 @@ export const getDailyAccountStats = async (req, res) => {
     const { rows: accounts } = await query(`
       SELECT 
         sp.id,
+        sp.user_id,
         sp.plan_name,
         sp.number_of_accounts,
         sp.current_amount,
