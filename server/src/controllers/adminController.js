@@ -1296,3 +1296,56 @@ export const adminSettleClearance = async (req, res) => {
     res.status(500).json({ message: 'Server error settling clearance' });
   }
 };
+
+/**
+ * Get daily account creation stats
+ * GET /api/admin/daily-accounts?days=30
+ */
+export const getDailyAccountStats = async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30;
+
+    const { rows: dailyStats } = await query(`
+      SELECT 
+        DATE(created_at) AS date,
+        COUNT(*) AS total_accounts,
+        SUM(number_of_accounts) AS total_account_count,
+        COALESCE(SUM(current_amount), 0) AS total_initial_savings,
+        plan_name,
+        COUNT(DISTINCT user_id) AS unique_users
+      FROM savings_plans
+      WHERE created_at >= NOW() - INTERVAL '1 day' * $1
+      GROUP BY DATE(created_at), plan_name
+      ORDER BY DATE(created_at) DESC, plan_name ASC
+    `, [days]);
+
+    const { rows: summary } = await query(`
+      SELECT 
+        COUNT(*) AS total_plans,
+        SUM(number_of_accounts) AS total_accounts,
+        COUNT(DISTINCT user_id) AS unique_users,
+        COALESCE(SUM(current_amount), 0) AS total_initial_savings
+      FROM savings_plans
+      WHERE created_at >= NOW() - INTERVAL '1 day' * $1
+    `, [days]);
+
+    const { rows: todayStats } = await query(`
+      SELECT 
+        COUNT(*) AS plans_today,
+        COALESCE(SUM(number_of_accounts), 0) AS accounts_today,
+        COUNT(DISTINCT user_id) AS users_today
+      FROM savings_plans
+      WHERE DATE(created_at) = DATE(NOW())
+    `);
+
+    res.json({
+      dailyStats,
+      summary: summary[0],
+      today: todayStats[0],
+      days
+    });
+  } catch (error) {
+    console.error('Error fetching daily account stats:', error);
+    res.status(500).json({ message: 'Server error fetching daily account stats' });
+  }
+};

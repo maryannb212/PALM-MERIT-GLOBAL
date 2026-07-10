@@ -515,7 +515,7 @@ export const getMyDefaults = async (req, res) => {
           ORDER BY d.missed_date DESC
         ) FILTER (WHERE d.id IS NOT NULL) AS defaults
       FROM savings_plans sp
-      LEFT JOIN defaults d ON d.plan_id = sp.id AND d.user_id = sp.user_id
+      LEFT JOIN defaults d ON d.plan_id = sp.id AND d.user_id = sp.user_id AND d.resolved = FALSE
       WHERE sp.user_id = $1
       GROUP BY sp.id, sp.plan_name, sp.number_of_accounts, sp.status
       ORDER BY sp.created_at DESC

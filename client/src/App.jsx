@@ -58,6 +58,7 @@ const AdminSecurity = lazy(() => import('./pages/admin/AdminSecurity'));
 const EligibilityQueue = lazy(() => import('./pages/admin/EligibilityQueue'));
 const DuePaymentsPage = lazy(() => import('./pages/admin/DuePaymentsPage'));
 const AdminClearance = lazy(() => import('./pages/admin/AdminClearance'));
+const AdminDailyAccounts = lazy(() => import('./pages/admin/AdminDailyAccounts'));
 
 const LoadingSpinner = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100%' }}>
@@ -136,6 +137,7 @@ const AppLayout = () => {
               <Route path="eligibility-queue" element={<AdminLockedRoute pageName="eligibility" title="Eligibility Review"><EligibilityQueue /></AdminLockedRoute>} />
               <Route path="referrals" element={<AdminLockedRoute pageName="referrals" title="Referral Audits"><AdminReferrals /></AdminLockedRoute>} />
               <Route path="due-payments" element={<AdminLockedRoute pageName="due-payments" title="Due Payments"><DuePaymentsPage /></AdminLockedRoute>} />
+              <Route path="daily-accounts" element={<AdminLockedRoute pageName="daily-accounts" title="Daily Account Creation"><AdminDailyAccounts /></AdminLockedRoute>} />
               <Route path="clearance" element={<AdminLockedRoute pageName="clearance" title="Clearance Management"><AdminClearance /></AdminLockedRoute>} />
             </Route>
           </Routes>

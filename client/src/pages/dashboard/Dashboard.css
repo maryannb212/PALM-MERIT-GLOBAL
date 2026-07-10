@@ -3727,7 +3727,7 @@ input:checked + .slider:before {
 
 .defaults-table-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr 0.8fr;
   padding: 12px 18px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
@@ -3740,7 +3740,7 @@ input:checked + .slider:before {
 
 .defaults-table-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr 0.8fr;
   padding: 12px 18px;
   border-bottom: 1px solid #f1f5f9;
   font-size: 0.88rem;
@@ -4238,7 +4238,7 @@ input:checked + .slider:before {
 
   .defaults-table-header,
   .defaults-table-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr auto;
   }
 
   .dd-hero {

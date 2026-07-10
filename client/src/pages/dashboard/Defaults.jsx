@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMyDefaults, clearDefaults, clearDefaultById } from '../../services/api';
-import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock, FaCreditCard } from 'react-icons/fa';
+import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock, FaCreditCard, FaCalendarTimes } from 'react-icons/fa';
 import './Dashboard.css';
 import '../../components/DepositModal.css';
 
@@ -19,12 +19,20 @@ const PLAN_COLORS = {
   ISUSU: { bg: '#f0fdf4', border: '#22c55e', text: '#166534', accent: '#22c55e' }
 };
 
+const PLANS_CONFIG = {
+  CREST: 4000,
+  SILVER: 1500,
+  GOLDEN_BASKET: 2000,
+  ISUSU: 500
+};
+
 const Defaults = () => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [totalDefaults, setTotalDefaults] = useState(0);
+  const [totalOutstandingDefaults, setTotalOutstandingDefaults] = useState(0);
   const [clearing, setClearing] = useState(false);
   const [clearingDefaultId, setClearingDefaultId] = useState(null);
   const [clearResult, setClearResult] = useState(null);
@@ -43,6 +51,8 @@ const Defaults = () => {
       setPlans(data);
       const total = data.reduce((sum, p) => sum + p.total_default_amount, 0);
       setTotalDefaults(total);
+      const totalDefaultsCount = data.reduce((sum, p) => sum + p.default_count, 0);
+      setTotalOutstandingDefaults(totalDefaultsCount);
     } catch (error) {
       console.error('Failed to fetch defaults:', error);
     } finally {
@@ -99,15 +109,15 @@ const Defaults = () => {
   const statsCards = [
     {
       icon: <FaExclamationTriangle />,
-      label: 'Total Default Balance',
+      label: 'Outstanding Defaults',
       value: formatCurrency(totalDefaults),
       color: '#dc2626',
       bg: '#fef2f2'
     },
     {
-      icon: <FaClipboardList />,
-      label: 'Programs with Defaults',
-      value: plans.filter(hasDefaults).length,
+      icon: <FaCalendarTimes />,
+      label: 'Missed Contributions',
+      value: totalOutstandingDefaults,
       color: '#ea580c',
       bg: '#fff7ed'
     },
@@ -221,7 +231,7 @@ const Defaults = () => {
               const defaultPerAccount = plan.penalty_per_account || 0;
               const isDailyPlan = isDaily(plan);
               const contributionPerAccount = plan.weekly_amount || 0;
-              const totalContributionDue = contributionPerAccount * (plan.number_of_accounts || 1);
+              const perAccountClearCost = (PLANS_CONFIG[plan.plan_name] || 0) * 2;
 
               return (
                 <div
@@ -245,7 +255,7 @@ const Defaults = () => {
                     <div className="defaults-plan-right">
                       {inDefault && (
                         <span className="defaults-badge danger">
-                          <FaTimesCircle /> Defaulting
+                          <FaTimesCircle /> {plan.default_count} Unresolved
                         </span>
                       )}
                       <span className={`defaults-chevron ${expandedPlan === plan.plan_id ? 'open' : ''}`}>
@@ -264,7 +274,7 @@ const Defaults = () => {
                       <span className="dps-value penalty">{formatCurrency(defaultPerAccount)}</span>
                     </div>
                     <div className="defaults-plan-stat highlight-danger">
-                      <span className="dps-label">Total Outstanding Default</span>
+                      <span className="dps-label">Outstanding Default</span>
                       <span className="dps-value">{formatCurrency(plan.total_default_amount)}</span>
                     </div>
                   </div>
@@ -273,68 +283,54 @@ const Defaults = () => {
                     <div className="defaults-plan-warning">
                       <FaExclamationTriangle />
                       <span>
-                        This program has <strong>{plan.default_count} default{plan.default_count > 1 ? 's' : ''}</strong> totaling {formatCurrency(plan.total_default_amount)}.
-                        Each default includes the missed contribution plus an equal penalty (2x).
+                        <strong>{plan.default_count} missed contribution{plan.default_count > 1 ? 's' : ''}</strong> totaling {formatCurrency(plan.total_default_amount)}.
+                        Each account costs {formatCurrency(perAccountClearCost)} to clear ({formatCurrency(contributionPerAccount)} savings + {formatCurrency(defaultPerAccount - contributionPerAccount)} penalty).
                       </span>
                     </div>
                   )}
 
                   {expandedPlan === plan.plan_id && (
                     <div className="defaults-plan-details">
-
-                      {/* Individual Defaults */}
                       {plan.defaults && plan.defaults.length > 0 && (
                         <div className="defaults-list-section">
-                          <h5>Default History</h5>
+                          <h5>Outstanding Defaults</h5>
                           <div className="defaults-table">
                             <div className="defaults-table-header">
                               <span>Date Missed</span>
-                              <span>Total Owed (2x)</span>
-                              <span>Status</span>
+                              <span>Amount Owed</span>
                               <span>Action</span>
                             </div>
                             {plan.defaults.map(d => (
-                              <div key={d.id} className={`defaults-table-row ${d.resolved ? 'resolved' : ''}`}>
+                              <div key={d.id} className="defaults-table-row">
                                 <span>{new Date(d.missed_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                                 <span className="defaults-amount">{formatCurrency(d.penalty_amount)}</span>
                                 <span>
-                                  {d.resolved ? (
-                                    <span className="defaults-badge safe"><FaCheckCircle /> Resolved</span>
-                                  ) : (
-                                    <span className="defaults-badge danger"><FaTimesCircle /> Unresolved</span>
-                                  )}
-                                </span>
-                                <span>
-                                  {!d.resolved && (
-                                    <button className="btn btn-sm btn-pay-default"
-                                      onClick={(e) => { e.stopPropagation(); handleClearDefault(d.id, d.penalty_amount); }}
-                                      disabled={clearingDefaultId === d.id}
-                                      style={{
-                                        background: clearingDefaultId === d.id ? '#94a3b8' : '#16a34a',
-                                        color: '#fff', border: 'none', padding: '4px 12px',
-                                        borderRadius: 4, fontSize: '0.75rem', fontWeight: 600,
-                                        cursor: clearingDefaultId === d.id ? 'not-allowed' : 'pointer',
-                                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                                        whiteSpace: 'nowrap'
-                                      }}>
-                                      {clearingDefaultId === d.id ? (
-                                        <>Processing...</>
-                                      ) : (
-                                        <><FaWallet /> Clear</>
-                                      )}
-                                    </button>
-                                  )}
+                                  <button className="btn btn-sm btn-pay-default"
+                                    onClick={(e) => { e.stopPropagation(); handleClearDefault(d.id, d.penalty_amount); }}
+                                    disabled={clearingDefaultId === d.id}
+                                    style={{
+                                      background: clearingDefaultId === d.id ? '#94a3b8' : '#16a34a',
+                                      color: '#fff', border: 'none', padding: '5px 14px',
+                                      borderRadius: 6, fontSize: '0.78rem', fontWeight: 600,
+                                      cursor: clearingDefaultId === d.id ? 'not-allowed' : 'pointer',
+                                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                                      whiteSpace: 'nowrap'
+                                    }}>
+                                    {clearingDefaultId === d.id ? (
+                                      <>Processing...</>
+                                    ) : (
+                                      <><FaWallet /> Clear</>
+                                    )}
+                                  </button>
                                 </span>
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
-
-                        </div>
+                    </div>
                   )}
 
-                  {/* View Details Link (always visible) */}
                   <div className="defaults-view-details" onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/defaults/${plan.plan_id}`); }}>
                     <span>View All Accounts & Full Details <FaArrowRight /></span>
                   </div>
@@ -345,7 +341,7 @@ const Defaults = () => {
         )}
       </div>
 
-      {/* Confirmation Modal — Clear Defaults via Wallet */}
+      {/* Confirmation Modal */}
       {showConfirm && (
         <div className="modal-overlay" onClick={() => { if (!clearing) setShowConfirm(false); }}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -364,6 +360,9 @@ const Defaults = () => {
                 <div style={{ fontSize: '2rem', fontWeight: 700, color: '#dc2626' }}>
                   {formatCurrency(totalDefaults)}
                 </div>
+                <div style={{ fontSize: '0.8rem', color: '#991b1b', marginTop: 4 }}>
+                  {totalOutstandingDefaults} missed contribution{totalOutstandingDefaults !== 1 ? 's' : ''}
+                </div>
               </div>
 
               <div style={{ padding: '0 4px' }}>
@@ -371,20 +370,19 @@ const Defaults = () => {
                   <FaInfoCircle style={{ color: '#2563eb', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
                     You'll be charged <strong>{formatCurrency(totalDefaults)}</strong> from your wallet balance.
-                    Half of the amount goes to your missed contributions (savings), the other half settles the penalty.
+                    Half goes to missed contributions (savings), half settles the penalty.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                   <FaWallet style={{ color: '#16a34a', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
-                    Your wallet must have sufficient balance. If you can't cover all defaults at once,
-                    the system will clear as many accounts as your balance allows.
+                    If your wallet can't cover all defaults, the system clears as many accounts as your balance allows (oldest first).
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <FaCheckCircle style={{ color: '#16a34a', fontSize: 14, marginTop: 3, flexShrink: 0 }} />
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#475569', lineHeight: 1.5 }}>
-                    Defaults are processed from oldest to newest. Partial clearance is supported.
+                    You can also clear individual defaults from the list above.
                   </p>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank, FaUserFriends, FaHandHoldingUsd, FaHourglassHalf, FaCheckCircle } from 'react-icons/fa';
+import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank, FaUserFriends, FaHandHoldingUsd, FaHourglassHalf, FaCheckCircle, FaCalendarDay } from 'react-icons/fa';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
   const { admin, adminLogout } = useAuth();
@@ -30,6 +30,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { name: 'Broadcast Notifications', path: '/admin/broadcast', icon: <FaShieldAlt /> },
     { name: 'Cash Flow Statement', path: '/admin/cashflow', icon: <FaMoneyBillWave /> },
     { name: 'Ambassadors', path: '/admin/ambassadors', icon: <FaUserCircle /> },
+    { name: 'Daily Accounts', path: '/admin/daily-accounts', icon: <FaCalendarDay /> },
     { name: 'Savings Plans', path: '/admin/plans', icon: <FaPiggyBank /> },
     { name: 'Eligibility Review', path: '/admin/eligibility-queue', icon: <FaUserCheck /> },
     { name: 'Referral Audits', path: '/admin/referrals', icon: <FaUserFriends /> },

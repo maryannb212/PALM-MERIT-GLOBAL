@@ -30,7 +30,8 @@ import {
   getDuePayments,
   getClearancePlans,
   adminSettleClearance,
-  impersonateUser
+  impersonateUser,
+  getDailyAccountStats
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -80,6 +81,8 @@ router.get('/due-payments', getDuePayments);
 // Clearance
 router.get('/clearance', getClearancePlans);
 router.post('/clearance/settle', adminSettleClearance);
+// Daily Account Stats
+router.get('/daily-accounts', getDailyAccountStats);
 // User Defaults
 router.get('/users/:userId/defaults', getUserDefaults);
 router.put('/defaults/:id', updateDefault);
