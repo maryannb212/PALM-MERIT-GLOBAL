@@ -587,14 +587,14 @@ export const getAdminReferralStats = async (req, res) => {
     const totalUsers = parseInt(count, 10);
 
     // Aggregate stats for the header
-    const { rows: [{ total_unlocks }] } = await query(
+    const { rows: [{ count: total_unlocks }] } = await query(
       `SELECT COUNT(*) FROM users WHERE referral_unlock_date IS NOT NULL AND referral_unlock_date <= NOW()`
     );
-    const { rows: [{ total_referrals_agg }] } = await query(
+    const { rows: [{ count: total_referrals_agg }] } = await query(
       `SELECT COUNT(*) FROM referral_codes WHERE used_by_user_id IS NOT NULL`
     );
-    const totalReferralsAgg = parseInt(total_referrals_agg, 10);
-    const totalUnlocksAgg = parseInt(total_unlocks, 10);
+    const totalReferralsAgg = parseInt(total_referrals_agg, 10) || 0;
+    const totalUnlocksAgg = parseInt(total_unlocks, 10) || 0;
 
     const { rows: users } = await query(`
       SELECT id, first_name, last_name, email, phone, referral_code, referred_by, referral_unlock_date, referral_expiry_date, status, created_at

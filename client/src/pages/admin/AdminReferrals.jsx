@@ -358,51 +358,56 @@ const AdminReferrals = () => {
 
       {/* Referral Codes Modal */}
       {codesModalUser && (
-        <div className="modal-overlay" onClick={() => setCodesModalUser(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px', width: '95%' }}>
-            <header className="modal-header" style={{ background: '#800020' }}>
+        <div className="modal-overlay" style={{ alignItems: 'flex-start', paddingTop: '40px' }} onClick={() => setCodesModalUser(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '750px', width: '95%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <header className="modal-header" style={{ background: '#800020', flexShrink: 0 }}>
               <h3><FaKey style={{ marginRight: 8 }} /> Referral Codes — {codesModalUser.firstName} {codesModalUser.lastName}</h3>
               <button className="close-btn" onClick={() => setCodesModalUser(null)}>&times;</button>
             </header>
-            <div className="modal-form" style={{ padding: '20px' }}>
+            <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
               {(!codesModalUser.referralCodes || codesModalUser.referralCodes.length === 0) ? (
                 <p style={{ textAlign: 'center', color: '#64748b', padding: '30px 0' }}>No referral codes generated yet.</p>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="admin-table" style={{ margin: 0 }}>
-                    <thead>
-                      <tr>
-                        <th>Code</th>
-                        <th>Status</th>
-                        <th>Used By</th>
-                        <th>Date Used</th>
-                        <th>Created</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {codesModalUser.referralCodes.map((c, i) => (
-                        <tr key={i}>
-                          <td>
-                            <code style={{ color: '#d4af37', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem' }}>{c.code}</code>
-                          </td>
-                          <td>{statusBadge(c.status)}</td>
-                          <td>
-                            {c.usedBy ? (
-                              <div>
-                                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{c.usedBy}</div>
-                                <div style={{ fontSize: '0.75rem', color: '#888' }}>{c.usedByEmail}</div>
-                              </div>
-                            ) : (
-                              <span style={{ color: '#64748b', fontSize: '0.85rem' }}>—</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: '0.85rem' }}>{c.usedAt ? formatDateTime(c.usedAt) : '—'}</td>
-                          <td style={{ fontSize: '0.85rem' }}>{formatDate(c.createdAt)}</td>
+                <>
+                  <div style={{ marginBottom: 12, fontSize: '0.8rem', color: '#64748b' }}>
+                    {codesModalUser.referralCodes.length} code{codesModalUser.referralCodes.length !== 1 ? 's' : ''} total
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="admin-table" style={{ margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Status</th>
+                          <th>Used By</th>
+                          <th>Date Used</th>
+                          <th>Created</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {codesModalUser.referralCodes.map((c, i) => (
+                          <tr key={i}>
+                            <td>
+                              <code style={{ color: '#d4af37', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem' }}>{c.code}</code>
+                            </td>
+                            <td>{statusBadge(c.status)}</td>
+                            <td>
+                              {c.usedBy ? (
+                                <div>
+                                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{c.usedBy}</div>
+                                  <div style={{ fontSize: '0.75rem', color: '#888' }}>{c.usedByEmail}</div>
+                                </div>
+                              ) : (
+                                <span style={{ color: '#64748b', fontSize: '0.85rem' }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ fontSize: '0.85rem' }}>{c.usedAt ? formatDateTime(c.usedAt) : '—'}</td>
+                            <td style={{ fontSize: '0.85rem' }}>{formatDate(c.createdAt)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
