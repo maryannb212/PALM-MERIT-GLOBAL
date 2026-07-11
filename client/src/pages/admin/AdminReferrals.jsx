@@ -20,13 +20,17 @@ const AdminReferrals = () => {
   const [error, setError] = useState('');
   const [codesModalUser, setCodesModalUser] = useState(null);
 
-  const fetchReferralStats = async (page = 1, hasDownlines = filterHasDownlines) => {
+  const PAGE_SIZE = 20;
+
+  const fetchReferralStats = async (hasDownlines = filterHasDownlines) => {
     try {
       setLoading(true);
-      const res = await API.get(`/admin/referrals?page=${page}&limit=20${hasDownlines ? '&hasDownlines=true' : ''}`);
+      const res = await API.get(`/admin/referrals${hasDownlines ? '?hasDownlines=true' : ''}`);
       const responseData = res.data;
-      setData(responseData?.users || []);
-      setPagination(responseData?.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 });
+      const users = responseData?.users || [];
+      const total = responseData?.pagination?.total || users.length;
+      setData(users);
+      setPagination({ page: 1, limit: PAGE_SIZE, total, totalPages: Math.ceil(total / PAGE_SIZE) });
       setStats(responseData?.stats || { totalReferrals: 0, totalUnlocks: 0 });
       setError('');
     } catch (err) {
@@ -38,21 +42,27 @@ const AdminReferrals = () => {
   };
 
   useEffect(() => {
-    fetchReferralStats(1, false);
+    fetchReferralStats(false);
   }, []);
 
-  const filteredUsers = data.filter(user => {
+  const filteredUsers = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return `${user.firstName} ${user.lastName}`.toLowerCase().includes(term) ||
-           (user.referralCode && user.referralCode.toLowerCase().includes(term)) ||
-           (user.email && user.email.toLowerCase().includes(term)) ||
-           (user.phone && user.phone.includes(searchTerm));
-  });
+    if (!term) return data;
+    return data.filter(user =>
+      `${user.firstName} ${user.lastName}`.toLowerCase().includes(term) ||
+      (user.referralCode && user.referralCode.toLowerCase().includes(term)) ||
+      (user.email && user.email.toLowerCase().includes(term)) ||
+      (user.phone && user.phone.includes(searchTerm))
+    );
+  }, [data, searchTerm]);
+
+  const filteredTotalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
 
   const displayUsers = useMemo(() => {
-    const start = (pagination.page - 1) * pagination.limit;
-    return filteredUsers.slice(start, start + pagination.limit);
-  }, [filteredUsers, pagination.page, pagination.limit]);
+    const safePage = Math.min(pagination.page, filteredTotalPages);
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredUsers.slice(start, start + PAGE_SIZE);
+  }, [filteredUsers, pagination.page, filteredTotalPages]);
 
   const toggleExpandUser = (userId) => {
     setExpandedUser(prev => prev === userId ? null : userId);
@@ -61,7 +71,7 @@ const AdminReferrals = () => {
   const toggleHasDownlines = () => {
     const next = !filterHasDownlines;
     setFilterHasDownlines(next);
-    fetchReferralStats(1, next);
+    fetchReferralStats(next);
     setExpandedUser(null);
   };
 
@@ -80,22 +90,23 @@ const AdminReferrals = () => {
   };
 
   const goToPage = (page) => {
-    if (page < 1 || page > pagination.totalPages) return;
+    if (page < 1 || page > filteredTotalPages) return;
     setPagination(prev => ({ ...prev, page }));
     setExpandedUser(null);
   };
 
   const renderPagination = () => {
-    if (pagination.totalPages <= 1) return null;
+    if (filteredTotalPages <= 1) return null;
     const pages = [];
     const maxVisible = 5;
-    let start = Math.max(1, pagination.page - Math.floor(maxVisible / 2));
-    let end = Math.min(pagination.totalPages, start + maxVisible - 1);
+    const currentPage = Math.min(pagination.page, filteredTotalPages);
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(filteredTotalPages, start + maxVisible - 1);
     if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
 
     pages.push(
       <button key="prev" className="btn btn-sm" style={{ margin: '0 2px' }}
-        disabled={pagination.page === 1} onClick={() => goToPage(pagination.page - 1)}>
+        disabled={currentPage === 1} onClick={() => goToPage(currentPage - 1)}>
         <FaChevronLeft size={10} />
       </button>
     );
@@ -105,17 +116,17 @@ const AdminReferrals = () => {
     }
     for (let i = start; i <= end; i++) {
       pages.push(
-        <button key={i} className={`btn btn-sm ${i === pagination.page ? 'btn-primary' : ''}`}
+        <button key={i} className={`btn btn-sm ${i === currentPage ? 'btn-primary' : ''}`}
           style={{ margin: '0 2px', minWidth: '32px' }} onClick={() => goToPage(i)}>{i}</button>
       );
     }
-    if (end < pagination.totalPages) {
-      if (end < pagination.totalPages - 1) pages.push(<span key="dots2" style={{ color: '#64748b', margin: '0 4px' }}>...</span>);
-      pages.push(<button key={pagination.totalPages} className="btn btn-sm" style={{ margin: '0 2px' }} onClick={() => goToPage(pagination.totalPages)}>{pagination.totalPages}</button>);
+    if (end < filteredTotalPages) {
+      if (end < filteredTotalPages - 1) pages.push(<span key="dots2" style={{ color: '#64748b', margin: '0 4px' }}>...</span>);
+      pages.push(<button key={filteredTotalPages} className="btn btn-sm" style={{ margin: '0 2px' }} onClick={() => goToPage(filteredTotalPages)}>{filteredTotalPages}</button>);
     }
     pages.push(
       <button key="next" className="btn btn-sm" style={{ margin: '0 2px' }}
-        disabled={pagination.page === pagination.totalPages} onClick={() => goToPage(pagination.page + 1)}>
+        disabled={currentPage === filteredTotalPages} onClick={() => goToPage(currentPage + 1)}>
         <FaChevronRight size={10} />
       </button>
     );
@@ -123,7 +134,7 @@ const AdminReferrals = () => {
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '16px 0', marginTop: '12px' }}>
         {pages}
         <span style={{ color: '#64748b', fontSize: '0.8rem', marginLeft: '12px' }}>
-          Page {pagination.page} of {pagination.totalPages} ({pagination.total} users)
+          Page {currentPage} of {filteredTotalPages} ({filteredUsers.length} users)
         </span>
       </div>
     );
@@ -179,7 +190,7 @@ const AdminReferrals = () => {
           <div className="search-box">
             <FaSearch className="search-icon" />
             <input type="text" placeholder="Search by name, code, or phone..." value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)} className="refined-input" />
+              onChange={(e) => { setSearchTerm(e.target.value); setPagination(prev => ({ ...prev, page: 1 })); }} className="refined-input" />
           </div>
           <button className={`btn btn-sm ${filterHasDownlines ? 'btn-primary' : 'btn-secondary'}`}
             onClick={toggleHasDownlines} style={{ padding: '8px 14px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
@@ -199,7 +210,7 @@ const AdminReferrals = () => {
             <FaShieldAlt size={40} style={{ color: '#ef4444' }} />
             <h3>Failed to Load</h3>
             <p style={{ maxWidth: 400, margin: '0 auto' }}>{error}</p>
-            <button className="btn btn-primary" onClick={() => fetchReferralStats(1)} style={{ marginTop: 15 }}>Retry</button>
+            <button className="btn btn-primary" onClick={() => fetchReferralStats()} style={{ marginTop: 15 }}>Retry</button>
           </div>
         </div>
       ) : (
@@ -229,7 +240,7 @@ const AdminReferrals = () => {
               </div>
               <div className="stat-info">
                 <h3>{filterHasDownlines ? 'With Downlines' : 'Total Members'}</h3>
-                <div className="stat-value">{pagination.total}</div>
+                <div className="stat-value">{filteredUsers.length}</div>
                 <p className="stat-label">{filterHasDownlines ? 'Members who have referred' : 'All registered members'}</p>
               </div>
             </div>

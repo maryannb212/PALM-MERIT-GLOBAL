@@ -571,9 +571,6 @@ export const getPendingTransactions = async (req, res) => {
  */
 export const getAdminReferralStats = async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
-    const offset = (page - 1) * limit;
     const hasDownlines = req.query.hasDownlines === 'true';
 
     const downlineFilterJoin = hasDownlines ? `
@@ -601,8 +598,7 @@ export const getAdminReferralStats = async (req, res) => {
       FROM users u
       ${downlineFilterJoin}
       ORDER BY u.created_at DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+    `);
 
     // Pre-fetch ALL individual code usages (each = one downline entry)
     const { rows: allCodeUsages } = await query(`
@@ -715,10 +711,8 @@ export const getAdminReferralStats = async (req, res) => {
         totalUnlocks: totalUnlocksAgg
       },
       pagination: {
-        page,
-        limit,
         total: totalUsers,
-        totalPages: Math.ceil(totalUsers / limit)
+        totalPages: 1
       }
     });
   } catch (error) {
