@@ -202,21 +202,25 @@ const Subscriptions = () => {
                             padding: '4px 10px', borderRadius: '4px',
                             background: rc.status === 'available' ? '#ecfdf5' :
                                         rc.status === 'locked' ? '#fffbeb' :
+                                        rc.status === 'expired' ? '#fef2f2' :
                                         rc.status === 'used' ? '#f1f5f9' : '#fef2f2',
                             border: rc.status === 'available' ? '1px solid #a7f3d0' :
                                     rc.status === 'locked' ? '1px solid #fde68a' :
+                                    rc.status === 'expired' ? '1px solid #fecaca' :
                                     rc.status === 'used' ? '1px solid #e2e8f0' : '1px solid #fecaca',
                             fontSize: '0.8rem', fontFamily: 'monospace'
                           }}>
-                            <strong>{rc.code}</strong>
+                            <strong style={rc.status === 'expired' ? { textDecoration: 'line-through', opacity: 0.6 } : {}}>{rc.code}</strong>
                             <span style={{
                               fontSize: '0.65rem', fontWeight: '600', textTransform: 'uppercase',
                               padding: '1px 5px', borderRadius: '3px',
                               color: rc.status === 'available' ? '#059669' :
                                      rc.status === 'locked' ? '#d97706' :
+                                     rc.status === 'expired' ? '#dc2626' :
                                      rc.status === 'used' ? '#64748b' : '#dc2626',
                               background: rc.status === 'available' ? '#d1fae5' :
                                           rc.status === 'locked' ? '#fef3c7' :
+                                          rc.status === 'expired' ? '#fee2e2' :
                                           rc.status === 'used' ? '#f1f5f9' : '#fee2e2'
                             }}>
                               {rc.status === 'available' ? 'Active' : rc.status}

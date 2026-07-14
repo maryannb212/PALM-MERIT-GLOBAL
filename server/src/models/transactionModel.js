@@ -279,14 +279,7 @@ export const processCompletedPayment = async (
     // HANDLE TRANSACTION TYPES
     // =====================================================
 
-    // Resolve any outstanding penalties before crediting the user.
-    // Parse defaultId from reference if this is a per-default payment.
-    // For per-plan or bulk clear, planId from the transaction is used instead.
     let creditAmount = Math.floor(parseFloat(completedTx.amount));
-    if (completedTx.type === 'deposit' || completedTx.type === 'wallet_topup' || completedTx.type === 'contribution') {
-      const targetDefaultId = parseDefaultIdFromReference(completedTx.reference);
-      creditAmount = await settleOutstandingPenalties(client, completedTx.user_id, creditAmount, completedTx.reference, completedTx.plan_id, targetDefaultId);
-    }
 
     if (
       completedTx.type === 'deposit' ||

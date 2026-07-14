@@ -25,11 +25,14 @@ export const subscribeToPlan = async (req, res) => {
     let usedReferralCodeId = null;
     if (referralCode && referralCode.trim() && referralCode !== 'NEW') {
       const codeStr = referralCode.trim();
-      const { rows: refCodes } = await query('SELECT id, user_id, status, unlock_date FROM referral_codes WHERE code = $1', [codeStr]);
+      const { rows: refCodes } = await query('SELECT id, user_id, status, unlock_date, expires_at FROM referral_codes WHERE code = $1', [codeStr]);
       if (refCodes.length > 0) {
         const rc = refCodes[0];
         if (rc.status === 'used') {
           return res.status(400).json({ message: 'This referral code has already been used' });
+        }
+        if (rc.status === 'expired') {
+          return res.status(400).json({ message: 'This referral code has expired' });
         }
         // Auto-unlock if unlock_date has passed
         if (rc.status === 'locked' && rc.unlock_date && new Date(rc.unlock_date) <= new Date()) {
@@ -38,6 +41,11 @@ export const subscribeToPlan = async (req, res) => {
         }
         if (rc.status === 'locked' || (rc.unlock_date && new Date(rc.unlock_date) > new Date())) {
           return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
+        }
+        // Check if code has expired
+        if (rc.expires_at && new Date(rc.expires_at) < new Date()) {
+          await query("UPDATE referral_codes SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [rc.id]);
+          return res.status(400).json({ message: 'This referral code has expired' });
         }
         referredById = rc.user_id;
         usedReferralCodeId = rc.id;

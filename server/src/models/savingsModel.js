@@ -26,6 +26,7 @@ export const getUserSavingsPlans = async (userId) => {
             'code', rc.code,
             'status', rc.status,
             'unlock_date', rc.unlock_date,
+            'expires_at', rc.expires_at,
             'used_by_user_id', rc.used_by_user_id
           ) ORDER BY rc.created_at
         ) FILTER (WHERE rc.id IS NOT NULL),
