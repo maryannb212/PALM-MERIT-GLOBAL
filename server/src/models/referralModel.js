@@ -17,7 +17,7 @@ export const generateUniqueReferralCode = async (planName) => {
 };
 
 const PLAN_EXPIRY_DAYS = {
-  CREST: 14,
+  CREST: 14,         // 14 days AFTER unlock (unlock = 30 days from creation, so total = 44 days)
   SILVER: 90,
   GOLDEN_BASKET: 90,
   ISUSU: 14
@@ -27,19 +27,26 @@ export const createReferralCodeForPlan = async (client, userId, planId, planName
   let status = 'available';
   let baseUnlockDate = null;
 
+  const now = new Date();
+
   if (planName === 'CREST') {
     status = 'locked';
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    baseUnlockDate = d.toISOString();
+    const unlockDate = new Date(now);
+    unlockDate.setDate(unlockDate.getDate() + 30);
+    baseUnlockDate = unlockDate.toISOString();
+
+    // CREST codes expire 14 days AFTER unlock, not after creation
+    const expiryDays = PLAN_EXPIRY_DAYS[planName] || 14;
+    var expiresAt = new Date(unlockDate);
+    expiresAt.setDate(expiresAt.getDate() + expiryDays);
   } else {
     status = 'available';
-    baseUnlockDate = new Date().toISOString();
-  }
+    baseUnlockDate = now.toISOString();
 
-  const expiryDays = PLAN_EXPIRY_DAYS[planName] || 14;
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + expiryDays);
+    const expiryDays = PLAN_EXPIRY_DAYS[planName] || 14;
+    var expiresAt = new Date(now);
+    expiresAt.setDate(expiresAt.getDate() + expiryDays);
+  }
 
   const codes = [];
   for (let i = 0; i < numberOfAccounts; i++) {
