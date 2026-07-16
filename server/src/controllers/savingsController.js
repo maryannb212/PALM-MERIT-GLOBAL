@@ -197,7 +197,23 @@ export const subscribeToPlan = async (req, res) => {
               );
             }
           } else if (usedReferralCodeId) {
-            console.warn(`[subscribeToPlan] User ${userId} already has referrer ${existingUser[0].referred_by}, code ${usedReferralCodeId} was NOT consumed`);
+            // User already has a referrer — check if this code is from the same referrer
+            if (referredById === existingUser[0].referred_by) {
+              // SAME referrer — consume this code (creates a downline entry) but don't change referred_by
+              const { rows: locked } = await client.query(
+                'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
+                [usedReferralCodeId]
+              );
+              if (locked.length > 0 && locked[0].status !== 'used') {
+                await client.query(
+                  "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+                  [usedReferralCodeId, userId]
+                );
+              }
+            } else {
+              // DIFFERENT referrer — don't consume, code stays available for others
+              console.warn(`[subscribeToPlan] User ${userId} already has referrer ${existingUser[0].referred_by}, code from different owner ${referredById} was NOT consumed`);
+            }
           }
         }
       }
