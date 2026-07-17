@@ -155,16 +155,17 @@ export const subscribeToPlan = async (req, res) => {
               'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
               [usedReferralCodeId]
             );
-            if (locked.length > 0 && locked[0].status !== 'used') {
-              await client.query(
-                "UPDATE users SET referred_by = $1 WHERE id = $2",
-                [userId, userId]
-              );
-              await client.query(
-                "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-                [usedReferralCodeId, userId]
-              );
+            if (locked.length === 0 || locked[0].status !== 'available') {
+              throw new Error('This referral code is no longer available. It may have been used by another user.');
             }
+            await client.query(
+              "UPDATE users SET referred_by = $1 WHERE id = $2",
+              [userId, userId]
+            );
+            await client.query(
+              "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+              [usedReferralCodeId, userId]
+            );
           }
         } else {
           // Check if user already has a referrer — never overwrite an existing referral
@@ -179,16 +180,17 @@ export const subscribeToPlan = async (req, res) => {
                 'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
                 [usedReferralCodeId]
               );
-              if (locked.length > 0 && locked[0].status !== 'used') {
-                await client.query(
-                  "UPDATE users SET referred_by = $1 WHERE id = $2",
-                  [referredById, userId]
-                );
-                await client.query(
-                  "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-                  [usedReferralCodeId, userId]
-                );
+              if (locked.length === 0 || locked[0].status !== 'available') {
+                throw new Error('This referral code is no longer available. It may have been used by another user.');
               }
+              await client.query(
+                "UPDATE users SET referred_by = $1 WHERE id = $2",
+                [referredById, userId]
+              );
+              await client.query(
+                "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+                [usedReferralCodeId, userId]
+              );
             } else {
               // Legacy referral (no referral_codes entry) — just set referred_by
               await client.query(
@@ -197,23 +199,18 @@ export const subscribeToPlan = async (req, res) => {
               );
             }
           } else if (usedReferralCodeId) {
-            // User already has a referrer — check if this code is from the same referrer
-            if (referredById === existingUser[0].referred_by) {
-              // SAME referrer — consume this code (creates a downline entry) but don't change referred_by
-              const { rows: locked } = await client.query(
-                'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
-                [usedReferralCodeId]
-              );
-              if (locked.length > 0 && locked[0].status !== 'used') {
-                await client.query(
-                  "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-                  [usedReferralCodeId, userId]
-                );
-              }
-            } else {
-              // DIFFERENT referrer — don't consume, code stays available for others
-              console.warn(`[subscribeToPlan] User ${userId} already has referrer ${existingUser[0].referred_by}, code from different owner ${referredById} was NOT consumed`);
+            // User already has a referrer — still consume the code to give credit to the code owner
+            const { rows: locked } = await client.query(
+              'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
+              [usedReferralCodeId]
+            );
+            if (locked.length === 0 || locked[0].status !== 'available') {
+              throw new Error('This referral code is no longer available. It may have been used by another user.');
             }
+            await client.query(
+              "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+              [usedReferralCodeId, userId]
+            );
           }
         }
       }

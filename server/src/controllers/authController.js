@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import jsonwebtoken from 'jsonwebtoken';
 import crypto from 'crypto';
 import { findUserByPhone, findUserById, findUserByEmailOrPhone, normalizePhone } from '../models/userModel.js';
-import { query } from '../config/db.js';
+import { query, getClient } from '../config/db.js';
 import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
 import { sendWelcomeEmail, sendOTPEmail } from '../utils/emailService.js';
@@ -147,36 +147,55 @@ export const registerUser = async (req, res) => {
     const expiryDate = new Date(unlockDate);
     expiryDate.setDate(expiryDate.getDate() + 14);
 
-    const sql = `
-      INSERT INTO users (first_name, last_name, email, password_hash, phone, role, referral_code, referred_by, referral_unlock_date, referral_expiry_date, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, referral_code, referral_unlock_date, referral_expiry_date, created_at;
-    `;
     const emailToSave = normalizedEmail;
-    const { rows: newUser } = await query(sql, [
-      firstName,
-      lastName,
-      emailToSave,
-      passwordHash,
-      normalizedPhone,
-      role,
-      newReferralCode,
-      referredById,
-      unlockDate,
-      expiryDate,
-      createdDate
-    ]);
-    const user = newUser[0];
 
-    // If they used a plan-specific referral code, mark it as used (only if still available)
-    if (usedReferralCodeId && user) {
-      const { rows: check } = await query(
-        'SELECT status FROM referral_codes WHERE id = $1 AND status = $2',
-        [usedReferralCodeId, 'available']
-      );
-      if (check.length > 0) {
-        await query('UPDATE referral_codes SET status = $1, used_by_user_id = $2 WHERE id = $3', ['used', user.id, usedReferralCodeId]);
+    // Use a transaction to ensure user creation + referral code consumption are atomic
+    const client = await getClient();
+    let user;
+    try {
+      await client.query('BEGIN');
+
+      const sql = `
+        INSERT INTO users (first_name, last_name, email, password_hash, phone, role, referral_code, referred_by, referral_unlock_date, referral_expiry_date, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, referral_code, referral_unlock_date, referral_expiry_date, created_at;
+      `;
+      const { rows: newUser } = await client.query(sql, [
+        firstName,
+        lastName,
+        emailToSave,
+        passwordHash,
+        normalizedPhone,
+        role,
+        newReferralCode,
+        referredById,
+        unlockDate,
+        expiryDate,
+        createdDate
+      ]);
+      user = newUser[0];
+
+      // If they used a plan-specific referral code, consume it atomically (fail registration if code is no longer available)
+      if (usedReferralCodeId && user) {
+        const { rows: locked } = await client.query(
+          'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
+          [usedReferralCodeId]
+        );
+        if (locked.length === 0 || locked[0].status !== 'available') {
+          throw new Error('This referral code is no longer available. It may have been used by another user. Please try again without a referral code.');
+        }
+        await client.query(
+          "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
+          [usedReferralCodeId, user.id]
+        );
       }
+
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: txErr.message });
+    } finally {
+      client.release();
     }
 
     if (user) {
