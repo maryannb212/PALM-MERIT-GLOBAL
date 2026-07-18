@@ -10,10 +10,21 @@ const PLAN_CONFIG = {
   'ISUSU': { amount: 500, isDaily: true }
 };
 
+const toWATDate = (date) => {
+  const utcStr = date.toLocaleString("en-US", { timeZone: "Africa/Lagos" });
+  return new Date(utcStr);
+};
+
+const calendarDaysBetween = (watDateA, watDateB) => {
+  const a = new Date(watDateA.getFullYear(), watDateA.getMonth(), watDateA.getDate());
+  const b = new Date(watDateB.getFullYear(), watDateB.getMonth(), watDateB.getDate());
+  return Math.floor((a - b) / (1000 * 60 * 60 * 24));
+};
+
 const countExpectedContributions = (startDate, preferredDay, isDaily) => {
-  const today = new Date();
+  const today = toWATDate(new Date());
   today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate);
+  const start = toWATDate(new Date(startDate));
   start.setHours(0, 0, 0, 0);
 
   if (start >= today) return 0;
@@ -122,15 +133,15 @@ export const runStartupCatchupDeductions = async () => {
   }
 };
 
-const computeIsDue = (plan, config, lastDeductionDate, watDate, todayDayName, todayString) => {
+const computeIsDue = (plan, config, lastDeductionDate, watNow, todayDayName) => {
   let isDue = false;
 
   if (config.isDaily) {
     if (!lastDeductionDate) {
       isDue = true;
     } else {
-      const lastWatDate = new Date(new Date(lastDeductionDate).toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
-      if (lastWatDate.toDateString() !== todayString) {
+      const lastWat = toWATDate(new Date(lastDeductionDate));
+      if (lastWat.toDateString() !== watNow.toDateString()) {
         isDue = true;
       }
     }
@@ -139,13 +150,15 @@ const computeIsDue = (plan, config, lastDeductionDate, watDate, todayDayName, to
       if (plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
         isDue = true;
       } else {
-        const daysSinceStart = Math.floor((watDate - new Date(plan.start_date)) / (1000 * 60 * 60 * 24));
+        const startWat = toWATDate(new Date(plan.start_date));
+        const daysSinceStart = calendarDaysBetween(watNow, startWat);
         if (daysSinceStart >= 7) {
           isDue = true;
         }
       }
     } else {
-      const daysSinceLast = Math.floor((watDate - new Date(lastDeductionDate)) / (1000 * 60 * 60 * 24));
+      const lastWat = toWATDate(new Date(lastDeductionDate));
+      const daysSinceLast = calendarDaysBetween(watNow, lastWat);
       if (daysSinceLast >= 7) {
         isDue = true;
       }
@@ -155,7 +168,7 @@ const computeIsDue = (plan, config, lastDeductionDate, watDate, todayDayName, to
   return isDue;
 };
 
-const processDuePlan = async (plan, config, watDateStr, todayDayName, todayString) => {
+const processDuePlan = async (plan, config, watDateStr, watNow) => {
   const client = await getClient();
   try {
     await client.query('BEGIN');
@@ -185,7 +198,7 @@ const processDuePlan = async (plan, config, watDateStr, todayDayName, todayStrin
 
     const lastDeductionDate = existingTransactions.length > 0 ? existingTransactions[0].created_at : null;
 
-    if (!computeIsDue(plan, config, lastDeductionDate, new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" })), todayDayName, todayString)) {
+    if (!computeIsDue(plan, config, lastDeductionDate, watNow, ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][watNow.getDay()])) {
       await client.query('ROLLBACK');
       return;
     }
@@ -199,6 +212,7 @@ const processDuePlan = async (plan, config, watDateStr, todayDayName, todayStrin
     const perAccountAmount = config.amount;
     const numAccounts = plan.number_of_accounts || 1;
     const fullDue = perAccountAmount * numAccounts;
+    const doubledDue = Math.floor(fullDue * 2);
     const payableAccounts = Math.floor(balance / perAccountAmount);
     const payableAmount = payableAccounts * perAccountAmount;
     const savingsAmount = Math.floor(Math.min(payableAmount, fullDue));
@@ -213,7 +227,6 @@ const processDuePlan = async (plan, config, watDateStr, todayDayName, todayStrin
     } else {
       console.log(`Plan ${plan.id}: insufficient funds (N${balance}) to cover even 1 account (N${perAccountAmount}). Defaulting N${fullDue}...`);
 
-      const doubledDue = Math.floor(fullDue * 2);
       await client.query(`
         INSERT INTO defaults (user_id, plan_id, missed_date, penalty_amount)
         VALUES ($1, $2, $3::date, $4)
@@ -230,7 +243,7 @@ const processDuePlan = async (plan, config, watDateStr, todayDayName, todayStrin
     if (savingsAmount > 0) {
       let msg = `Your automatic savings deduction of N${savingsAmount.toLocaleString()} for your ${plan.plan_name} plan was successful`;
       if (savingsAmount < fullDue) {
-        const paidAccounts = savingsAmount / perAccountAmount;
+        const paidAccounts = Math.floor(savingsAmount / perAccountAmount);
         msg += ` (${paidAccounts} of ${numAccounts} accounts paid)`;
       }
       msg += '.';
@@ -250,10 +263,11 @@ const processDuePlan = async (plan, config, watDateStr, todayDayName, todayStrin
 export const runDeductionJob = async () => {
   console.log('Running automatic savings deduction job...');
   try {
-    const watDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
-    const todayDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][watDate.getDay()];
-    const todayString = watDate.toDateString();
-    const watDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+    const watNow = toWATDate(new Date());
+    const todayDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][watNow.getDay()];
+    const watDateStr = watNow.getFullYear() + '-' +
+      String(watNow.getMonth() + 1).padStart(2, '0') + '-' +
+      String(watNow.getDate()).padStart(2, '0');
 
     // Step 1: Get all active plans
     const { rows: activePlans } = await query("SELECT * FROM savings_plans WHERE status = 'active'");
@@ -294,7 +308,7 @@ export const runDeductionJob = async () => {
       if (todayDefaultPlans.has(plan.id)) continue;
 
       const lastDeductionDate = lastTxByPlan[plan.id] || null;
-      if (computeIsDue(plan, config, lastDeductionDate, watDate, todayDayName, todayString)) {
+      if (computeIsDue(plan, config, lastDeductionDate, watNow, todayDayName)) {
         duePlans.push(plan);
       }
     }
@@ -304,7 +318,7 @@ export const runDeductionJob = async () => {
     // Step 6: Process only due plans in individual transactions
     for (const plan of duePlans) {
       const config = PLAN_CONFIG[plan.plan_name];
-      await processDuePlan(plan, config, watDateStr, todayDayName, todayString);
+      await processDuePlan(plan, config, watDateStr, watNow);
     }
 
     return { success: true, message: 'Deduction job completed.' };

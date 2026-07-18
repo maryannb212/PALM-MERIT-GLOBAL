@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank, FaUserFriends, FaHandHoldingUsd, FaHourglassHalf, FaCheckCircle, FaCalendarDay } from 'react-icons/fa';
+import { FaShieldAlt, FaUsers, FaUserCheck, FaMoneyCheckAlt, FaTicketAlt, FaChartLine, FaSignOutAlt, FaUserCircle, FaExclamationTriangle, FaMoneyBillWave, FaPiggyBank, FaUserFriends, FaHandHoldingUsd, FaHourglassHalf, FaCheckCircle, FaCalendarDay, FaKey } from 'react-icons/fa';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
   const { admin, adminLogout } = useAuth();
@@ -34,6 +34,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { name: 'Savings Plans', path: '/admin/plans', icon: <FaPiggyBank /> },
     { name: 'Eligibility Review', path: '/admin/eligibility-queue', icon: <FaUserCheck /> },
     { name: 'Referral Audits', path: '/admin/referrals', icon: <FaUserFriends /> },
+    { name: 'Code Manager', path: '/admin/code-manager', icon: <FaKey /> },
     { name: 'Clearance', path: '/admin/clearance', icon: <FaCheckCircle /> },
     { name: 'Security & Locks', path: '/admin/security', icon: <FaShieldAlt /> },
   ];

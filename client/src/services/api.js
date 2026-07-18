@@ -194,4 +194,14 @@ export const getPageLocks = () => API.get('/admin/security/locks');
 export const updatePageLock = (data) => API.put('/admin/security/locks', data);
 export const verifyPageLock = (data) => API.post('/admin/security/verify', data);
 
+// Admin Code Manager
+export const getAdminUserCodes = (userId, status) => {
+  const params = status && status !== 'all' ? `?status=${status}` : '';
+  return API.get(`/admin/codes/users/${userId}${params}`);
+};
+export const assignReferralCode = (codeId, targetUserId) =>
+  API.post(`/admin/referral-codes/${codeId}/assign`, { targetUserId });
+export const reassignReferralCode = (codeId, targetUserId) =>
+  API.put(`/admin/referral-codes/${codeId}/reassign`, { targetUserId });
+
 export default API;

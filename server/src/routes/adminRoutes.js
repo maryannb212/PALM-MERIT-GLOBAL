@@ -31,7 +31,10 @@ import {
   getClearancePlans,
   adminSettleClearance,
   impersonateUser,
-  getDailyAccountStats
+  getDailyAccountStats,
+  getUserCodes,
+  assignReferralCode,
+  reassignReferralCode
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -89,6 +92,10 @@ router.put('/defaults/:id', updateDefault);
 router.post('/users/:userId/resolve-defaults', resolveUserDefaults);
 // Impersonation
 router.post('/impersonate/:userId', impersonateUser);
+// Code Manager
+router.get('/codes/users/:id', getUserCodes);
+router.post('/referral-codes/:codeId/assign', assignReferralCode);
+router.put('/referral-codes/:codeId/reassign', reassignReferralCode);
 // Security Locks
 router.get('/security/locks', getPageLocks);
 router.put('/security/locks', updatePageLock);

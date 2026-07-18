@@ -1384,3 +1384,186 @@ export const getDailyAccountStats = async (req, res) => {
     res.status(500).json({ message: 'Server error fetching daily account stats' });
   }
 };
+
+/**
+ * Get a specific user's referral codes (with used_by info)
+ * GET /api/admin/codes/users/:id
+ * Query: ?status=available|used|all (default: all)
+ */
+export const getUserCodes = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const status = req.query.status || 'all';
+
+    const userResult = await query(
+      `SELECT id, first_name, last_name, email, phone, referral_code, created_at FROM users WHERE id = $1`,
+      [id]
+    );
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let statusFilter = '';
+    const params = [id];
+    if (status === 'available') {
+      statusFilter = "AND rc.status = 'available'";
+    } else if (status === 'used') {
+      statusFilter = "AND rc.status = 'used'";
+    }
+    params.push(status);
+
+    const codesResult = await query(
+      `SELECT 
+        rc.id, rc.code, rc.status, rc.plan_id, rc.unlock_date, rc.expires_at,
+        rc.used_by_user_id, rc.created_at, rc.updated_at AS used_at,
+        bu.first_name AS used_by_name, bu.last_name AS used_by_last_name, bu.email AS used_by_email,
+        sp.plan_name, sp.number_of_accounts
+      FROM referral_codes rc
+      LEFT JOIN users bu ON rc.used_by_user_id = bu.id
+      LEFT JOIN savings_plans sp ON rc.plan_id = sp.id
+      WHERE rc.user_id = $1 ${statusFilter}
+      ORDER BY rc.created_at DESC`,
+      params
+    );
+
+    res.json({
+      user: userResult.rows[0],
+      codes: codesResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching user codes:', error);
+    res.status(500).json({ message: 'Server error fetching user codes' });
+  }
+};
+
+/**
+ * Assign an available referral code to a target user (mark as used)
+ * POST /api/admin/referral-codes/:codeId/assign
+ * Body: { targetUserId: UUID }
+ */
+export const assignReferralCode = async (req, res) => {
+  try {
+    const { codeId } = req.params;
+    const { targetUserId } = req.body;
+
+    if (!targetUserId) {
+      return res.status(400).json({ message: 'Target user ID is required' });
+    }
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const codeResult = await client.query(
+        `SELECT rc.*, u.first_name, u.last_name, u.email
+         FROM referral_codes rc
+         JOIN users u ON rc.user_id = u.id
+         WHERE rc.id = $1 FOR UPDATE`,
+        [codeId]
+      );
+
+      if (codeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Referral code not found' });
+      }
+
+      const code = codeResult.rows[0];
+      if (code.status !== 'available') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Code is already ${code.status}` });
+      }
+
+      const targetCheck = await client.query(`SELECT id, first_name, last_name FROM users WHERE id = $1`, [targetUserId]);
+      if (targetCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Target user not found' });
+      }
+
+      await client.query(
+        `UPDATE referral_codes SET status = 'used', used_by_user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [targetUserId, codeId]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: `Code ${code.code} assigned to ${targetCheck.rows[0].first_name} ${targetCheck.rows[0].last_name}`,
+        code: { ...code, status: 'used', used_by_user_id: targetUserId }
+      });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error assigning referral code:', error);
+    res.status(500).json({ message: 'Server error assigning referral code' });
+  }
+};
+
+/**
+ * Reassign a used referral code to a different target user
+ * PUT /api/admin/referral-codes/:codeId/reassign
+ * Body: { targetUserId: UUID }
+ */
+export const reassignReferralCode = async (req, res) => {
+  try {
+    const { codeId } = req.params;
+    const { targetUserId } = req.body;
+
+    if (!targetUserId) {
+      return res.status(400).json({ message: 'Target user ID is required' });
+    }
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const codeResult = await client.query(
+        `SELECT rc.*, u.first_name AS owner_name, u.last_name AS owner_last_name
+         FROM referral_codes rc
+         JOIN users u ON rc.user_id = u.id
+         WHERE rc.id = $1 FOR UPDATE`,
+        [codeId]
+      );
+
+      if (codeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Referral code not found' });
+      }
+
+      const code = codeResult.rows[0];
+      if (code.status !== 'used') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Can only reassign used codes. Current status: ${code.status}` });
+      }
+
+      const targetCheck = await client.query(`SELECT id, first_name, last_name FROM users WHERE id = $1`, [targetUserId]);
+      if (targetCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Target user not found' });
+      }
+
+      await client.query(
+        `UPDATE referral_codes SET used_by_user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [targetUserId, codeId]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: `Code ${code.code} reassigned to ${targetCheck.rows[0].first_name} ${targetCheck.rows[0].last_name}`,
+        code: { ...code, used_by_user_id: targetUserId }
+      });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error reassigning referral code:', error);
+    res.status(500).json({ message: 'Server error reassigning referral code' });
+  }
+};

@@ -99,5 +99,5 @@ export const startMaturityJob = () => {
     } catch (error) {
       logger.error('Error in maturity cron execution:', error);
     }
-  });
+  }, { timezone: 'Africa/Lagos' });
 };
