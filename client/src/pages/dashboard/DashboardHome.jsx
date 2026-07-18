@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead, generateVirtualAccount, updateBvn } from '../../services/api';
+import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import MembershipPaywall from '../../components/MembershipPaywall';
-import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes, FaWhatsapp, FaCopy, FaCheck, FaUniversity, FaWallet } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes, FaWhatsapp } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -21,21 +21,9 @@ const DashboardHome = () => {
   const [notifications, setNotifications] = useState([]);
   const [showAllNotifs, setShowAllNotifs] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const [showReceiveModal, setShowReceiveModal] = useState(false);
-  const [receiveCopied, setReceiveCopied] = useState(null);
-  const [vaLoading, setVaLoading] = useState(false);
-  const [vaError, setVaError] = useState('');
-  const [vaSuccess, setVaSuccess] = useState('');
-  const [showBvnModal, setShowBvnModal] = useState(false);
-  const [bvnValue, setBvnValue] = useState('');
-  const [bvnError, setBvnError] = useState('');
-  const [bvnSubmitting, setBvnSubmitting] = useState(false);
-  const [bvnSuccess, setBvnSuccess] = useState('');
-
   const handleCopy = (text) => {
     navigator.clipboard.writeText(text);
-    setReceiveCopied(text);
-    setTimeout(() => setReceiveCopied(null), 2000);
+    alert('Copied to clipboard!');
   };
 
   // Birthday check
@@ -119,45 +107,6 @@ const DashboardHome = () => {
   const handleOpenDeposit = (plan) => {
     setSelectedPlan(plan);
     setIsModalOpen(true);
-  };
-
-  const handleGenerateVA = async () => {
-    setVaLoading(true);
-    setVaError('');
-    setVaSuccess('');
-    try {
-      const { data } = await generateVirtualAccount();
-      if (data.virtual_account_number) {
-        updateUser({
-          virtual_account_number: data.virtual_account_number,
-          virtual_account_name: data.virtual_account_name,
-          virtual_bank_name: data.virtual_bank_name,
-        });
-        setVaSuccess('Virtual account generated successfully!');
-      }
-    } catch (err) {
-      setVaError(err.response?.data?.message || 'Failed to generate virtual account. Please try again.');
-    } finally {
-      setVaLoading(false);
-    }
-  };
-
-  const handleBvnSubmit = async () => {
-    if (bvnValue.length !== 11) { setBvnError('BVN must be 11 digits'); return; }
-    setBvnSubmitting(true);
-    setBvnError('');
-    setBvnSuccess('');
-    try {
-      await updateBvn(bvnValue);
-      updateUser({ bvn: bvnValue });
-      setBvnSuccess('BVN saved! Generating your virtual account...');
-      setShowBvnModal(false);
-      setTimeout(() => handleGenerateVA(), 1000);
-    } catch (err) {
-      setBvnError(err.response?.data?.message || 'Failed to save BVN');
-    } finally {
-      setBvnSubmitting(false);
-    }
   };
 
   const formatCurrency = (amount) => {
@@ -297,7 +246,7 @@ const DashboardHome = () => {
 
 
         {/* ─── Unified Stats Row ─── */}
-        <div className="stats-grid stats-grid-counts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="stats-grid stats-grid-counts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
           <div className="stat-card count-card" style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', color: 'white' }}>
             <div className="stat-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#FFD700' }}>✅</div>
             <h3 style={{ color: '#FFD700' }}>Active Cooperative Programs</h3>
@@ -325,17 +274,6 @@ const DashboardHome = () => {
                   <span className="stat-currency">₦</span>{formatCurrency(walletBalance).replace('₦', '').trim()}
                 </>
               )}
-            </div>
-          </div>
-          <div
-            className="stat-card count-card"
-            onClick={() => setShowReceiveModal(true)}
-            style={{ cursor: 'pointer', background: 'linear-gradient(135deg, #059669, #047857)', color: 'white' }}
-          >
-            <div className="stat-icon" style={{ background: 'rgba(255,255,255,0.2)' }}>🏦</div>
-            <h3 style={{ color: '#FFD700' }}>Receive Funds</h3>
-            <div className="stat-count" style={{ color: '#FFFFFF', textShadow: '0 2px 8px rgba(0,0,0,0.3)', fontSize: '0.9rem' }}>
-              {user?.virtual_account_number ? 'Tap to view account' : 'Tap to generate'}
             </div>
           </div>
           <div className="stat-card count-card" style={{
@@ -548,119 +486,6 @@ const DashboardHome = () => {
           plan={selectedPlan}
           onSuccess={fetchPlans}
         />
-      )}
-
-      {/* ─── Receive Funds Modal ─── */}
-      {showReceiveModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={() => setShowReceiveModal(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
-          <div style={{ position: 'relative', background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.3)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', padding: '24px 24px 20px', color: 'white' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <FaWallet size={22} style={{ color: '#FFD700' }} />
-                  <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.15rem', fontWeight: 'bold' }}>Receive Funds</h3>
-                </div>
-                <button onClick={() => setShowReceiveModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FaTimes />
-                </button>
-              </div>
-              <p style={{ margin: '8px 0 0', fontSize: '0.85rem', opacity: 0.85 }}>Transfer money to your dedicated account</p>
-            </div>
-            <div style={{ padding: '24px' }}>
-              {user?.virtual_account_number ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <label style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>Account Number</label>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#0f172a', fontFamily: 'monospace', marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>{user.virtual_account_number}</span>
-                      <button
-                        onClick={() => handleCopy(user.virtual_account_number)}
-                        style={{ background: receiveCopied === user.virtual_account_number ? '#d4edda' : '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '0.8rem', color: receiveCopied === user.virtual_account_number ? '#155724' : '#475569', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: '600', transition: 'all 0.2s' }}
-                      >
-                        {receiveCopied === user.virtual_account_number ? <><FaCheck /> Copied</> : <><FaCopy /> Copy</>}
-                      </button>
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                      <label style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>Bank Name</label>
-                      <div style={{ fontSize: '1rem', fontWeight: '600', color: '#0f172a', marginTop: '4px' }}>{user.virtual_bank_name || 'Lotus Bank'}</div>
-                    </div>
-                    <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                      <label style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>Account Name</label>
-                      <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#0f172a', marginTop: '4px' }}>{user.virtual_account_name || `${user.firstName} ${user.lastName}`}</div>
-                    </div>
-                  </div>
-                  <div style={{ background: '#ecfdf5', padding: '12px 16px', borderRadius: '8px', border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <FaCheck style={{ color: '#059669', flexShrink: 0 }} />
-                    <p style={{ margin: 0, fontSize: '0.85rem', color: '#065f46' }}>Your wallet will be credited automatically after transfer.</p>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                  {vaSuccess && <div style={{ background: '#d4edda', color: '#155724', padding: '10px 14px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.85rem' }}>✅ {vaSuccess}</div>}
-                  {vaError && <div style={{ background: '#f8d7da', color: '#721c24', padding: '10px 14px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.85rem' }}>❌ {vaError}</div>}
-                  {user?.bvn ? (
-                    <>
-                      <FaUniversity style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '12px' }} />
-                      <p style={{ color: '#64748b', marginBottom: '14px', fontSize: '0.9rem' }}>Get a dedicated bank account to receive transfers.</p>
-                      <button onClick={handleGenerateVA} className="btn btn-primary" disabled={vaLoading} style={{ padding: '10px 24px', fontSize: '0.95rem', borderRadius: '8px' }}>
-                        {vaLoading ? 'Generating...' : '🏦 Generate Virtual Account'}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <FaUniversity style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '12px' }} />
-                      <p style={{ color: '#64748b', marginBottom: '14px', fontSize: '0.9rem' }}>Provide your BVN to generate a dedicated virtual account.</p>
-                      <button onClick={() => { setShowReceiveModal(false); setShowBvnModal(true); }} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '0.95rem', borderRadius: '8px' }}>
-                        Provide BVN
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── BVN Modal ─── */}
-      {showBvnModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={() => setShowBvnModal(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
-          <div style={{ position: 'relative', background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '420px', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.3)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #800020, #4a0012)', padding: '20px 24px', color: 'white' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, color: '#FFD700', fontSize: '1.1rem' }}>Enter Your BVN</h3>
-                <button onClick={() => setShowBvnModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FaTimes />
-                </button>
-              </div>
-            </div>
-            <div style={{ padding: '24px' }}>
-              <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '16px' }}>Enter your 11-digit Bank Verification Number to generate your virtual account.</p>
-              {bvnError && <div style={{ background: '#f8d7da', color: '#721c24', padding: '10px 14px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.85rem' }}>❌ {bvnError}</div>}
-              {bvnSuccess && <div style={{ background: '#d4edda', color: '#155724', padding: '10px 14px', borderRadius: '8px', marginBottom: '12px', fontSize: '0.85rem' }}>✅ {bvnSuccess}</div>}
-              <input
-                type="text"
-                value={bvnValue}
-                onChange={(e) => { setBvnValue(e.target.value.replace(/\D/g, '').slice(0, 11)); setBvnError(''); }}
-                placeholder="Enter 11-digit BVN"
-                maxLength={11}
-                style={{ width: '100%', padding: '12px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '1.1rem', fontFamily: 'monospace', letterSpacing: '3px', textAlign: 'center', boxSizing: 'border-box' }}
-              />
-              <button
-                onClick={handleBvnSubmit}
-                disabled={bvnSubmitting || bvnValue.length !== 11}
-                className="btn btn-primary"
-                style={{ width: '100%', marginTop: '16px', padding: '12px', fontSize: '1rem', borderRadius: '8px', opacity: bvnValue.length !== 11 ? 0.5 : 1 }}
-              >
-                {bvnSubmitting ? 'Saving...' : 'Save BVN'}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </>
 
