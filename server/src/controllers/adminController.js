@@ -1410,7 +1410,6 @@ export const getUserCodes = async (req, res) => {
     } else if (status === 'used') {
       statusFilter = "AND rc.status = 'used'";
     }
-    params.push(status);
 
     const codesResult = await query(
       `SELECT 
