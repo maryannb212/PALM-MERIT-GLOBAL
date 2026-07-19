@@ -20,44 +20,6 @@ export const subscribeToPlan = async (req, res) => {
     const clearanceRequired = ['CREST', 'SILVER'].includes(planName);
     const requestedAccounts = numberOfAccounts || 1;
 
-    // Validate referral code if provided
-    let referredById = null;
-    let usedReferralCodeId = null;
-    if (referralCode && referralCode.trim() && referralCode !== 'NEW') {
-      const codeStr = referralCode.trim();
-      const { rows: refCodes } = await query('SELECT id, user_id, status, unlock_date, expires_at FROM referral_codes WHERE code = $1', [codeStr]);
-      if (refCodes.length > 0) {
-        const rc = refCodes[0];
-        if (rc.status === 'used') {
-          return res.status(400).json({ message: 'This referral code has already been used' });
-        }
-        if (rc.status === 'expired') {
-          return res.status(400).json({ message: 'This referral code has expired' });
-        }
-        // Auto-unlock if unlock_date has passed
-        if (rc.status === 'locked' && rc.unlock_date && new Date(rc.unlock_date) <= new Date()) {
-          await query('UPDATE referral_codes SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', ['available', rc.id]);
-          rc.status = 'available';
-        }
-        if (rc.status === 'locked' || (rc.unlock_date && new Date(rc.unlock_date) > new Date())) {
-          return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
-        }
-        // Check if code has expired
-        if (rc.expires_at && new Date(rc.expires_at) < new Date()) {
-          await query("UPDATE referral_codes SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [rc.id]);
-          return res.status(400).json({ message: 'This referral code has expired' });
-        }
-        referredById = rc.user_id;
-        usedReferralCodeId = rc.id;
-      } else {
-        const { rows: referrerRows } = await query('SELECT id FROM users WHERE referral_code = $1', [codeStr]);
-        if (referrerRows.length === 0) {
-          return res.status(400).json({ message: 'Invalid referral code' });
-        }
-        referredById = referrerRows[0].id;
-      }
-    }
-
     // Check Bulk Account Monthly Limit (100 accounts per month)
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
     const { rows: monthlyPlanRows } = await query(
@@ -93,7 +55,67 @@ export const subscribeToPlan = async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Fetch user's available balance with row locking
+      // ── REFERRAL CODE: validate + consume atomically inside transaction ──
+      // If a code is provided, it MUST be valid and available. If not, throw
+      // an error → ROLLBACK → no account created. "NEW" or empty = no referral.
+      const hasReferralCode = referralCode && referralCode.trim() && referralCode.trim() !== 'NEW';
+      let referredById = null;
+
+      if (hasReferralCode) {
+        const codeStr = referralCode.trim();
+
+        // Lock the row immediately to prevent concurrent consumption
+        const { rows: refCodes } = await client.query(
+          'SELECT id, user_id, status, unlock_date, expires_at FROM referral_codes WHERE code = $1 FOR UPDATE',
+          [codeStr]
+        );
+
+        if (refCodes.length === 0) {
+          throw new Error('Invalid referral code. No account will be created. Please check the code and try again, or enter NEW to subscribe without a referral.');
+        }
+
+        const rc = refCodes[0];
+
+        if (rc.status === 'used') {
+          throw new Error('This referral code has already been used by another subscriber. No account will be created. Please use a different code or enter NEW to subscribe without a referral.');
+        }
+
+        if (rc.status === 'expired') {
+          throw new Error('This referral code has expired. No account will be created. Please use a valid code or enter NEW to subscribe without a referral.');
+        }
+
+        // Auto-unlock if CREST code's unlock_date has passed
+        if (rc.status === 'locked' && rc.unlock_date && new Date(rc.unlock_date) <= new Date()) {
+          await client.query('UPDATE referral_codes SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', ['available', rc.id]);
+          rc.status = 'available';
+        }
+
+        if (rc.status === 'locked') {
+          throw new Error('This referral code is not yet activated/unlocked. No account will be created. Please wait for it to unlock or enter NEW to subscribe without a referral.');
+        }
+
+        // Check if code has expired by expires_at
+        if (rc.expires_at && new Date(rc.expires_at) < new Date()) {
+          await client.query("UPDATE referral_codes SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [rc.id]);
+          throw new Error('This referral code has expired. No account will be created. Please use a valid code or enter NEW to subscribe without a referral.');
+        }
+
+        referredById = rc.user_id;
+
+        // If user already has a referrer, don't overwrite — just consume the code for credit
+        const { rows: existingUser } = await client.query('SELECT referred_by FROM users WHERE id = $1', [userId]);
+        if (!existingUser[0].referred_by) {
+          await client.query('UPDATE users SET referred_by = $1 WHERE id = $2', [referredById, userId]);
+        }
+
+        // Mark code as used (always, whether self-referral or not)
+        await client.query(
+          "UPDATE referral_codes SET status = 'used', used_by_user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+          [userId, rc.id]
+        );
+      }
+
+      // ── WALLET: validate + deduct ──
       const { rows: users } = await client.query(
         'SELECT available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE',
         [userId]
@@ -105,13 +127,12 @@ export const subscribeToPlan = async (req, res) => {
         throw new Error(`Insufficient wallet balance. This subscription requires a total upfront payment of ₦${totalFirstPayment.toLocaleString()} (₦${initialSavingsTotal.toLocaleString()} initial savings + ₦${regFeeTotal.toLocaleString()} registration fee for ${requestedAccounts} account${requestedAccounts > 1 ? 's' : ''}), but your wallet has ₦${availableBalance.toLocaleString()}. Please fund your wallet to proceed.`);
       }
 
-      // Deduct total first payment from balances
       await client.query(
         'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
         [totalFirstPayment, userId]
       );
 
-      // Create the plan
+      // ── CREATE PLAN ──
       const plan = await createSavingsPlan(userId, planName, targetAmount, requestedAccounts, clearanceRequired, refundOnly, autoPreferredDay, client);
 
       // Calculate end_date based on plan duration
@@ -133,9 +154,8 @@ export const subscribeToPlan = async (req, res) => {
         [endDate, plan.id]
       );
       Object.assign(plan, updatedPlanRows[0]);
-      // Adjust referral dates based on plan type (Legacy columns logic kept for backward compatibility)
+
       if (planName === 'SILVER') {
-        // SILVER plans unlock referrals automatically and expire in 90 days
         await client.query(
           `UPDATE users 
            SET referral_unlock_date = CURRENT_TIMESTAMP, 
@@ -143,76 +163,6 @@ export const subscribeToPlan = async (req, res) => {
            WHERE id = $1`,
           [userId]
         );
-      }
-
-      // Process referral code if provided
-      if (referredById) {
-        if (referredById === userId) {
-          // Self-referral: user used their own code — mark as used, set referred_by to own id
-          if (usedReferralCodeId) {
-            // Lock the code row inside the transaction to prevent concurrent consumption
-            const { rows: locked } = await client.query(
-              'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
-              [usedReferralCodeId]
-            );
-            if (locked.length === 0 || locked[0].status !== 'available') {
-              throw new Error('This referral code is no longer available. It may have been used by another user.');
-            }
-            await client.query(
-              "UPDATE users SET referred_by = $1 WHERE id = $2",
-              [userId, userId]
-            );
-            await client.query(
-              "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-              [usedReferralCodeId, userId]
-            );
-          }
-        } else {
-          // Check if user already has a referrer — never overwrite an existing referral
-          const { rows: existingUser } = await client.query(
-            'SELECT referred_by FROM users WHERE id = $1',
-            [userId]
-          );
-          if (!existingUser[0].referred_by) {
-            if (usedReferralCodeId) {
-              // Lock the code row inside the transaction to prevent concurrent consumption
-              const { rows: locked } = await client.query(
-                'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
-                [usedReferralCodeId]
-              );
-              if (locked.length === 0 || locked[0].status !== 'available') {
-                throw new Error('This referral code is no longer available. It may have been used by another user.');
-              }
-              await client.query(
-                "UPDATE users SET referred_by = $1 WHERE id = $2",
-                [referredById, userId]
-              );
-              await client.query(
-                "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-                [usedReferralCodeId, userId]
-              );
-            } else {
-              // Legacy referral (no referral_codes entry) — just set referred_by
-              await client.query(
-                "UPDATE users SET referred_by = $1 WHERE id = $2",
-                [referredById, userId]
-              );
-            }
-          } else if (usedReferralCodeId) {
-            // User already has a referrer — still consume the code to give credit to the code owner
-            const { rows: locked } = await client.query(
-              'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
-              [usedReferralCodeId]
-            );
-            if (locked.length === 0 || locked[0].status !== 'available') {
-              throw new Error('This referral code is no longer available. It may have been used by another user.');
-            }
-            await client.query(
-              "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-              [usedReferralCodeId, userId]
-            );
-          }
-        }
       }
 
       // Generate one referral code per account

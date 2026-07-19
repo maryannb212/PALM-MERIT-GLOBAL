@@ -71,55 +71,7 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
 
-    // Validate Referred By Code if provided
-    let referredById = null;
-    let usedReferralCodeId = null;
-
-    if (referredByCode && referredByCode.trim()) {
-      const codeStr = referredByCode.trim();
-      const { rows: refCodes } = await query('SELECT id, user_id, status, unlock_date, expires_at FROM referral_codes WHERE code = $1', [codeStr]);
-      
-      if (refCodes.length > 0) {
-        const rc = refCodes[0];
-        if (rc.status === 'used') {
-          return res.status(400).json({ message: 'This referral code has already been used' });
-        }
-        if (rc.status === 'expired') {
-          return res.status(400).json({ message: 'This referral code has expired' });
-        }
-        if (rc.status === 'locked' || (rc.unlock_date && new Date(rc.unlock_date) > new Date())) {
-          return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
-        }
-        // Check if code has expired
-        if (rc.expires_at && new Date(rc.expires_at) < new Date()) {
-          await query("UPDATE referral_codes SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [rc.id]);
-          return res.status(400).json({ message: 'This referral code has expired' });
-        }
-        
-        referredById = rc.user_id;
-        usedReferralCodeId = rc.id;
-      } else {
-        // Fallback to legacy user code
-        const { rows: referrerRows } = await query('SELECT id, referral_unlock_date, referral_expiry_date FROM users WHERE referral_code = $1', [codeStr]);
-        
-        if (referrerRows.length === 0) {
-          return res.status(400).json({ message: 'Invalid referral code' });
-        }
-
-        const referrer = referrerRows[0];
-        const unlockDate = referrer.referral_unlock_date ? new Date(referrer.referral_unlock_date) : null;
-        if (unlockDate && unlockDate > new Date()) {
-          return res.status(400).json({ message: 'This referral code is not yet activated/unlocked' });
-        }
-        
-        const expiryDate = referrer.referral_expiry_date ? new Date(referrer.referral_expiry_date) : null;
-        if (expiryDate && expiryDate < new Date()) {
-          return res.status(400).json({ message: 'This referral code has expired' });
-        }
-        
-        referredById = referrer.id;
-      }
-    }
+    // Referral code validation is done atomically inside the transaction (below).
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -149,11 +101,56 @@ export const registerUser = async (req, res) => {
 
     const emailToSave = normalizedEmail;
 
-    // Use a transaction to ensure user creation + referral code consumption are atomic
+    // Use a transaction to ensure referral code validation + user creation are atomic
     const client = await getClient();
     let user;
     try {
       await client.query('BEGIN');
+
+      // ── REFERRAL CODE: validate + consume atomically inside transaction ──
+      // If code is provided but invalid/used/expired, throw → ROLLBACK → no user created.
+      let referredById = null;
+
+      if (referredByCode && referredByCode.trim()) {
+        const codeStr = referredByCode.trim();
+
+        const { rows: refCodes } = await client.query(
+          'SELECT id, user_id, status, unlock_date, expires_at FROM referral_codes WHERE code = $1 FOR UPDATE',
+          [codeStr]
+        );
+
+        if (refCodes.length === 0) {
+          throw new Error('Invalid referral code. Please check the code and try again.');
+        }
+
+        const rc = refCodes[0];
+
+        if (rc.status === 'used') {
+          throw new Error('This referral code has already been used by another subscriber.');
+        }
+        if (rc.status === 'expired') {
+          throw new Error('This referral code has expired.');
+        }
+        // Auto-unlock if CREST code's unlock_date has passed
+        if (rc.status === 'locked' && rc.unlock_date && new Date(rc.unlock_date) <= new Date()) {
+          await client.query("UPDATE referral_codes SET status = 'available', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [rc.id]);
+          rc.status = 'available';
+        }
+        if (rc.status === 'locked') {
+          throw new Error('This referral code is not yet activated/unlocked.');
+        }
+        if (rc.expires_at && new Date(rc.expires_at) < new Date()) {
+          await client.query("UPDATE referral_codes SET status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [rc.id]);
+          throw new Error('This referral code has expired.');
+        }
+
+        referredById = rc.user_id;
+
+        // User doesn't exist yet (this is registration), so we just mark the code as consumed here.
+        // The code will be consumed AFTER user creation below to link used_by_user_id.
+        // Store rc.id for post-insert consumption.
+        var consumedReferralCodeId = rc.id;
+      }
 
       const sql = `
         INSERT INTO users (first_name, last_name, email, password_hash, phone, role, referral_code, referred_by, referral_unlock_date, referral_expiry_date, created_at)
@@ -175,18 +172,11 @@ export const registerUser = async (req, res) => {
       ]);
       user = newUser[0];
 
-      // If they used a plan-specific referral code, consume it atomically (fail registration if code is no longer available)
-      if (usedReferralCodeId && user) {
-        const { rows: locked } = await client.query(
-          'SELECT id, status FROM referral_codes WHERE id = $1 FOR UPDATE',
-          [usedReferralCodeId]
-        );
-        if (locked.length === 0 || locked[0].status !== 'available') {
-          throw new Error('This referral code is no longer available. It may have been used by another user. Please try again without a referral code.');
-        }
+      // Consume the referral code (link to the newly created user)
+      if (typeof consumedReferralCodeId !== 'undefined' && user) {
         await client.query(
-          "UPDATE referral_codes SET status = 'used', used_by_user_id = $2 WHERE id = $1",
-          [usedReferralCodeId, user.id]
+          "UPDATE referral_codes SET status = 'used', used_by_user_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+          [user.id, consumedReferralCodeId]
         );
       }
 
