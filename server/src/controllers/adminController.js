@@ -1403,12 +1403,30 @@ export const getUserCodes = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Auto-unlock codes past their unlock_date (same as user-facing getUserReferralCodes)
+    await query(
+      `UPDATE referral_codes SET status = 'available', updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND status = 'locked' AND unlock_date IS NOT NULL AND unlock_date <= NOW()`,
+      [id]
+    );
+
+    // Auto-expire codes past their expires_at
+    await query(
+      `UPDATE referral_codes SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND status IN ('available', 'locked') AND expires_at IS NOT NULL AND expires_at <= NOW()`,
+      [id]
+    );
+
     let statusFilter = '';
     const params = [id];
     if (status === 'available') {
       statusFilter = "AND rc.status = 'available'";
     } else if (status === 'used') {
       statusFilter = "AND rc.status = 'used'";
+    } else if (status === 'locked') {
+      statusFilter = "AND rc.status = 'locked'";
+    } else if (status === 'expired') {
+      statusFilter = "AND rc.status = 'expired'";
     }
 
     const codesResult = await query(
@@ -1498,6 +1516,218 @@ export const assignReferralCode = async (req, res) => {
   } catch (error) {
     console.error('Error assigning referral code:', error);
     res.status(500).json({ message: 'Server error assigning referral code' });
+  }
+};
+
+/**
+ * Unlock a locked referral code → set status to 'available', clear unlock_date
+ * PUT /api/admin/referral-codes/:codeId/unlock
+ */
+export const unlockReferralCode = async (req, res) => {
+  try {
+    const { codeId } = req.params;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const codeResult = await client.query(
+        `SELECT rc.*, u.first_name, u.last_name
+         FROM referral_codes rc
+         JOIN users u ON rc.user_id = u.id
+         WHERE rc.id = $1 FOR UPDATE`,
+        [codeId]
+      );
+
+      if (codeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Referral code not found' });
+      }
+
+      const code = codeResult.rows[0];
+      if (code.status !== 'locked') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Can only unlock locked codes. Current status: ${code.status}` });
+      }
+
+      await client.query(
+        `UPDATE referral_codes SET status = 'available', unlock_date = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [codeId]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: `Code ${code.code} unlocked successfully`,
+        code: { ...code, status: 'available', unlock_date: null }
+      });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error unlocking referral code:', error);
+    res.status(500).json({ message: 'Server error unlocking referral code' });
+  }
+};
+
+/**
+ * Lock an available referral code → set status to 'locked'
+ * PUT /api/admin/referral-codes/:codeId/lock
+ * Body: { unlockDate: ISO string (optional) }
+ */
+export const lockReferralCode = async (req, res) => {
+  try {
+    const { codeId } = req.params;
+    const { unlockDate } = req.body;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const codeResult = await client.query(
+        `SELECT rc.*, u.first_name, u.last_name
+         FROM referral_codes rc
+         JOIN users u ON rc.user_id = u.id
+         WHERE rc.id = $1 FOR UPDATE`,
+        [codeId]
+      );
+
+      if (codeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Referral code not found' });
+      }
+
+      const code = codeResult.rows[0];
+      if (code.status !== 'available') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Can only lock available codes. Current status: ${code.status}` });
+      }
+
+      const lockDate = unlockDate || null;
+      await client.query(
+        `UPDATE referral_codes SET status = 'locked', unlock_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [lockDate, codeId]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: `Code ${code.code} locked successfully`,
+        code: { ...code, status: 'locked', unlock_date: lockDate }
+      });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error locking referral code:', error);
+    res.status(500).json({ message: 'Server error locking referral code' });
+  }
+};
+
+/**
+ * Unassign a used referral code → clear used_by_user_id, set status to 'available'
+ * PUT /api/admin/referral-codes/:codeId/unassign
+ */
+export const unassignReferralCode = async (req, res) => {
+  try {
+    const { codeId } = req.params;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const codeResult = await client.query(
+        `SELECT rc.*, u.first_name AS owner_name, u.last_name AS owner_last_name
+         FROM referral_codes rc
+         JOIN users u ON rc.user_id = u.id
+         WHERE rc.id = $1 FOR UPDATE`,
+        [codeId]
+      );
+
+      if (codeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Referral code not found' });
+      }
+
+      const code = codeResult.rows[0];
+      if (code.status !== 'used') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Can only unassign used codes. Current status: ${code.status}` });
+      }
+
+      await client.query(
+        `UPDATE referral_codes SET used_by_user_id = NULL, status = 'available', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [codeId]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: `Code ${code.code} unassigned successfully`,
+        code: { ...code, status: 'available', used_by_user_id: null }
+      });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error unassigning referral code:', error);
+    res.status(500).json({ message: 'Server error unassigning referral code' });
+  }
+};
+
+/**
+ * Delete a referral code permanently
+ * DELETE /api/admin/referral-codes/:codeId
+ */
+export const deleteReferralCode = async (req, res) => {
+  try {
+    const { codeId } = req.params;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const codeResult = await client.query(
+        `SELECT rc.*, u.first_name AS owner_name, u.last_name AS owner_last_name
+         FROM referral_codes rc
+         JOIN users u ON rc.user_id = u.id
+         WHERE rc.id = $1 FOR UPDATE`,
+        [codeId]
+      );
+
+      if (codeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Referral code not found' });
+      }
+
+      const code = codeResult.rows[0];
+
+      await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: `Code ${code.code} deleted permanently`,
+        code
+      });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error deleting referral code:', error);
+    res.status(500).json({ message: 'Server error deleting referral code' });
   }
 };
 

@@ -34,7 +34,11 @@ import {
   getDailyAccountStats,
   getUserCodes,
   assignReferralCode,
-  reassignReferralCode
+  reassignReferralCode,
+  unlockReferralCode,
+  lockReferralCode,
+  unassignReferralCode,
+  deleteReferralCode
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -96,6 +100,10 @@ router.post('/impersonate/:userId', impersonateUser);
 router.get('/codes/users/:id', getUserCodes);
 router.post('/referral-codes/:codeId/assign', assignReferralCode);
 router.put('/referral-codes/:codeId/reassign', reassignReferralCode);
+router.put('/referral-codes/:codeId/unlock', unlockReferralCode);
+router.put('/referral-codes/:codeId/lock', lockReferralCode);
+router.put('/referral-codes/:codeId/unassign', unassignReferralCode);
+router.delete('/referral-codes/:codeId', deleteReferralCode);
 // Security Locks
 router.get('/security/locks', getPageLocks);
 router.put('/security/locks', updatePageLock);

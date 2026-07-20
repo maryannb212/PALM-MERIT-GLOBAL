@@ -3,9 +3,13 @@ import { toast } from 'react-toastify';
 import {
   FaSearch, FaArrowLeft, FaKey, FaUserFriends, FaCheckCircle,
   FaTimesCircle, FaLock, FaExchangeAlt, FaChevronLeft, FaChevronRight,
-  FaUsers, FaShieldAlt, FaUserCircle, FaLink
+  FaUsers, FaShieldAlt, FaUserCircle, FaLink, FaUnlock, FaTrash, FaBan, FaEllipsisV
 } from 'react-icons/fa';
 import API from '../../services/api';
+import {
+  unlockReferralCode, lockReferralCode, unassignReferralCode, deleteReferralCode
+} from '../../services/api';
+import '../../components/DepositModal.css';
 import './Admin.css';
 
 const PAGE_SIZE = 20;
@@ -27,8 +31,17 @@ const AdminCodeManager = () => {
   const [targetResults, setTargetResults] = useState([]);
   const [targetLoading, setTargetLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   useEffect(() => { fetchUsers(); }, []);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const close = () => setOpenMenuId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openMenuId]);
 
   const fetchUsers = async () => {
     try {
@@ -134,6 +147,61 @@ const AdminCodeManager = () => {
     }
   };
 
+  const handleUnlock = async (codeId) => {
+    setActionLoading(true);
+    try {
+      await unlockReferralCode(codeId);
+      toast.success('Code unlocked successfully');
+      setConfirmModal(null);
+      fetchUserCodes(selectedUser.id, codeFilter);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to unlock code');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleLock = async (codeId) => {
+    setActionLoading(true);
+    try {
+      await lockReferralCode(codeId);
+      toast.success('Code locked successfully');
+      fetchUserCodes(selectedUser.id, codeFilter);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to lock code');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnassign = async (codeId) => {
+    setActionLoading(true);
+    try {
+      await unassignReferralCode(codeId);
+      toast.success('Code unassigned successfully');
+      setConfirmModal(null);
+      fetchUserCodes(selectedUser.id, codeFilter);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to unassign code');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async (codeId) => {
+    setActionLoading(true);
+    try {
+      await deleteReferralCode(codeId);
+      toast.success('Code deleted permanently');
+      setConfirmModal(null);
+      fetchUserCodes(selectedUser.id, codeFilter);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete code');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const filteredCodes = useMemo(() => {
     const term = codesSearch.toLowerCase();
     if (!term) return codes;
@@ -164,6 +232,7 @@ const AdminCodeManager = () => {
       available: { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', icon: <FaCheckCircle size={10} />, label: 'Available' },
       locked: { bg: '#fffbeb', color: '#d97706', border: '#fde68a', icon: <FaLock size={10} />, label: 'Locked' },
       used: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca', icon: <FaTimesCircle size={10} />, label: 'Used' },
+      expired: { bg: '#f1f5f9', color: '#94a3b8', border: '#e2e8f0', icon: <FaBan size={10} />, label: 'Expired' },
     }[status] || { bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0', icon: null, label: status };
     return (
       <span style={{
@@ -228,6 +297,7 @@ const AdminCodeManager = () => {
     const availableCount = codes.filter(c => c.status === 'available').length;
     const usedCount = codes.filter(c => c.status === 'used').length;
     const lockedCount = codes.filter(c => c.status === 'locked').length;
+    const expiredCount = codes.filter(c => c.status === 'expired').length;
 
     return (
       <div className="admin-page-content">
@@ -257,6 +327,7 @@ const AdminCodeManager = () => {
             { label: 'Available', count: availableCount, color: '#16a34a', filter: 'available' },
             { label: 'Used', count: usedCount, color: '#dc2626', filter: 'used' },
             { label: 'Locked', count: lockedCount, color: '#d97706', filter: 'locked' },
+            { label: 'Expired', count: expiredCount, color: '#94a3b8', filter: 'expired' },
           ].map(s => (
             <div key={s.filter} className="stat-card" onClick={() => handleFilterChange(s.filter)}
               style={{ cursor: 'pointer', border: codeFilter === s.filter ? `2px solid ${s.color}` : '2px solid transparent' }}>
@@ -312,18 +383,66 @@ const AdminCodeManager = () => {
                       <td style={{ fontSize: '0.8rem', color: '#64748b' }}>{c.used_by_email || '—'}</td>
                       <td style={{ fontSize: '0.85rem' }}>{c.used_at ? formatDateTime(c.used_at) : '—'}</td>
                       <td style={{ fontSize: '0.85rem' }}>{formatDate(c.created_at)}</td>
-                      <td className="text-right">
-                        {c.status === 'available' ? (
-                          <button className="btn btn-sm" onClick={() => setAssignModal({ codeId: c.id, code: c.code, type: 'assign' })}
-                            style={{ padding: '5px 12px', fontSize: '0.75rem', background: '#800020', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            <FaUserFriends size={10} /> Assign
-                          </button>
-                        ) : c.status === 'used' ? (
-                          <button className="btn btn-sm" onClick={() => setAssignModal({ codeId: c.id, code: c.code, type: 'reassign' })}
-                            style={{ padding: '5px 12px', fontSize: '0.75rem', background: '#d4af37', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            <FaExchangeAlt size={10} /> Reassign
-                          </button>
-                        ) : null}
+                      <td className="text-right" style={{ whiteSpace: 'nowrap', position: 'relative' }}>
+                        {c.status === 'available' && (
+                          <>
+                            <button className="btn btn-sm" onClick={() => setAssignModal({ codeId: c.id, code: c.code, type: 'assign' })}
+                              style={{ padding: '5px 10px', fontSize: '0.7rem', background: '#800020', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <FaUserFriends size={10} /> Assign
+                            </button>{' '}
+                            <button className="btn btn-sm" onClick={() => setConfirmModal({ type: 'lock', codeId: c.id, code: c.code })}
+                              style={{ padding: '5px 10px', fontSize: '0.7rem', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <FaLock size={10} /> Lock
+                            </button>{' '}
+                            <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
+                              style={{ padding: '5px 8px', fontSize: '0.7rem', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                              <FaEllipsisV size={10} />
+                            </button>
+                          </>
+                        )}
+                        {c.status === 'locked' && (
+                          <>
+                            <button className="btn btn-sm" onClick={() => setConfirmModal({ type: 'unlock', codeId: c.id, code: c.code })}
+                              style={{ padding: '5px 10px', fontSize: '0.7rem', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <FaUnlock size={10} /> Unlock
+                            </button>{' '}
+                            <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
+                              style={{ padding: '5px 8px', fontSize: '0.7rem', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                              <FaEllipsisV size={10} />
+                            </button>
+                          </>
+                        )}
+                        {c.status === 'used' && (
+                          <>
+                            <button className="btn btn-sm" onClick={() => setAssignModal({ codeId: c.id, code: c.code, type: 'reassign' })}
+                              style={{ padding: '5px 10px', fontSize: '0.7rem', background: '#d4af37', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <FaExchangeAlt size={10} /> Reassign
+                            </button>{' '}
+                            <button className="btn btn-sm" onClick={() => setConfirmModal({ type: 'unassign', codeId: c.id, code: c.code })}
+                              style={{ padding: '5px 10px', fontSize: '0.7rem', background: '#64748b', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <FaBan size={10} /> Unassign
+                            </button>{' '}
+                            <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
+                              style={{ padding: '5px 8px', fontSize: '0.7rem', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                              <FaEllipsisV size={10} />
+                            </button>
+                          </>
+                        )}
+                        {openMenuId === c.id && (
+                          <div onClick={(e) => e.stopPropagation()}
+                            style={{
+                              position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 50,
+                              background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.12)', minWidth: '140px', padding: '4px 0'
+                            }}>
+                            <button onClick={() => { setOpenMenuId(null); setConfirmModal({ type: 'delete', codeId: c.id, code: c.code }); }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', fontSize: '0.8rem', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', textAlign: 'left' }}
+                              onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                              <FaTrash size={11} /> Delete
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -381,6 +500,60 @@ const AdminCodeManager = () => {
                 {targetSearch.length < 2 && (
                   <p style={{ textAlign: 'center', color: '#94a3b8', padding: '20px' }}>Type at least 2 characters to search</p>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm Modal (Unlock / Lock / Unassign / Delete) */}
+        {confirmModal && (
+          <div className="modal-overlay" onClick={() => setConfirmModal(null)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px', margin: 'auto' }}>
+              <header className="modal-header" style={{
+                background: confirmModal.type === 'delete' ? '#dc2626' : confirmModal.type === 'lock' ? '#d97706' : confirmModal.type === 'unlock' ? '#16a34a' : '#64748b',
+                flexShrink: 0
+              }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {confirmModal.type === 'delete' && <><FaTrash /> Delete Code</>}
+                  {confirmModal.type === 'unassign' && <><FaBan /> Unassign Code</>}
+                  {confirmModal.type === 'lock' && <><FaLock /> Lock Code</>}
+                  {confirmModal.type === 'unlock' && <><FaUnlock /> Unlock Code</>}
+                </h3>
+                <button className="close-btn" onClick={() => setConfirmModal(null)}>&times;</button>
+              </header>
+              <div style={{ padding: '24px', textAlign: 'center' }}>
+                <code style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: '#800020', display: 'block', marginBottom: '16px' }}>
+                  {confirmModal.code}
+                </code>
+                <p style={{ fontSize: '0.95rem', color: '#334155', marginBottom: '8px' }}>
+                  {confirmModal.type === 'delete' && 'This will permanently delete this referral code. This action cannot be undone.'}
+                  {confirmModal.type === 'unassign' && 'This will remove the current downline from this code. The code will become available again.'}
+                  {confirmModal.type === 'lock' && 'This will lock this code so it cannot be used until an admin unlocks it.'}
+                  {confirmModal.type === 'unlock' && 'This will unlock this code making it available for assignment.'}
+                </p>
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '24px' }}>
+                  Are you sure you want to proceed?
+                </p>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                  <button onClick={() => setConfirmModal(null)}
+                    style={{ padding: '10px 24px', fontSize: '0.9rem', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
+                    Cancel
+                  </button>
+                  <button onClick={() => {
+                    if (confirmModal.type === 'delete') handleDelete(confirmModal.codeId);
+                    else if (confirmModal.type === 'unassign') handleUnassign(confirmModal.codeId);
+                    else if (confirmModal.type === 'lock') handleLock(confirmModal.codeId);
+                    else if (confirmModal.type === 'unlock') handleUnlock(confirmModal.codeId);
+                  }}
+                    disabled={actionLoading}
+                    style={{
+                      padding: '10px 24px', fontSize: '0.9rem', color: '#fff', border: 'none', borderRadius: '8px',
+                      cursor: 'pointer', fontWeight: 600, opacity: actionLoading ? 0.7 : 1,
+                      background: confirmModal.type === 'delete' ? '#dc2626' : confirmModal.type === 'lock' ? '#d97706' : confirmModal.type === 'unlock' ? '#16a34a' : '#64748b'
+                    }}>
+                    {actionLoading ? 'Processing...' : confirmModal.type === 'delete' ? 'Delete Permanently' : confirmModal.type === 'lock' ? 'Lock Code' : confirmModal.type === 'unlock' ? 'Unlock Code' : 'Unassign'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

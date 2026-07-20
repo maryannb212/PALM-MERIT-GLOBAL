@@ -203,5 +203,13 @@ export const assignReferralCode = (codeId, targetUserId) =>
   API.post(`/admin/referral-codes/${codeId}/assign`, { targetUserId });
 export const reassignReferralCode = (codeId, targetUserId) =>
   API.put(`/admin/referral-codes/${codeId}/reassign`, { targetUserId });
+export const unlockReferralCode = (codeId) =>
+  API.put(`/admin/referral-codes/${codeId}/unlock`);
+export const lockReferralCode = (codeId, unlockDate) =>
+  API.put(`/admin/referral-codes/${codeId}/lock`, { unlockDate });
+export const unassignReferralCode = (codeId) =>
+  API.put(`/admin/referral-codes/${codeId}/unassign`);
+export const deleteReferralCode = (codeId) =>
+  API.delete(`/admin/referral-codes/${codeId}`);
 
 export default API;
