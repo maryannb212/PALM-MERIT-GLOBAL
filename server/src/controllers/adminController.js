@@ -1701,9 +1701,11 @@ export const deleteReferralCode = async (req, res) => {
       await client.query('BEGIN');
 
       const codeResult = await client.query(
-        `SELECT rc.*, u.first_name AS owner_name, u.last_name AS owner_last_name
+        `SELECT rc.*, u.first_name AS owner_name, u.last_name AS owner_last_name,
+                sp.plan_name, sp.status AS plan_status, sp.user_id AS plan_user_id
          FROM referral_codes rc
          JOIN users u ON rc.user_id = u.id
+         LEFT JOIN savings_plans sp ON rc.plan_id = sp.id
          WHERE rc.id = $1 FOR UPDATE`,
         [codeId]
       );
@@ -1715,12 +1717,21 @@ export const deleteReferralCode = async (req, res) => {
 
       const code = codeResult.rows[0];
 
-      await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
+      if (code.plan_id) {
+        await client.query(
+          `DELETE FROM savings_plans WHERE id = $1`,
+          [code.plan_id]
+        );
+      } else {
+        await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
+      }
 
       await client.query('COMMIT');
 
       res.json({
-        message: `Code ${code.code} deleted permanently`,
+        message: code.plan_id
+          ? `Account (${code.plan_name}) and all associated codes deleted permanently`
+          : `Code ${code.code} deleted permanently`,
         code
       });
     } catch (e) {
