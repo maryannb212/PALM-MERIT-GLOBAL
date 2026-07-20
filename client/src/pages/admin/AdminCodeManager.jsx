@@ -310,6 +310,12 @@ const AdminCodeManager = () => {
             <div>
               <h2>{selectedUser.first_name} {selectedUser.last_name}</h2>
               <p className="text-muted">{selectedUser.email} | Codes: {codes.length}</p>
+              {selectedUser.upline_first_name && (
+                <p className="text-muted" style={{ fontSize: '0.8rem', marginTop: 2 }}>
+                  <FaLink size={10} style={{ marginRight: 4 }} />
+                  Upline: {selectedUser.upline_first_name} {selectedUser.upline_last_name} ({selectedUser.upline_email})
+                </p>
+              )}
             </div>
           </div>
           <div className="header-actions">

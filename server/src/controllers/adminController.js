@@ -1396,7 +1396,11 @@ export const getUserCodes = async (req, res) => {
     const status = req.query.status || 'all';
 
     const userResult = await query(
-      `SELECT id, first_name, last_name, email, phone, referral_code, created_at FROM users WHERE id = $1`,
+      `SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.referral_code, u.created_at,
+              r.first_name AS upline_first_name, r.last_name AS upline_last_name, r.email AS upline_email
+       FROM users u
+       LEFT JOIN users r ON u.referred_by = r.id
+       WHERE u.id = $1`,
       [id]
     );
     if (userResult.rows.length === 0) {
