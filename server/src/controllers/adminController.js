@@ -1718,18 +1718,24 @@ export const deleteReferralCode = async (req, res) => {
       const code = codeResult.rows[0];
 
       if (code.plan_id) {
-        await client.query(
-          `DELETE FROM savings_plans WHERE id = $1`,
-          [code.plan_id]
-        );
+        // Check if the plan still exists
+        const planCheck = await client.query('SELECT id FROM savings_plans WHERE id = $1 FOR UPDATE', [code.plan_id]);
+        if (planCheck.rows.length > 0) {
+          // Plan exists — delete it (cascades to referral_codes, defaults, payouts)
+          await client.query('DELETE FROM savings_plans WHERE id = $1', [code.plan_id]);
+        } else {
+          // Plan already deleted — just delete this orphaned code
+          await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
+        }
       } else {
+        // No plan linked — just delete the code
         await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
       }
 
       await client.query('COMMIT');
 
       res.json({
-        message: code.plan_id
+        message: code.plan_name
           ? `Account (${code.plan_name}) and all associated codes deleted permanently`
           : `Code ${code.code} deleted permanently`,
         code
