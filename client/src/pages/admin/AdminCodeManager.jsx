@@ -532,7 +532,7 @@ const AdminCodeManager = () => {
                   {confirmModal.code}
                 </code>
                 <p style={{ fontSize: '0.95rem', color: '#334155', marginBottom: '8px' }}>
-                  {confirmModal.type === 'delete' && 'This will permanently delete the account (savings plan) and all its referral codes. This action cannot be undone.'}
+                  {confirmModal.type === 'delete' && 'This will permanently delete this referral code. The savings plan and all other codes will remain intact. This action cannot be undone.'}
                   {confirmModal.type === 'unassign' && 'This will remove the current downline from this code. The code will become available again.'}
                   {confirmModal.type === 'lock' && 'This will lock this code so it cannot be used until an admin unlocks it.'}
                   {confirmModal.type === 'unlock' && 'This will unlock this code making it available for assignment.'}
