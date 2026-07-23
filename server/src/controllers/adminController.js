@@ -1703,22 +1703,20 @@ export const deleteReferralCode = async (req, res) => {
       const codeResult = await client.query(
         `SELECT rc.*, u.first_name AS owner_name, u.last_name AS owner_last_name,
                 sp.plan_name, sp.status AS plan_status, sp.user_id AS plan_user_id,
-                sp.number_of_accounts, sp.current_amount, sp.target_amount, sp.id AS plan_id_ref
+                sp.number_of_accounts, sp.current_amount, sp.target_amount
          FROM referral_codes rc
          JOIN users u ON rc.user_id = u.id
          LEFT JOIN savings_plans sp ON rc.plan_id = sp.id
-         WHERE rc.id = $1 FOR UPDATE`,
+         WHERE rc.id = $1`,
         [codeId]
       );
 
       if (codeResult.rows.length === 0) {
-        await client.query('ROLLBACK');
+        await client.query('ROLLBACK').catch(() => {});
         return res.status(404).json({ message: 'Referral code not found' });
       }
 
       const code = codeResult.rows[0];
-
-      await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
 
       let planDeleted = false;
       let transactionsDeleted = 0;
@@ -1727,41 +1725,61 @@ export const deleteReferralCode = async (req, res) => {
 
       if (code.plan_id) {
         const remainingResult = await client.query(
-          'SELECT COUNT(*)::int AS count FROM referral_codes WHERE plan_id = $1',
-          [code.plan_id]
+          'SELECT COUNT(*)::int AS count FROM referral_codes WHERE plan_id = $1 AND id != $2',
+          [code.plan_id, codeId]
         );
         const remainingCodes = remainingResult.rows[0].count;
 
         if (remainingCodes === 0) {
-          const txResult = await client.query(
-            'DELETE FROM transactions WHERE plan_id = $1',
-            [code.plan_id]
-          );
-          transactionsDeleted = txResult.rowCount;
+          try {
+            const txResult = await client.query(
+              'DELETE FROM transactions WHERE plan_id = $1',
+              [code.plan_id]
+            );
+            transactionsDeleted = txResult.rowCount;
+          } catch (txErr) {
+            console.error('Error deleting transactions for plan:', txErr.message);
+          }
 
-          const defResult = await client.query(
-            'DELETE FROM defaults WHERE plan_id = $1',
-            [code.plan_id]
-          );
-          defaultsDeleted = defResult.rowCount;
+          try {
+            const defResult = await client.query(
+              'DELETE FROM defaults WHERE plan_id = $1',
+              [code.plan_id]
+            );
+            defaultsDeleted = defResult.rowCount;
+          } catch (defErr) {
+            console.error('Error deleting defaults for plan:', defErr.message);
+          }
 
-          const payResult = await client.query(
-            'DELETE FROM payouts WHERE plan_id = $1',
-            [code.plan_id]
-          );
-          payoutsDeleted = payResult.rowCount;
+          try {
+            const payResult = await client.query(
+              'DELETE FROM payouts WHERE plan_id = $1',
+              [code.plan_id]
+            );
+            payoutsDeleted = payResult.rowCount;
+          } catch (payErr) {
+            console.error('Error deleting payouts for plan:', payErr.message);
+          }
 
-          await client.query(
-            'DELETE FROM referral_codes WHERE plan_id = $1',
-            [code.plan_id]
-          );
+          try {
+            await client.query(
+              'DELETE FROM referral_codes WHERE plan_id = $1 AND id != $2',
+              [code.plan_id, codeId]
+            );
+          } catch (rcErr) {
+            console.error('Error deleting remaining referral codes:', rcErr.message);
+          }
 
-          await client.query(
-            'DELETE FROM savings_plans WHERE id = $1',
-            [code.plan_id]
-          );
-
-          planDeleted = true;
+          try {
+            await client.query(
+              'DELETE FROM savings_plans WHERE id = $1',
+              [code.plan_id]
+            );
+            planDeleted = true;
+          } catch (spErr) {
+            console.error('Error deleting savings plan:', spErr.message, spErr.code, spErr.detail);
+            throw spErr;
+          }
         } else {
           await client.query(
             `UPDATE savings_plans
@@ -1773,6 +1791,8 @@ export const deleteReferralCode = async (req, res) => {
           );
         }
       }
+
+      await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
 
       await client.query('COMMIT');
 
@@ -1795,7 +1815,7 @@ export const deleteReferralCode = async (req, res) => {
         payoutsDeleted
       });
     } catch (e) {
-      await client.query('ROLLBACK');
+      try { await client.query('ROLLBACK'); } catch (rbErr) { console.error('ROLLBACK failed:', rbErr.message); }
       console.error('Error deleting referral code (inner):', e.message, e.code, e.detail);
       throw e;
     } finally {
@@ -1803,7 +1823,7 @@ export const deleteReferralCode = async (req, res) => {
     }
   } catch (error) {
     console.error('Error deleting referral code:', error.message, error.code, error.detail);
-    res.status(500).json({ message: 'Server error deleting referral code' });
+    res.status(500).json({ message: error.message || 'Server error deleting referral code' });
   }
 };
 
