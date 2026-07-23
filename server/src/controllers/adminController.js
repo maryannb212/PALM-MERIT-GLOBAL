@@ -1712,7 +1712,7 @@ export const deleteReferralCode = async (req, res) => {
       );
 
       if (codeResult.rows.length === 0) {
-        await client.query('ROLLBACK').catch(() => {});
+        await client.query('ROLLBACK');
         return res.status(404).json({ message: 'Referral code not found' });
       }
 
@@ -1731,54 +1731,42 @@ export const deleteReferralCode = async (req, res) => {
         const remainingCodes = remainingResult.rows[0].count;
 
         if (remainingCodes === 0) {
+          await client.query('SAVEPOINT cleanup');
+
           try {
             const txResult = await client.query(
               'DELETE FROM transactions WHERE plan_id = $1',
               [code.plan_id]
             );
             transactionsDeleted = txResult.rowCount;
-          } catch (txErr) {
-            console.error('Error deleting transactions for plan:', txErr.message);
-          }
 
-          try {
             const defResult = await client.query(
               'DELETE FROM defaults WHERE plan_id = $1',
               [code.plan_id]
             );
             defaultsDeleted = defResult.rowCount;
-          } catch (defErr) {
-            console.error('Error deleting defaults for plan:', defErr.message);
-          }
 
-          try {
             const payResult = await client.query(
               'DELETE FROM payouts WHERE plan_id = $1',
               [code.plan_id]
             );
             payoutsDeleted = payResult.rowCount;
-          } catch (payErr) {
-            console.error('Error deleting payouts for plan:', payErr.message);
-          }
 
-          try {
             await client.query(
               'DELETE FROM referral_codes WHERE plan_id = $1 AND id != $2',
               [code.plan_id, codeId]
             );
-          } catch (rcErr) {
-            console.error('Error deleting remaining referral codes:', rcErr.message);
-          }
 
-          try {
             await client.query(
               'DELETE FROM savings_plans WHERE id = $1',
               [code.plan_id]
             );
             planDeleted = true;
+
+            await client.query('RELEASE SAVEPOINT cleanup');
           } catch (spErr) {
-            console.error('Error deleting savings plan:', spErr.message, spErr.code, spErr.detail);
-            throw spErr;
+            console.error('Plan cleanup failed, rolling back cleanup only:', spErr.message, spErr.code, spErr.detail);
+            await client.query('ROLLBACK TO SAVEPOINT cleanup');
           }
         } else {
           await client.query(
@@ -1803,7 +1791,7 @@ export const deleteReferralCode = async (req, res) => {
         if (defaultsDeleted > 0) summary.push(`${defaultsDeleted} default(s) removed`);
         if (payoutsDeleted > 0) summary.push(`${payoutsDeleted} payout(s) removed`);
       } else if (code.plan_id) {
-        summary.push(`Plan accounts reduced (remaining codes: ${code.number_of_accounts > 1 ? code.number_of_accounts - 1 : 1})`);
+        summary.push(`Plan accounts reduced`);
       }
 
       res.json({
@@ -1816,7 +1804,7 @@ export const deleteReferralCode = async (req, res) => {
       });
     } catch (e) {
       try { await client.query('ROLLBACK'); } catch (rbErr) { console.error('ROLLBACK failed:', rbErr.message); }
-      console.error('Error deleting referral code (inner):', e.message, e.code, e.detail);
+      console.error('Error deleting referral code:', e.message, e.code, e.detail);
       throw e;
     } finally {
       client.release();
