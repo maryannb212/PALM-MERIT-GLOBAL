@@ -191,8 +191,8 @@ const AdminCodeManager = () => {
   const handleDelete = async (codeId) => {
     setActionLoading(true);
     try {
-      await deleteReferralCode(codeId);
-      toast.success('Code deleted permanently');
+      const { data } = await deleteReferralCode(codeId);
+      toast.success(data.message || 'Code and account deleted permanently');
       setConfirmModal(null);
       fetchUserCodes(selectedUser.id, codeFilter);
     } catch (err) {
@@ -532,7 +532,7 @@ const AdminCodeManager = () => {
                   {confirmModal.code}
                 </code>
                 <p style={{ fontSize: '0.95rem', color: '#334155', marginBottom: '8px' }}>
-                  {confirmModal.type === 'delete' && 'This will permanently delete this referral code. The savings plan and all other codes will remain intact. This action cannot be undone.'}
+                  {confirmModal.type === 'delete' && 'This will permanently delete this referral code and its associated savings plan (if no other codes reference it), along with all linked transactions, defaults, and payouts. This action cannot be undone.'}
                   {confirmModal.type === 'unassign' && 'This will remove the current downline from this code. The code will become available again.'}
                   {confirmModal.type === 'lock' && 'This will lock this code so it cannot be used until an admin unlocks it.'}
                   {confirmModal.type === 'unlock' && 'This will unlock this code making it available for assignment.'}

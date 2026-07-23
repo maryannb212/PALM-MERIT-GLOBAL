@@ -1702,11 +1702,12 @@ export const deleteReferralCode = async (req, res) => {
 
       const codeResult = await client.query(
         `SELECT rc.*, u.first_name AS owner_name, u.last_name AS owner_last_name,
-                sp.plan_name, sp.status AS plan_status, sp.user_id AS plan_user_id
+                sp.plan_name, sp.status AS plan_status, sp.user_id AS plan_user_id,
+                sp.number_of_accounts, sp.current_amount, sp.target_amount, sp.id AS plan_id_ref
          FROM referral_codes rc
          JOIN users u ON rc.user_id = u.id
          LEFT JOIN savings_plans sp ON rc.plan_id = sp.id
-         WHERE rc.id = $1`,
+         WHERE rc.id = $1 FOR UPDATE`,
         [codeId]
       );
 
@@ -1719,11 +1720,79 @@ export const deleteReferralCode = async (req, res) => {
 
       await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
 
+      let planDeleted = false;
+      let transactionsDeleted = 0;
+      let defaultsDeleted = 0;
+      let payoutsDeleted = 0;
+
+      if (code.plan_id) {
+        const remainingResult = await client.query(
+          'SELECT COUNT(*)::int AS count FROM referral_codes WHERE plan_id = $1',
+          [code.plan_id]
+        );
+        const remainingCodes = remainingResult.rows[0].count;
+
+        if (remainingCodes === 0) {
+          const txResult = await client.query(
+            'DELETE FROM transactions WHERE plan_id = $1',
+            [code.plan_id]
+          );
+          transactionsDeleted = txResult.rowCount;
+
+          const defResult = await client.query(
+            'DELETE FROM defaults WHERE plan_id = $1',
+            [code.plan_id]
+          );
+          defaultsDeleted = defResult.rowCount;
+
+          const payResult = await client.query(
+            'DELETE FROM payouts WHERE plan_id = $1',
+            [code.plan_id]
+          );
+          payoutsDeleted = payResult.rowCount;
+
+          await client.query(
+            'DELETE FROM referral_codes WHERE plan_id = $1',
+            [code.plan_id]
+          );
+
+          await client.query(
+            'DELETE FROM savings_plans WHERE id = $1',
+            [code.plan_id]
+          );
+
+          planDeleted = true;
+        } else {
+          await client.query(
+            `UPDATE savings_plans
+             SET number_of_accounts = GREATEST(number_of_accounts - 1, 1),
+                 accounts_cleared = LEAST(accounts_cleared, GREATEST(number_of_accounts - 1, 1)),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [code.plan_id]
+          );
+        }
+      }
+
       await client.query('COMMIT');
 
+      const summary = [`Code ${code.code} deleted permanently`];
+      if (planDeleted) {
+        summary.push(`Savings plan (${code.plan_name}) deleted`);
+        if (transactionsDeleted > 0) summary.push(`${transactionsDeleted} transaction(s) removed`);
+        if (defaultsDeleted > 0) summary.push(`${defaultsDeleted} default(s) removed`);
+        if (payoutsDeleted > 0) summary.push(`${payoutsDeleted} payout(s) removed`);
+      } else if (code.plan_id) {
+        summary.push(`Plan accounts reduced (remaining codes: ${code.number_of_accounts > 1 ? code.number_of_accounts - 1 : 1})`);
+      }
+
       res.json({
-        message: `Code ${code.code} deleted permanently`,
-        code
+        message: summary.join('. '),
+        code,
+        planDeleted,
+        transactionsDeleted,
+        defaultsDeleted,
+        payoutsDeleted
       });
     } catch (e) {
       await client.query('ROLLBACK');
