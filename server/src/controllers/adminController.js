@@ -784,7 +784,7 @@ export const approveEligibility = async (req, res) => {
       });
     }
 
-    let newStatus = 'pending_settlement';
+    let newStatus = 'pending';
     let payoutDate = null;
     const planStart = new Date(plan.start_date);
 
@@ -826,7 +826,7 @@ export const approveEligibility = async (req, res) => {
           INSERT INTO notifications (user_id, title, message, type)
           VALUES ($1, 'Clearance Required', $2, 'clearance')
         `, [plan.user_id, msg]);
-      } else if (newStatus === 'pending_settlement') {
+      } else if (newStatus === 'pending') {
         const dateStr = payoutDate ? new Date(payoutDate).toLocaleDateString('en-NG') : 'the scheduled date';
         const msg = `${plan.plan_name} program has been approved for payout. Settlement will be processed on ${dateStr}.`;
         await client.query(`
@@ -1271,7 +1271,7 @@ export const adminSettleClearance = async (req, res) => {
       const plan = plans[0];
 
       if (plan.status !== 'pending_settlement') {
-        throw new Error('Plan is not in pending settlement status');
+        throw new Error('Plan is not pending admin approval');
       }
 
       await client.query('BEGIN');
@@ -1292,7 +1292,7 @@ export const adminSettleClearance = async (req, res) => {
         VALUES ($1, $2, 'admin_settlement', $3, 'completed', $4)
       `, [plan.user_id, planId, remainingFee, reference]);
 
-      const msg = `${plan.plan_name} program has been settled. Your payout is now available.`;
+      const msg = `${plan.plan_name} program has been approved and paid.`;
       await client.query(`
         INSERT INTO notifications (user_id, title, message, type)
         VALUES ($1, 'Plan Settled', $2, 'payout')

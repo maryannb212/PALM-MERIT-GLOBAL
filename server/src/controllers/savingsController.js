@@ -284,7 +284,7 @@ export const payClearanceFee = async (req, res) => {
         );
       }
 
-      // Only transition to pending_settlement when all accounts cleared
+      // Only transition to pending when all accounts cleared
       let payoutDate = null;
       if (newCleared >= accounts) {
         const planStart = new Date(plan.start_date);
@@ -307,7 +307,7 @@ export const payClearanceFee = async (req, res) => {
         `, [newCleared, payoutDate, planId]);
 
         await client.query('COMMIT');
-        return res.json({ message: 'All clearance fees paid! Plan moved to pending settlement.', plan: updatedPlans[0] });
+        return res.json({ message: 'All clearance fees paid! Plan is pending admin approval.', plan: updatedPlans[0] });
       }
 
       await client.query('COMMIT');
