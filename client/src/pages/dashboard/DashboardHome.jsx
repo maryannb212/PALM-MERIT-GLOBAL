@@ -155,7 +155,7 @@ const DashboardHome = () => {
               <p style={{ margin: 0, fontSize: '0.9rem', color: '#4b5563' }}>Stay updated, connect with members, and receive real-time support in our WhatsApp group.</p>
             </div>
             <a 
-              href="https://chat.whatsapp.com/DLN74m6izwkJOyvcADozKF?mode=gi_t" 
+              href="https://chat.whatsapp.com/DpBczcQCHDX9vIVFVh0Omo?s=cl&p=a&ilr=4&amv=3" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="btn"
