@@ -784,7 +784,7 @@ export const approveEligibility = async (req, res) => {
       });
     }
 
-    let newStatus = 'pending_settlement';
+    let newStatus = 'pending';
     let payoutDate = null;
     const planStart = new Date(plan.start_date);
 
@@ -826,7 +826,7 @@ export const approveEligibility = async (req, res) => {
           INSERT INTO notifications (user_id, title, message, type)
           VALUES ($1, 'Clearance Required', $2, 'clearance')
         `, [plan.user_id, msg]);
-      } else if (newStatus === 'pending_settlement') {
+      } else if (newStatus === 'pending') {
         const dateStr = payoutDate ? new Date(payoutDate).toLocaleDateString('en-NG') : 'the scheduled date';
         const msg = `${plan.plan_name} program has been approved for payout. Settlement will be processed on ${dateStr}.`;
         await client.query(`
@@ -1271,7 +1271,7 @@ export const adminSettleClearance = async (req, res) => {
       const plan = plans[0];
 
       if (plan.status !== 'pending_settlement') {
-        throw new Error('Plan is not in pending settlement status');
+        throw new Error('Plan is not pending admin approval');
       }
 
       await client.query('BEGIN');
@@ -1292,7 +1292,7 @@ export const adminSettleClearance = async (req, res) => {
         VALUES ($1, $2, 'admin_settlement', $3, 'completed', $4)
       `, [plan.user_id, planId, remainingFee, reference]);
 
-      const msg = `${plan.plan_name} program has been settled. Your payout is now available.`;
+      const msg = `${plan.plan_name} program has been approved and paid.`;
       await client.query(`
         INSERT INTO notifications (user_id, title, message, type)
         VALUES ($1, 'Plan Settled', $2, 'payout')
@@ -1702,7 +1702,8 @@ export const deleteReferralCode = async (req, res) => {
 
       const codeResult = await client.query(
         `SELECT rc.*, u.first_name AS owner_name, u.last_name AS owner_last_name,
-                sp.plan_name, sp.status AS plan_status, sp.user_id AS plan_user_id
+                sp.plan_name, sp.status AS plan_status, sp.user_id AS plan_user_id,
+                sp.number_of_accounts, sp.current_amount, sp.target_amount
          FROM referral_codes rc
          JOIN users u ON rc.user_id = u.id
          LEFT JOIN savings_plans sp ON rc.plan_id = sp.id
@@ -1717,24 +1718,100 @@ export const deleteReferralCode = async (req, res) => {
 
       const code = codeResult.rows[0];
 
+      let planDeleted = false;
+      let transactionsDeleted = 0;
+      let defaultsDeleted = 0;
+      let payoutsDeleted = 0;
+
+      if (code.plan_id) {
+        const remainingResult = await client.query(
+          'SELECT COUNT(*)::int AS count FROM referral_codes WHERE plan_id = $1 AND id != $2',
+          [code.plan_id, codeId]
+        );
+        const remainingCodes = remainingResult.rows[0].count;
+
+        if (remainingCodes === 0) {
+          await client.query('SAVEPOINT cleanup');
+
+          try {
+            const txResult = await client.query(
+              'DELETE FROM transactions WHERE plan_id = $1',
+              [code.plan_id]
+            );
+            transactionsDeleted = txResult.rowCount;
+
+            const defResult = await client.query(
+              'DELETE FROM defaults WHERE plan_id = $1',
+              [code.plan_id]
+            );
+            defaultsDeleted = defResult.rowCount;
+
+            const payResult = await client.query(
+              'DELETE FROM payouts WHERE plan_id = $1',
+              [code.plan_id]
+            );
+            payoutsDeleted = payResult.rowCount;
+
+            await client.query(
+              'DELETE FROM referral_codes WHERE plan_id = $1 AND id != $2',
+              [code.plan_id, codeId]
+            );
+
+            await client.query(
+              'DELETE FROM savings_plans WHERE id = $1',
+              [code.plan_id]
+            );
+            planDeleted = true;
+
+            await client.query('RELEASE SAVEPOINT cleanup');
+          } catch (spErr) {
+            console.error('Plan cleanup failed, rolling back cleanup only:', spErr.message, spErr.code, spErr.detail);
+            await client.query('ROLLBACK TO SAVEPOINT cleanup');
+          }
+        } else {
+          await client.query(
+            `UPDATE savings_plans
+             SET number_of_accounts = GREATEST(number_of_accounts - 1, 1),
+                 accounts_cleared = LEAST(accounts_cleared, GREATEST(number_of_accounts - 1, 1)),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [code.plan_id]
+          );
+        }
+      }
+
       await client.query('DELETE FROM referral_codes WHERE id = $1', [codeId]);
 
       await client.query('COMMIT');
 
+      const summary = [`Code ${code.code} deleted permanently`];
+      if (planDeleted) {
+        summary.push(`Savings plan (${code.plan_name}) deleted`);
+        if (transactionsDeleted > 0) summary.push(`${transactionsDeleted} transaction(s) removed`);
+        if (defaultsDeleted > 0) summary.push(`${defaultsDeleted} default(s) removed`);
+        if (payoutsDeleted > 0) summary.push(`${payoutsDeleted} payout(s) removed`);
+      } else if (code.plan_id) {
+        summary.push(`Plan accounts reduced`);
+      }
+
       res.json({
-        message: `Code ${code.code} deleted permanently`,
-        code
+        message: summary.join('. '),
+        code,
+        planDeleted,
+        transactionsDeleted,
+        defaultsDeleted,
+        payoutsDeleted
       });
     } catch (e) {
-      await client.query('ROLLBACK');
-      console.error('Error deleting referral code (inner):', e.message, e.code, e.detail);
+      try { await client.query('ROLLBACK'); } catch (rbErr) { console.error('ROLLBACK failed:', rbErr.message); }
+      console.error('Error deleting referral code:', e.message, e.code, e.detail);
       throw e;
     } finally {
       client.release();
     }
   } catch (error) {
     console.error('Error deleting referral code:', error.message, error.code, error.detail);
-    res.status(500).json({ message: 'Server error deleting referral code' });
+    res.status(500).json({ message: error.message || 'Server error deleting referral code' });
   }
 };
 

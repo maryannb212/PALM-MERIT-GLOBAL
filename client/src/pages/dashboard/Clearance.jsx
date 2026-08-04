@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMyPlans, payClearanceAccount, payWithLotus } from '../../services/api';
-import { FaCheckCircle, FaWallet, FaClipboardList, FaMoneyBillWave, FaShieldAlt } from 'react-icons/fa';
+import { getMyPlans, payClearanceAccount, getProfile } from '../../services/api';
+import { FaCheckCircle, FaWallet, FaClipboardList, FaMoneyBillWave, FaShieldAlt, FaSpinner, FaCreditCard, FaArrowRight } from 'react-icons/fa';
 import './Dashboard.css';
 
 const PLAN_ICONS = {
@@ -21,29 +21,30 @@ const PLAN_COLORS = {
 const Clearance = () => {
   const navigate = useNavigate();
   const [plans, setPlans] = useState([]);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [payingAccount, setPayingAccount] = useState(null);
-  const [lotusLoading, setLotusLoading] = useState(null);
 
-  useEffect(() => {
-    fetchPlans();
-  }, []);
-
-  const fetchPlans = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await getMyPlans();
-      const allPlans = response.data || [];
+      const [plansRes, profileRes] = await Promise.all([getMyPlans(), getProfile()]);
+      const allPlans = plansRes.data || [];
       const clearancePlans = allPlans.filter(p =>
         ['pending_clearance', 'pending_settlement', 'settled'].includes(p.status)
       );
       setPlans(clearancePlans);
+      setWalletBalance(parseFloat(profileRes.data.available_balance || 0));
     } catch (error) {
-      console.error('Failed to fetch clearance plans:', error);
+      console.error('Failed to fetch clearance data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -54,7 +55,7 @@ const Clearance = () => {
     try {
       const { data } = await payClearanceAccount({ planId, accountIndex });
       alert(data.message);
-      fetchPlans();
+      fetchData();
     } catch (error) {
       alert(error.response?.data?.message || 'Payment failed. Ensure you have enough wallet balance.');
     } finally {
@@ -68,7 +69,7 @@ const Clearance = () => {
     try {
       const { data } = await payClearanceAccount({ planId });
       alert(data.message);
-      fetchPlans();
+      fetchData();
     } catch (error) {
       alert(error.response?.data?.message || 'Payment failed. Ensure you have enough wallet balance.');
     } finally {
@@ -76,44 +77,10 @@ const Clearance = () => {
     }
   };
 
-  const handleLotusPay = async (planId, accountIndex, amount) => {
-    const key = `${planId}-${accountIndex}`;
-    setLotusLoading(key);
-    try {
-      const { data } = await payWithLotus({ amount, type: 'clearance', planId, accountIndex });
-      if (data.authorization_url) {
-        window.location.href = data.authorization_url;
-      } else {
-        alert('Lotus Bank did not return a payment link. Try again.');
-      }
-    } catch (error) {
-      alert(error.response?.data?.message || 'Payment failed. Try again.');
-    } finally {
-      setLotusLoading(null);
-    }
-  };
-
-  const handleLotusPayAll = async (planId, amount) => {
-    const key = `${planId}-bulk-lotus`;
-    setLotusLoading(key);
-    try {
-      const { data } = await payWithLotus({ amount, type: 'clearance', planId });
-      if (data.authorization_url) {
-        window.location.href = data.authorization_url;
-      } else {
-        alert('Lotus Bank did not return a payment link. Try again.');
-      }
-    } catch (error) {
-      alert(error.response?.data?.message || 'Payment failed. Try again.');
-    } finally {
-      setLotusLoading(null);
-    }
-  };
-
   const getStatusBadge = (status) => {
     switch (status) {
       case 'pending_clearance': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Pending Clearance</span>;
-      case 'pending_settlement': return <span className="badge" style={{ background: '#3b82f6', color: '#fff' }}>Pending Settlement</span>;
+      case 'pending_settlement': return <span className="badge" style={{ background: '#3b82f6', color: '#fff' }}>Pending Approval</span>;
       case 'settled': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Settled</span>;
       default: return <span className="badge badge-secondary">{status}</span>;
     }
@@ -126,6 +93,7 @@ const Clearance = () => {
     return sum + (total - cleared);
   }, 0);
   const totalPendingFee = pendingCount * 3000;
+  const canPayAny = walletBalance >= 3000;
 
   const statsCards = [
     {
@@ -163,9 +131,6 @@ const Clearance = () => {
       <header className="dashboard-header">
         <h2>Program Clearance</h2>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" onClick={() => navigate('/dashboard/wallet')}>
-            <FaWallet /> Fund Wallet
-          </button>
           {pendingPlans.length > 0 && (
             <button className="btn btn-secondary" onClick={() => navigate('/dashboard/subscriptions')}
               style={{ background: '#1e293b', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -174,6 +139,19 @@ const Clearance = () => {
           )}
         </div>
       </header>
+
+      <div className="clearance-wallet-card">
+        <div className="clearance-wallet-icon">
+          <FaWallet />
+        </div>
+        <div className="clearance-wallet-info">
+          <span className="clearance-wallet-label">Your Wallet Balance</span>
+          <span className="clearance-wallet-value">{formatCurrency(walletBalance)}</span>
+        </div>
+        <button className="btn btn-primary clearance-wallet-btn" onClick={() => navigate('/dashboard/wallet')}>
+          <FaCreditCard /> Fund Wallet
+        </button>
+      </div>
 
       <div className="defaults-stats-grid">
         {statsCards.map((card, i) => (
@@ -211,6 +189,7 @@ const Clearance = () => {
               const accountsCleared = parseInt(plan.accounts_cleared || 0, 10);
               const remaining = accounts - accountsCleared;
               const progressPct = accounts > 0 ? (accountsCleared / accounts) * 100 : 0;
+              const remainingFee = remaining * 3000;
 
               return (
                 <div key={plan.id}
@@ -243,7 +222,7 @@ const Clearance = () => {
                     </div>
                     <div className="defaults-plan-stat highlight-danger">
                       <span className="dps-label">Remaining Fee</span>
-                      <span className="dps-value">{formatCurrency(remaining * 3000)}</span>
+                      <span className="dps-value">{formatCurrency(remainingFee)}</span>
                     </div>
                   </div>
 
@@ -257,40 +236,44 @@ const Clearance = () => {
                   )}
 
                   {plan.status === 'pending_clearance' && remaining > 0 && (
-                    <div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                    <div className="clearance-actions">
+                      <div className="clearance-accounts-grid">
                         {Array.from({ length: remaining }, (_, i) => {
                           const idx = accountsCleared + i;
-                          const lotusKey = `${plan.id}-${idx}`;
+                          const payKey = `${plan.id}-${idx}`;
+                          const isPaying = payingAccount === payKey;
+                          const canPayThis = walletBalance >= 3000;
                           return (
-                            <button key={idx} className="btn btn-sm"
-                              onClick={() => handleLotusPay(plan.id, idx, 3000)}
-                              disabled={lotusLoading === lotusKey}
-                              style={{
-                                background: lotusLoading === lotusKey ? '#94a3b8' : '#1e40af',
-                                color: '#fff', border: 'none', padding: '6px 14px',
-                                borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
-                                cursor: lotusLoading === lotusKey ? 'not-allowed' : 'pointer',
-                                display: 'inline-flex', alignItems: 'center', gap: 4
-                              }}>
-                              {lotusLoading === lotusKey ? '...' : 'Pay with Lotus'}
+                            <button key={idx} className="clearance-account-btn"
+                              onClick={() => handlePayAccount(plan.id, idx)}
+                              disabled={isPaying || !canPayThis}
+                              title={!canPayThis ? 'Insufficient wallet balance' : `Pay ₦3,000 for account ${idx + 1}`}>
+                              {isPaying ? (
+                                <><FaSpinner className="fa-spin" /> Paying...</>
+                              ) : (
+                                <><FaWallet /> Pay Account {idx + 1}</>
+                              )}
+                              <span className="clearance-account-fee">₦3,000</span>
                             </button>
                           );
                         })}
                       </div>
-                      {accounts > 1 && (
-                        <button className="btn btn-sm"
-                          onClick={() => handleLotusPayAll(plan.id, remaining * 3000)}
-                          disabled={lotusLoading === `${plan.id}-bulk-lotus`}
-                          style={{
-                            background: lotusLoading === `${plan.id}-bulk-lotus` ? '#94a3b8' : '#1e40af',
-                            color: '#fff', border: 'none', padding: '6px 14px',
-                            borderRadius: 4, fontSize: '0.8rem', fontWeight: 600,
-                            cursor: lotusLoading === `${plan.id}-bulk-lotus` ? 'not-allowed' : 'pointer',
-                            display: 'inline-flex', alignItems: 'center', gap: 4
-                          }}>
-                          {lotusLoading === `${plan.id}-bulk-lotus` ? '...' : `Pay All with Lotus (${formatCurrency(remaining * 3000)})`}
+                      {accounts > 1 && remaining > 0 && (
+                        <button className="clearance-payall-btn"
+                          onClick={() => handlePayAllRemaining(plan.id)}
+                          disabled={payingAccount === `${plan.id}-bulk` || !canPayAny}
+                          title={!canPayAny ? 'Insufficient wallet balance' : `Pay remaining ₦${remainingFee.toLocaleString()}`}>
+                          {payingAccount === `${plan.id}-bulk` ? (
+                            <><FaSpinner className="fa-spin" /> Processing...</>
+                          ) : (
+                            <><FaArrowRight /> Pay All Remaining <span className="clearance-payall-fee">{formatCurrency(remainingFee)}</span></>
+                          )}
                         </button>
+                      )}
+                      {!canPayAny && (
+                        <div className="clearance-insufficient">
+                          <FaWallet /> Insufficient balance. <a href="/dashboard/wallet" onClick={(e) => { e.preventDefault(); navigate('/dashboard/wallet'); }}>Fund your wallet</a> to continue.
+                        </div>
                       )}
                     </div>
                   )}
@@ -298,14 +281,14 @@ const Clearance = () => {
                   {plan.status === 'pending_settlement' && (
                     <div className="defaults-plan-warning" style={{ borderLeftColor: '#3b82f6', background: '#eff6ff' }}>
                       <FaShieldAlt />
-                      <span>All accounts cleared. Awaiting admin settlement for payout.</span>
+                      <span>All accounts cleared. Awaiting admin approval for payout.</span>
                     </div>
                   )}
 
                   {plan.status === 'settled' && (
                     <div className="defaults-plan-warning" style={{ borderLeftColor: '#16a34a', background: '#f0fdf4' }}>
                       <FaCheckCircle style={{ color: '#16a34a' }} />
-                      <span style={{ color: '#166534' }}>This program has been fully settled.</span>
+                      <span style={{ color: '#166534' }}>This program has been approved and paid.</span>
                     </div>
                   )}
                 </div>
