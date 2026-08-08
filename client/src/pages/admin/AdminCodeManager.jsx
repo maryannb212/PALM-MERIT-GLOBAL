@@ -7,7 +7,7 @@ import {
 } from 'react-icons/fa';
 import API from '../../services/api';
 import {
-  unlockReferralCode, lockReferralCode, unassignReferralCode, deleteReferralCode
+  unlockReferralCode, lockReferralCode, reactivateReferralCode, unassignReferralCode, deleteReferralCode
 } from '../../services/api';
 import '../../components/DepositModal.css';
 import './Admin.css';
@@ -156,6 +156,20 @@ const AdminCodeManager = () => {
       fetchUserCodes(selectedUser.id, codeFilter);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to unlock code');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReactivate = async (codeId) => {
+    setActionLoading(true);
+    try {
+      await reactivateReferralCode(codeId);
+      toast.success('Code reactivated for 48 hours');
+      setConfirmModal(null);
+      fetchUserCodes(selectedUser.id, codeFilter);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reactivate code');
     } finally {
       setActionLoading(false);
     }
@@ -418,6 +432,18 @@ const AdminCodeManager = () => {
                             </button>
                           </>
                         )}
+                        {c.status === 'expired' && (
+                          <>
+                            <button className="btn btn-sm" onClick={() => setConfirmModal({ type: 'reactivate', codeId: c.id, code: c.code })}
+                              style={{ padding: '5px 10px', fontSize: '0.7rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <FaUnlock size={10} /> Reactivate
+                            </button>{' '}
+                            <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id); }}
+                              style={{ padding: '5px 8px', fontSize: '0.7rem', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                              <FaEllipsisV size={10} />
+                            </button>
+                          </>
+                        )}
                         {c.status === 'used' && (
                           <>
                             <button className="btn btn-sm" onClick={() => setAssignModal({ codeId: c.id, code: c.code, type: 'reassign' })}
@@ -441,6 +467,14 @@ const AdminCodeManager = () => {
                               background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px',
                               boxShadow: '0 4px 12px rgba(0,0,0,0.12)', minWidth: '140px', padding: '4px 0'
                             }}>
+                            {c.status === 'expired' && (
+                              <button onClick={() => { setOpenMenuId(null); setConfirmModal({ type: 'reactivate', codeId: c.id, code: c.code }); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', fontSize: '0.8rem', background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', textAlign: 'left' }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                                <FaUnlock size={11} /> Reactivate
+                              </button>
+                            )}
                             <button onClick={() => { setOpenMenuId(null); setConfirmModal({ type: 'delete', codeId: c.id, code: c.code }); }}
                               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 14px', fontSize: '0.8rem', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', textAlign: 'left' }}
                               onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
@@ -524,6 +558,7 @@ const AdminCodeManager = () => {
                   {confirmModal.type === 'unassign' && <><FaBan /> Unassign Code</>}
                   {confirmModal.type === 'lock' && <><FaLock /> Lock Code</>}
                   {confirmModal.type === 'unlock' && <><FaUnlock /> Unlock Code</>}
+                  {confirmModal.type === 'reactivate' && <><FaUnlock /> Reactivate Code</>}
                 </h3>
                 <button className="close-btn" onClick={() => setConfirmModal(null)}>&times;</button>
               </header>
@@ -536,6 +571,7 @@ const AdminCodeManager = () => {
                   {confirmModal.type === 'unassign' && 'This will remove the current downline from this code. The code will become available again.'}
                   {confirmModal.type === 'lock' && 'This will lock this code so it cannot be used until an admin unlocks it.'}
                   {confirmModal.type === 'unlock' && 'This will unlock this code making it available for assignment.'}
+                  {confirmModal.type === 'reactivate' && 'This will reactivate this expired code and give it 48 hours before it expires again.'}
                 </p>
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '24px' }}>
                   Are you sure you want to proceed?
@@ -550,14 +586,15 @@ const AdminCodeManager = () => {
                     else if (confirmModal.type === 'unassign') handleUnassign(confirmModal.codeId);
                     else if (confirmModal.type === 'lock') handleLock(confirmModal.codeId);
                     else if (confirmModal.type === 'unlock') handleUnlock(confirmModal.codeId);
+                    else if (confirmModal.type === 'reactivate') handleReactivate(confirmModal.codeId);
                   }}
                     disabled={actionLoading}
                     style={{
                       padding: '10px 24px', fontSize: '0.9rem', color: '#fff', border: 'none', borderRadius: '8px',
                       cursor: 'pointer', fontWeight: 600, opacity: actionLoading ? 0.7 : 1,
-                      background: confirmModal.type === 'delete' ? '#dc2626' : confirmModal.type === 'lock' ? '#d97706' : confirmModal.type === 'unlock' ? '#16a34a' : '#64748b'
+                      background: confirmModal.type === 'delete' ? '#dc2626' : confirmModal.type === 'lock' ? '#d97706' : confirmModal.type === 'unlock' ? '#16a34a' : confirmModal.type === 'reactivate' ? '#2563eb' : '#64748b'
                     }}>
-                    {actionLoading ? 'Processing...' : confirmModal.type === 'delete' ? 'Delete Account' : confirmModal.type === 'lock' ? 'Lock Code' : confirmModal.type === 'unlock' ? 'Unlock Code' : 'Unassign'}
+                    {actionLoading ? 'Processing...' : confirmModal.type === 'delete' ? 'Delete Account' : confirmModal.type === 'lock' ? 'Lock Code' : confirmModal.type === 'unlock' ? 'Unlock Code' : confirmModal.type === 'reactivate' ? 'Reactivate Code' : 'Unassign'}
                   </button>
                 </div>
               </div>

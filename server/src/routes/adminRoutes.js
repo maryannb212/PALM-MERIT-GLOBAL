@@ -37,6 +37,7 @@ import {
   reassignReferralCode,
   unlockReferralCode,
   lockReferralCode,
+  reactivateReferralCode,
   unassignReferralCode,
   deleteReferralCode
 } from '../controllers/adminController.js';
@@ -102,6 +103,7 @@ router.post('/referral-codes/:codeId/assign', assignReferralCode);
 router.put('/referral-codes/:codeId/reassign', reassignReferralCode);
 router.put('/referral-codes/:codeId/unlock', unlockReferralCode);
 router.put('/referral-codes/:codeId/lock', lockReferralCode);
+router.put('/referral-codes/:codeId/reactivate', reactivateReferralCode);
 router.put('/referral-codes/:codeId/unassign', unassignReferralCode);
 router.delete('/referral-codes/:codeId', deleteReferralCode);
 // Security Locks
