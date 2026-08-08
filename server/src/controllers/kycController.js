@@ -179,28 +179,31 @@ export const verifyUserKYC = async (req, res) => {
           );
         }
 
-        try {
-          const vaData = await createVirtualAccount({
-            id: userId,
-            first_name: kyc.first_name || user.first_name,
-            last_name: kyc.last_name || user.last_name,
-            email: user.email,
-            phone: kyc.phone || user.phone,
-            bvn: kyc.bvn
-          });
+        if (!user.virtual_account_number) {
+          try {
+            const vaData = await createVirtualAccount({
+              id: userId,
+              first_name: kyc.first_name || user.first_name,
+              last_name: kyc.last_name || user.last_name,
+              email: user.email,
+              phone: kyc.phone || user.phone,
+              bvn: kyc.bvn
+            });
 
-          await client.query(
-            `UPDATE users SET
-              virtual_account_number = $1,
-              virtual_account_name = $2,
-              virtual_bank_name = $3,
-              virtual_provider = 'lotus',
-              virtual_account_slug = $4
-            WHERE id = $5`,
-            [vaData.account_number, vaData.account_name, vaData.bank_name, vaData.reference, userId]
-          );
-        } catch (vaErr) {
-          console.error(`KYC approved for user ${userId} but VA creation failed:`, vaErr.message);
+            await client.query(
+              `UPDATE users SET
+                virtual_account_number = $1,
+                virtual_account_name = $2,
+                virtual_bank_name = $3,
+                virtual_provider = 'lotus',
+                virtual_account_slug = $4
+              WHERE id = $5
+                AND (virtual_account_number IS NULL OR virtual_account_number = '')`,
+              [vaData.account_number, vaData.account_name, vaData.bank_name, vaData.reference, userId]
+            );
+          } catch (vaErr) {
+            console.error(`KYC approved for user ${userId} but VA creation failed:`, vaErr.message);
+          }
         }
       }
 

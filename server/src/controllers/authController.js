@@ -689,23 +689,40 @@ export const generateVirtualAccount = async (req, res) => {
 
     const vaData = await createVirtualAccount(user);
 
-    await query(
+    const result = await query(
       `UPDATE users SET
         virtual_account_number = $1,
         virtual_account_name = $2,
         virtual_bank_name = $3,
         virtual_provider = 'lotus',
         virtual_account_slug = $4
-      WHERE id = $5`,
+      WHERE id = $5
+        AND (virtual_account_number IS NULL OR virtual_account_number = '')
+      RETURNING virtual_account_number, virtual_bank_name, virtual_account_name, virtual_provider`,
       [vaData.account_number, vaData.account_name, vaData.bank_name, vaData.reference, userId]
     );
 
+    if (result.rows.length > 0) {
+      return res.json({
+        message: 'Virtual account created successfully',
+        virtual_account_number: result.rows[0].virtual_account_number,
+        virtual_bank_name: result.rows[0].virtual_bank_name,
+        virtual_account_name: result.rows[0].virtual_account_name,
+        virtual_provider: result.rows[0].virtual_provider
+      });
+    }
+
+    const { rows: existing } = await query(
+      'SELECT virtual_account_number, virtual_bank_name, virtual_account_name, virtual_provider FROM users WHERE id = $1',
+      [userId]
+    );
+
     res.json({
-      message: 'Virtual account created successfully',
-      virtual_account_number: vaData.account_number,
-      virtual_bank_name: vaData.bank_name,
-      virtual_account_name: vaData.account_name,
-      virtual_provider: 'lotus'
+      message: 'Virtual account already exists',
+      virtual_account_number: existing[0].virtual_account_number,
+      virtual_bank_name: existing[0].virtual_bank_name,
+      virtual_account_name: existing[0].virtual_account_name,
+      virtual_provider: existing[0].virtual_provider
     });
   } catch (error) {
     console.error('Error generating virtual account:', error.message);
