@@ -29,7 +29,6 @@ const UploadReceipt = lazy(() => import('./pages/dashboard/UploadReceipt'));
 const Wallet = lazy(() => import('./pages/dashboard/Wallet'));
 const Transactions = lazy(() => import('./pages/dashboard/Transactions'));
 const Support = lazy(() => import('./pages/dashboard/Support'));
-const KYC = lazy(() => import('./pages/dashboard/KYC'));
 const BankDetails = lazy(() => import('./pages/dashboard/BankDetails'));
 const WithdrawPage = lazy(() => import('./pages/dashboard/WithdrawPage'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
@@ -105,7 +104,6 @@ const AppLayout = () => {
               <Route path="wallet" element={<Wallet />} />
               <Route path="transactions" element={<Transactions />} />
               <Route path="support" element={<Support />} />
-              <Route path="kyc" element={<KYC />} />
               <Route path="bank-details" element={<BankDetails />} />
               <Route path="withdraw" element={<WithdrawPage />} />
               <Route path="settings" element={<Settings />} />
