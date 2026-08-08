@@ -29,7 +29,6 @@ const Sidebar = ({ isOpen, onClose }) => {
     { name: 'Upload Receipt', path: '/dashboard/receipt', icon: <FaCloudUploadAlt /> },
     { name: 'Referral Hub', path: '/dashboard/referrals', icon: <FaUserFriends /> },
     { name: 'Support', path: '/dashboard/support', icon: <FaHeadset /> },
-    { name: 'KYC & Profile', path: '/dashboard/kyc', icon: <FaUserShield /> },
     { name: 'Bank Details', path: '/dashboard/bank-details', icon: <FaShieldAlt /> },
     { name: 'Withdraw Funds', path: '/dashboard/withdraw', icon: <FaWallet /> },
     { name: 'Settings', path: '/dashboard/settings', icon: <FaCog /> },

@@ -1578,6 +1578,61 @@ export const unlockReferralCode = async (req, res) => {
 };
 
 /**
+ * Reactivate an expired referral code for 48 hours
+ * PUT /api/admin/referral-codes/:codeId/reactivate
+ */
+export const reactivateReferralCode = async (req, res) => {
+  try {
+    const { codeId } = req.params;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const codeResult = await client.query(
+        `SELECT rc.*, u.first_name, u.last_name
+         FROM referral_codes rc
+         JOIN users u ON rc.user_id = u.id
+         WHERE rc.id = $1 FOR UPDATE`,
+        [codeId]
+      );
+
+      if (codeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ message: 'Referral code not found' });
+      }
+
+      const code = codeResult.rows[0];
+      if (code.status !== 'expired') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Can only reactivate expired codes. Current status: ${code.status}` });
+      }
+
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      await client.query(
+        `UPDATE referral_codes SET status = 'available', expires_at = $1, unlock_date = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [expiresAt, codeId]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        message: `Code ${code.code} reactivated for 48 hours`,
+        code: { ...code, status: 'available', expires_at: expiresAt, unlock_date: null }
+      });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error reactivating referral code:', error);
+    res.status(500).json({ message: 'Server error reactivating referral code' });
+  }
+};
+
+/**
  * Lock an available referral code → set status to 'locked'
  * PUT /api/admin/referral-codes/:codeId/lock
  * Body: { unlockDate: ISO string (optional) }
