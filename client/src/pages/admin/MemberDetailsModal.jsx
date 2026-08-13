@@ -5,6 +5,7 @@ import {
   FaExclamationCircle, FaCircle, FaUserFriends, FaLink, FaTree, FaCopy
 } from 'react-icons/fa';
 import { getAdminUserById } from '../../services/api';
+import { adminFastForwardClearance } from '../../services/api';
 import './Admin.css';
 
 const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
@@ -267,7 +268,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Total Wallet Balance:</span>
-                        <strong style={{ color: 'white' }}>{formatCurrency(details.wallet_balance)}</strong>
+                        <strong style={{ color: '#e2e8f0' }}>{formatCurrency(details.wallet_balance)}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Available Balance:</span>
@@ -291,15 +292,15 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                           <div key={idx} style={{ borderBottom: idx === details.bank_accounts.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)', paddingBottom: idx === details.bank_accounts.length - 1 ? 0 : '10px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                               <span style={{ color: '#64748b' }}>Bank Name:</span>
-                              <strong style={{ color: 'white' }}>{acc.bank_name}</strong>
+                              <strong style={{ color: '#e2e8f0' }}>{acc.bank_name}</strong>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                               <span style={{ color: '#64748b' }}>Account Number:</span>
-                              <strong style={{ color: 'white', fontFamily: 'monospace' }}>{acc.account_number}</strong>
+                              <strong style={{ color: '#e2e8f0', fontFamily: 'monospace' }}>{acc.account_number}</strong>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: '#64748b' }}>Account Name:</span>
-                              <strong style={{ color: 'white' }}>{acc.account_name}</strong>
+                              <strong style={{ color: '#e2e8f0' }}>{acc.account_name}</strong>
                             </div>
                           </div>
                         ))}
@@ -339,12 +340,39 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                               <td>{formatDate(plan.start_date)}</td>
                               <td className="text-right">{plan.number_of_accounts}</td>
                               <td className="text-right" style={{ color: '#10b981', fontWeight: 'bold' }}>{formatCurrency(plan.current_amount)}</td>
-                              <td className="text-right" style={{ color: 'white' }}>{formatCurrency(plan.target_amount)}</td>
+                              <td className="text-right" style={{ color: '#e2e8f0' }}>{formatCurrency(plan.target_amount)}</td>
                               <td>{formatDate(plan.maturity_date || plan.end_date)}</td>
                               <td className="text-right">
-                                <span className={`badge-status ${plan.status === 'active' ? 'status-verified' : 'status-unverified'}`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
-                                  {plan.status?.toUpperCase()}
+                                <span className={`badge-status ${plan.computed_status === 'completed' ? 'status-verified' : (plan.status === 'active' ? 'status-verified' : 'status-unverified')}`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                                  {(plan.computed_status || plan.status || '').toUpperCase()}
                                 </span>
+                                {plan.cycleCompleted && plan.completionMessage && (
+                                  <div style={{ marginTop: '8px', background: '#dcfce7', color: '#064e3b', padding: '8px', borderRadius: '8px', fontSize: '0.85rem' }}>
+                                    {plan.completionMessage}
+                                  </div>
+                                )}
+                                <div style={{ marginTop: '8px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <button className="btn-filter" onClick={async () => {
+                                    const input = window.prompt('Enter number of days to fast-forward clearance (positive integer) or an exact date (YYYY-MM-DD):');
+                                    if (!input) return;
+                                    const days = parseInt(input, 10);
+                                    let payload = { planId: plan.id };
+                                    if (!isNaN(days) && String(days) === input.trim()) {
+                                      payload.days = days;
+                                    } else {
+                                      // assume date
+                                      payload.newDate = input.trim();
+                                    }
+                                    try {
+                                      await adminFastForwardClearance(details.id, payload);
+                                      alert('Clearance date updated. Refreshing details.');
+                                      await fetchUserDetails();
+                                    } catch (err) {
+                                      console.error('Fast-forward failed', err);
+                                      alert('Failed to update clearance date. See console for details.');
+                                    }
+                                  }}>Fast-forward Clearance</button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -376,7 +404,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '8px', flex: 1, minWidth: '140px' }}>
                       <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Default Count</span>
-                      <strong style={{ color: 'white', fontSize: '1.1rem', display: 'block', marginTop: '4px' }}>{details.default_count || 0}</strong>
+                      <strong style={{ color: '#e2e8f0', fontSize: '1.1rem', display: 'block', marginTop: '4px' }}>{details.default_count || 0}</strong>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '8px', flex: 1, minWidth: '140px' }}>
                       <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Outstanding Balance</span>

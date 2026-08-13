@@ -7,6 +7,7 @@ import {
   approveWithdrawal,
   rejectWithdrawal,
   getWebhookLogs,
+  retryWebhookLog,
   getRecentTransfers
 } from '../../services/api';
 import { FaBalanceScale, FaCheckCircle, FaHistory, FaFilter, FaEye, FaHandHoldingUsd, FaTimesCircle, FaChartLine, FaWallet, FaLock, FaUniversity } from 'react-icons/fa';
@@ -22,6 +23,9 @@ const ReconciliationPage = () => {
   const [processingId, setProcessingId] = useState(null);
   const [webhookLogs, setWebhookLogs] = useState([]);
   const [recentTransfers, setRecentTransfers] = useState([]);
+  const [timeframeHours, setTimeframeHours] = useState(24);
+  const [txTypeFilter, setTxTypeFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -35,7 +39,7 @@ const ReconciliationPage = () => {
         getPendingTransactions(),
         getPendingWithdrawals(),
         getWebhookLogs(),
-        getRecentTransfers()
+        getRecentTransfers(timeframeHours)
       ]);
       setStats(statsRes.data);
       setPendingTransactions(pendingRes.data);
@@ -105,6 +109,21 @@ const ReconciliationPage = () => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount || 0);
   };
 
+  // Client-side filtered view of recent transfers
+  const filteredRecentTransfers = recentTransfers.filter((tx) => {
+    if (txTypeFilter !== 'all' && tx.type !== txTypeFilter) return false;
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (tx.email || '').toLowerCase().includes(q) ||
+      (tx.reference || '').toLowerCase().includes(q) ||
+      (tx.first_name || '').toLowerCase().includes(q) ||
+      (tx.last_name || '').toLowerCase().includes(q)
+    );
+  });
+
+  const timeframeLabel = timeframeHours === 24 ? '24h' : timeframeHours === 168 ? '7d' : timeframeHours === 720 ? '30d' : timeframeHours === 8760 ? '365d' : `${timeframeHours}h`;
+
   return (
     <div className="admin-page-content">
       <header className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' }}>
@@ -150,7 +169,7 @@ const ReconciliationPage = () => {
           className={`admin-tab-btn ${activeTab === 'recent' ? 'active' : ''}`}
           onClick={() => setActiveTab('recent')}
         >
-          <FaUniversity /> Recent Transfers (24h)
+          <FaUniversity /> Recent Transfers ({timeframeLabel})
           {recentTransfers.length > 0 && <span className="count-badge primary" style={{ background: '#0ea5e9' }}>{recentTransfers.length}</span>}
         </button>
       </div>
@@ -354,7 +373,22 @@ const ReconciliationPage = () => {
                         </div>
                       </td>
                       <td>
-                        <span className={`badge-status ${log.status === 'processed' ? 'status-verified' : log.status === 'duplicate' ? 'status-pending' : 'status-unverified'}`}>{log.status.toUpperCase()}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className={`badge-status ${log.status === 'processed' ? 'status-verified' : log.status === 'duplicate' ? 'status-pending' : 'status-unverified'}`}>{log.status.toUpperCase()}</span>
+                          {log.status !== 'processed' && (
+                            <button className="btn-filter" onClick={async () => {
+                              try {
+                                await retryWebhookLog(log.id);
+                                const { data } = await getWebhookLogs();
+                                setWebhookLogs(data || []);
+                                alert('Retry triggered — check logs for updated status');
+                              } catch (err) {
+                                console.error('Retry failed', err);
+                                alert('Retry failed — check server logs');
+                              }
+                            }}>Retry</button>
+                          )}
+                        </div>
                       </td>
                       <td style={{ fontSize: '0.85rem', color: '#334155', maxWidth: '300px', wordBreak: 'break-all' }}>{log.note || 'No notes.'}</td>
                       <td className="date-cell" style={{ fontSize: '0.8rem' }}>{new Date(log.created_at).toLocaleString()}</td>
@@ -365,49 +399,93 @@ const ReconciliationPage = () => {
             </table>
           </div>
         ) : activeTab === 'recent' ? (
-          <div className="table-responsive">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Email</th>
-                  <th>Type</th>
-                  <th>Amount</th>
-                  <th>Gateway</th>
-                  <th>Wallet Balance</th>
-                  <th>Reference</th>
-                  <th>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTransfers.length === 0 ? (
-                  <tr><td colSpan="8" className="table-empty">No completed transactions in the last 24 hours.</td></tr>
-                ) : (
-                  recentTransfers.map((tx) => (
-                    <tr key={tx.id} className="table-row-hover">
-                      <td style={{ fontWeight: '600' }}>{tx.first_name} {tx.last_name}</td>
-                      <td style={{ fontSize: '0.85rem' }}>{tx.email}</td>
-                      <td>
-                        <span className={`badge-pill ${tx.type === 'wallet_topup' ? 'pill-burgundy' : tx.type === 'membership' ? 'pill-dark' : tx.type === 'clearance' ? 'pill-warning' : 'pill-success'}`}>
-                          {tx.type.replace('_', ' ').toUpperCase()}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: '700', color: '#15803d' }}>{formatCurrency(tx.amount)}</td>
-                      <td>
-                        <span className="badge-pill pill-dark">{(tx.payment_provider || 'N/A').toUpperCase()}</span>
-                      </td>
-                      <td>{formatCurrency(tx.wallet_balance)}</td>
-                      <td style={{ fontSize: '0.8rem', maxWidth: '200px', wordBreak: 'break-all' }}>
-                        <code>{tx.reference}</code>
-                      </td>
-                      <td className="date-cell" style={{ fontSize: '0.8rem' }}>
-                        {new Date(tx.created_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div>
+            <div className="filters-toolbar">
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.9rem', color: '#475569' }}>Timeframe:</label>
+                  <select className="refined-select" value={timeframeHours} onChange={async (e) => {
+                  const h = parseInt(e.target.value);
+                  setTimeframeHours(h);
+                  setLoading(true);
+                  try {
+                    const res = await getRecentTransfers(h);
+                    setRecentTransfers(res.data || []);
+                  } catch (err) {
+                    console.error('Error fetching recent transfers for timeframe', err);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}>
+                  <option value={24}>Last 24 hours</option>
+                  <option value={168}>Last 7 days</option>
+                  <option value={720}>Last 30 days</option>
+                  <option value={8760}>Last 365 days</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <label style={{ fontSize: '0.9rem', color: '#475569' }}>Type:</label>
+                <select className="refined-select" value={txTypeFilter} onChange={(e) => setTxTypeFilter(e.target.value)}>
+                  <option value="all">All</option>
+                  <option value="wallet_topup">Wallet Topup</option>
+                  <option value="membership">Membership</option>
+                  <option value="clearance">Clearance</option>
+                  <option value="savings">Savings</option>
+                </select>
+              </div>
+
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input className="refined-input" placeholder="Search email, name or reference" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <button className="btn-filter" onClick={() => fetchData()}>
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            <div className="table-responsive">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Gateway</th>
+                    <th>Wallet Balance</th>
+                    <th>Reference</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRecentTransfers.length === 0 ? (
+                    <tr><td colSpan="8" className="table-empty">No completed transactions for the selected timeframe.</td></tr>
+                  ) : (
+                    filteredRecentTransfers.map((tx) => (
+                      <tr key={tx.id} className="table-row-hover">
+                        <td style={{ fontWeight: '600' }}>{tx.first_name} {tx.last_name}</td>
+                        <td style={{ fontSize: '0.85rem' }}>{tx.email}</td>
+                        <td>
+                          <span className={`badge-pill ${tx.type === 'wallet_topup' ? 'pill-burgundy' : tx.type === 'membership' ? 'pill-dark' : tx.type === 'clearance' ? 'pill-warning' : 'pill-success'}`}>
+                            {tx.type.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: '700', color: '#15803d' }}>{formatCurrency(tx.amount)}</td>
+                        <td>
+                          <span className="badge-pill pill-dark">{(tx.payment_provider || 'N/A').toUpperCase()}</span>
+                        </td>
+                        <td>{formatCurrency(tx.wallet_balance)}</td>
+                        <td style={{ fontSize: '0.8rem', maxWidth: '200px', wordBreak: 'break-all' }}>
+                          <code>{tx.reference}</code>
+                        </td>
+                        <td className="date-cell" style={{ fontSize: '0.8rem' }}>
+                          {new Date(tx.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : null}
 

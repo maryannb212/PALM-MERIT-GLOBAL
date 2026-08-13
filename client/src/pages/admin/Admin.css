@@ -812,6 +812,27 @@
   background: #fef2f2;
 }
 
+/* Filters toolbar for recent transfers */
+.filters-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e6eef6;
+  border-radius: 8px;
+}
+
+.filters-toolbar label { margin-right: 6px; }
+
+.refined-select { width: 180px; }
+
+.refined-input { width: 320px; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; }
+
+.btn-filter { padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: white; cursor: pointer; font-weight: 600; }
+.btn-filter:hover { background: #f8fafc; }
+
 /* ─── MOBILE RESPONSIVENESS ─── */
 @media (max-width: 768px) {
   .admin-table-container,
