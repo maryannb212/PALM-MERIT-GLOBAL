@@ -14,6 +14,9 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('profile'); // profile, kyc, financial
   const [imagePreview, setImagePreview] = useState(null);
+  const [editingPlanId, setEditingPlanId] = useState(null);
+  const [fastForwardDate, setFastForwardDate] = useState('');
+  const [fastForwardDays, setFastForwardDays] = useState('');
 
   useEffect(() => {
     if (isOpen && userId) {
@@ -35,6 +38,29 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
       setError('Could not establish database sync. Please verify connection credentials.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const submitFastForward = async (planId) => {
+    if (!planId) return;
+    const payload = { planId };
+    if (fastForwardDays && String(fastForwardDays).trim() !== '') {
+      const pd = parseInt(fastForwardDays, 10);
+      if (!isNaN(pd)) payload.days = pd;
+    }
+    if (fastForwardDate && fastForwardDate.trim() !== '') {
+      payload.newDate = fastForwardDate;
+    }
+    try {
+      await adminFastForwardClearance(details.id, payload);
+      setEditingPlanId(null);
+      setFastForwardDate('');
+      setFastForwardDays('');
+      await fetchUserDetails();
+      alert('Clearance and end date updated successfully.');
+    } catch (err) {
+      console.error('Fast-forward error', err);
+      alert('Failed to fast-forward. See console for details.');
     }
   };
 
@@ -85,7 +111,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
           <div>
             {/* Modal Header Details */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
-              <div style={{ width: '65px', height: '65px', borderRadius: '50%', background: 'linear-gradient(135deg, #800020 0%, #d4af37 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold', color: 'white', boxShadow: '0 4px 15px rgba(128, 0, 32, 0.4)' }}>
+                <div style={{ width: '65px', height: '65px', borderRadius: '50%', background: 'linear-gradient(135deg, #800020 0%, #d4af37 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold', color: '#d4af37', boxShadow: '0 4px 15px rgba(128, 0, 32, 0.4)' }}>
                 {details.first_name?.[0]}{details.last_name?.[0]}
               </div>
               <div style={{ flex: 1, minWidth: '200px' }}>
@@ -135,15 +161,15 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#64748b' }}>Full Name:</span>
-                      <strong style={{ color: 'white' }}>{details.first_name} {details.last_name}</strong>
+                      <strong style={{ color: '#d4af37' }}>{details.first_name} {details.last_name}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#64748b' }}>Email:</span>
-                      <strong style={{ color: 'white' }}>{details.email || 'No email associated'}</strong>
+                      <strong style={{ color: '#d4af37' }}>{details.email || 'No email associated'}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#64748b' }}>Phone Number:</span>
-                      <strong style={{ color: 'white' }}>{details.phone || 'N/A'}</strong>
+                      <strong style={{ color: '#d4af37' }}>{details.phone || 'N/A'}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#64748b' }}>Membership Status:</span>
@@ -153,7 +179,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#64748b' }}>Registered On:</span>
-                      <strong style={{ color: 'white' }}>{formatDate(details.created_at)}</strong>
+                      <strong style={{ color: '#d4af37' }}>{formatDate(details.created_at)}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: '#64748b' }}>Operational Status:</span>
@@ -173,31 +199,31 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Legal Middle Name:</span>
-                        <strong style={{ color: 'white' }}>{details.kyc.middle_name || 'None'}</strong>
+                        <strong style={{ color: '#d4af37' }}>{details.kyc.middle_name || 'None'}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Date of Birth:</span>
-                        <strong style={{ color: 'white' }}>{formatDate(details.kyc.dob)}</strong>
+                        <strong style={{ color: '#d4af37' }}>{formatDate(details.kyc.dob)}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Gender:</span>
-                        <strong style={{ color: 'white' }}>{details.kyc.gender || 'N/A'}</strong>
+                        <strong style={{ color: '#d4af37' }}>{details.kyc.gender || 'N/A'}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>BVN Verification:</span>
-                        <strong style={{ color: 'white', fontFamily: 'monospace' }}>{details.kyc.bvn || 'Not submitted'}</strong>
+                        <strong style={{ color: '#d4af37', fontFamily: 'monospace' }}>{details.kyc.bvn || 'Not submitted'}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>ID Document Type:</span>
-                        <strong style={{ color: 'white' }}>{details.kyc.id_type || 'N/A'}</strong>
+                        <strong style={{ color: '#d4af37' }}>{details.kyc.id_type || 'N/A'}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>ID Number:</span>
-                        <strong style={{ color: 'white' }}>{details.kyc.id_number || 'N/A'}</strong>
+                        <strong style={{ color: '#d4af37' }}>{details.kyc.id_number || 'N/A'}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Residential Address:</span>
-                        <strong style={{ color: 'white', textAlign: 'right', maxWidth: '60%' }}>{details.kyc.address || 'N/A'}</strong>
+                        <strong style={{ color: '#d4af37', textAlign: 'right', maxWidth: '60%' }}>{details.kyc.address || 'N/A'}</strong>
                       </div>
                     </div>
                   ) : (
@@ -220,7 +246,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                           <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 'bold' }}>ID Document (Front)</span>
                           <div style={{ width: '100%', height: '120px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }} onClick={() => setImagePreview(details.kyc.document_url)}>
                             <img src={details.kyc.document_url} alt="ID Document Front" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
-                            <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'white' }}>
+                            <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#d4af37' }}>
                               Preview <FaExternalLinkAlt size={8} />
                             </div>
                           </div>
@@ -231,7 +257,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                           <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 'bold' }}>ID Document (Back)</span>
                           <div style={{ width: '100%', height: '120px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }} onClick={() => setImagePreview(details.kyc.document_back_url)}>
                             <img src={details.kyc.document_back_url} alt="ID Document Back" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'white' }}>
+                            <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#d4af37' }}>
                               Preview <FaExternalLinkAlt size={8} />
                             </div>
                           </div>
@@ -242,7 +268,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                           <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 'bold' }}>Verification Selfie</span>
                           <div style={{ width: '100%', height: '120px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }} onClick={() => setImagePreview(details.kyc.selfie_url)}>
                             <img src={details.kyc.selfie_url} alt="KYC Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'white' }}>
+                            <div style={{ position: 'absolute', bottom: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#d4af37' }}>
                               Preview <FaExternalLinkAlt size={8} />
                             </div>
                           </div>
@@ -268,7 +294,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Total Wallet Balance:</span>
-                        <strong style={{ color: '#e2e8f0' }}>{formatCurrency(details.wallet_balance)}</strong>
+                        <strong style={{ color: '#d4af37' }}>{formatCurrency(details.wallet_balance)}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: '#64748b' }}>Available Balance:</span>
@@ -292,15 +318,15 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                           <div key={idx} style={{ borderBottom: idx === details.bank_accounts.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)', paddingBottom: idx === details.bank_accounts.length - 1 ? 0 : '10px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                               <span style={{ color: '#64748b' }}>Bank Name:</span>
-                              <strong style={{ color: '#e2e8f0' }}>{acc.bank_name}</strong>
+                              <strong style={{ color: '#d4af37' }}>{acc.bank_name}</strong>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                               <span style={{ color: '#64748b' }}>Account Number:</span>
-                              <strong style={{ color: '#e2e8f0', fontFamily: 'monospace' }}>{acc.account_number}</strong>
+                              <strong style={{ color: '#d4af37', fontFamily: 'monospace' }}>{acc.account_number}</strong>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span style={{ color: '#64748b' }}>Account Name:</span>
-                              <strong style={{ color: '#e2e8f0' }}>{acc.account_name}</strong>
+                              <strong style={{ color: '#d4af37' }}>{acc.account_name}</strong>
                             </div>
                           </div>
                         ))}
@@ -340,7 +366,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                               <td>{formatDate(plan.start_date)}</td>
                               <td className="text-right">{plan.number_of_accounts}</td>
                               <td className="text-right" style={{ color: '#10b981', fontWeight: 'bold' }}>{formatCurrency(plan.current_amount)}</td>
-                              <td className="text-right" style={{ color: '#e2e8f0' }}>{formatCurrency(plan.target_amount)}</td>
+                              <td className="text-right" style={{ color: '#d4af37' }}>{formatCurrency(plan.target_amount)}</td>
                               <td>{formatDate(plan.maturity_date || plan.end_date)}</td>
                               <td className="text-right">
                                 <span className={`badge-status ${plan.computed_status === 'completed' ? 'status-verified' : (plan.status === 'active' ? 'status-verified' : 'status-unverified')}`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
@@ -351,27 +377,19 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                                     {plan.completionMessage}
                                   </div>
                                 )}
-                                <div style={{ marginTop: '8px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                  <button className="btn-filter" onClick={async () => {
-                                    const input = window.prompt('Enter number of days to fast-forward clearance (positive integer) or an exact date (YYYY-MM-DD):');
-                                    if (!input) return;
-                                    const days = parseInt(input, 10);
-                                    let payload = { planId: plan.id };
-                                    if (!isNaN(days) && String(days) === input.trim()) {
-                                      payload.days = days;
-                                    } else {
-                                      // assume date
-                                      payload.newDate = input.trim();
-                                    }
-                                    try {
-                                      await adminFastForwardClearance(details.id, payload);
-                                      alert('Clearance date updated. Refreshing details.');
-                                      await fetchUserDetails();
-                                    } catch (err) {
-                                      console.error('Fast-forward failed', err);
-                                      alert('Failed to update clearance date. See console for details.');
-                                    }
-                                  }}>Fast-forward Clearance</button>
+                                <div style={{ marginTop: '8px', display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                  {editingPlanId === plan.id ? (
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                      <input type="date" value={fastForwardDate} onChange={(e) => setFastForwardDate(e.target.value)} style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                                      <input type="number" min="0" placeholder="Days" value={fastForwardDays} onChange={(e) => setFastForwardDays(e.target.value)} style={{ width: '90px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                                      <button className="btn-filter" onClick={() => submitFastForward(plan.id)} style={{ background: '#064e3b', color: '#fff' }}>Save</button>
+                                      <button className="btn-filter" onClick={() => { setEditingPlanId(null); setFastForwardDate(''); setFastForwardDays(''); }} style={{ background: '#ef4444', color: '#fff' }}>Cancel</button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                      <button className="btn-filter" onClick={() => setEditingPlanId(plan.id)}>Fast-forward (pick date)</button>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -404,7 +422,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '8px', flex: 1, minWidth: '140px' }}>
                       <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Default Count</span>
-                      <strong style={{ color: '#e2e8f0', fontSize: '1.1rem', display: 'block', marginTop: '4px' }}>{details.default_count || 0}</strong>
+                      <strong style={{ color: '#d4af37', fontSize: '1.1rem', display: 'block', marginTop: '4px' }}>{details.default_count || 0}</strong>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 18px', borderRadius: '8px', flex: 1, minWidth: '140px' }}>
                       <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Outstanding Balance</span>
@@ -457,13 +475,13 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
                     <div>
                       <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Referral Code</span>
-                      <div style={{ color: 'white', fontWeight: 'bold', fontFamily: 'monospace', marginTop: '4px', fontSize: '0.9rem' }}>
+                      <div style={{ color: '#d4af37', fontWeight: 'bold', fontFamily: 'monospace', marginTop: '4px', fontSize: '0.9rem' }}>
                         {details.referral_code || 'N/A'}
                       </div>
                     </div>
                     <div>
                       <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Referred By</span>
-                      <div style={{ color: 'white', fontWeight: 600, marginTop: '4px' }}>
+                      <div style={{ color: '#d4af37', fontWeight: 600, marginTop: '4px' }}>
                         {details.referred_by_user ? (
                           <span>{details.referred_by_user.first_name} {details.referred_by_user.last_name} ({details.referred_by_user.email})</span>
                         ) : (
@@ -473,13 +491,13 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                     </div>
                     <div>
                       <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Unlock Date</span>
-                      <div style={{ color: 'white', fontWeight: 600, marginTop: '4px' }}>
+                      <div style={{ color: '#d4af37', fontWeight: 600, marginTop: '4px' }}>
                         {details.referral_unlock_date ? formatDate(details.referral_unlock_date) : 'N/A'}
                       </div>
                     </div>
                     <div>
                       <span style={{ color: '#64748b', fontSize: '0.8rem' }}>Expiry Date</span>
-                      <div style={{ color: 'white', fontWeight: 600, marginTop: '4px' }}>
+                      <div style={{ color: '#d4af37', fontWeight: 600, marginTop: '4px' }}>
                         {details.referral_expiry_date ? formatDate(details.referral_expiry_date) : 'N/A'}
                       </div>
                     </div>
@@ -506,7 +524,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                         <tbody>
                           {details.downlines.map((down) => (
                             <tr key={down.id} style={{ background: 'rgba(255,255,255,0.01)' }}>
-                              <td><strong style={{ color: 'white' }}>{down.first_name} {down.last_name}</strong></td>
+                              <td><strong style={{ color: '#d4af37' }}>{down.first_name} {down.last_name}</strong></td>
                               <td style={{ color: '#94a3b8' }}>{down.email || 'N/A'}</td>
                               <td style={{ color: '#94a3b8' }}>{down.phone || 'N/A'}</td>
                               <td>
@@ -537,7 +555,7 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
       {imagePreview && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.9)', zIndex: 1300, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px' }} onClick={() => setImagePreview(null)}>
           <button 
-            style={{ position: 'absolute', top: '20px', right: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '1.2rem' }}
+            style={{ position: 'absolute', top: '20px', right: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#d4af37', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '1.2rem' }}
             onClick={() => setImagePreview(null)}
           >
             <FaTimes />

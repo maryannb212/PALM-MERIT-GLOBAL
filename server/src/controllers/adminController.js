@@ -286,22 +286,79 @@ export const fastForwardClearance = async (req, res) => {
       // Accept YYYY-MM-DD or full ISO
       let nd = null;
       if (/^\d{4}-\d{2}-\d{2}$/.test(newDate.trim())) {
-        // Treat as local date at midnight
+        // Treat as local date at midnight (UTC)
         nd = new Date(newDate.trim() + 'T00:00:00.000Z');
       } else {
         nd = new Date(newDate);
       }
       if (!nd || isNaN(nd.getTime())) return res.status(400).json({ message: 'Invalid newDate' });
-      const { rows } = await query('UPDATE savings_plans SET clearance_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [nd.toISOString(), planId]);
+      const iso = nd.toISOString();
+      const { rows } = await query('UPDATE savings_plans SET clearance_date = $1, end_date = $1, maturity_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [iso, planId]);
       updated = rows[0];
     } else if (parsedDays !== null) {
-      // Advance clearance_date by parsedDays; if null, start from now
-      const base = planRows[0].clearance_date ? new Date(planRows[0].clearance_date) : new Date();
+      // Advance end_date/clearance_date by parsedDays; if null, start from now
+      const base = planRows[0].end_date ? new Date(planRows[0].end_date) : (planRows[0].clearance_date ? new Date(planRows[0].clearance_date) : new Date());
       const newDt = new Date(base.getTime() + (parsedDays * 24 * 60 * 60 * 1000));
-      const { rows } = await query('UPDATE savings_plans SET clearance_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [newDt.toISOString(), planId]);
+      const iso = newDt.toISOString();
+      const { rows } = await query('UPDATE savings_plans SET clearance_date = $1, end_date = $1, maturity_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [iso, planId]);
       updated = rows[0];
     } else {
       return res.status(400).json({ message: 'Either days (integer) or newDate (ISO or YYYY-MM-DD) is required' });
+    }
+
+    // After updating dates, if plan has completed required contributions, transition status and notify user
+    try {
+      const { rows: refreshed } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
+      const planRow = refreshed[0];
+      if (planRow) {
+        // Compute expected contributions similar to approveEligibility
+        const cfg = {
+          'CREST': { amount: 4000, weeks: 12 },
+          'SILVER': { amount: 1500, weeks: 50 },
+          'GOLDEN_BASKET': { amount: 2000, weeks: 50 },
+          'ISUSU': { amount: 500, days: 30 }
+        };
+        const c = cfg[planRow.plan_name];
+        const numAccounts = planRow.number_of_accounts || 1;
+        let expected = 0;
+        if (c) {
+          if (c.days) expected = c.amount * numAccounts * c.days;
+          else expected = c.amount * numAccounts * c.weeks;
+        }
+
+        const currentAmount = parseFloat(planRow.current_amount || 0);
+        if (expected > 0 && currentAmount >= expected) {
+          // Contributions complete — if CREST/SILVER require clearance, move to pending_clearance
+          if (['CREST', 'SILVER'].includes(planRow.plan_name)) {
+            await query("UPDATE savings_plans SET status = 'pending_clearance', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [planId]);
+            const accounts = planRow.number_of_accounts || 1;
+            const totalFee = accounts * 3000;
+            const msg = `${planRow.plan_name} program has passed eligibility review. Pay ₦${totalFee.toLocaleString()} clearance fee (₦3,000 × ${accounts} account(s)) to proceed to settlement.`;
+            await query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, 'Clearance Required', $2, 'clearance')`, [planRow.user_id, msg]);
+            const { rows: finalRows } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
+            updated = finalRows[0];
+            await logAudit(req.user.id, 'AUTO_APPROVE_ELIGIBILITY_FASTFORWARD', 'savings_plan', planId, { reason: 'fast-forward', plan: planRow.plan_name });
+          } else {
+            // For other plans, mark as pending (approved) and notify
+            let payoutDate = null;
+            const planStart = new Date(planRow.start_date);
+            if (planRow.plan_name === 'GOLDEN_BASKET') {
+              payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
+            } else {
+              payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
+            }
+            await query('UPDATE savings_plans SET status = $1, payout_date = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3', ['pending', payoutDate, planId]);
+            const dateStr = payoutDate ? new Date(payoutDate).toLocaleDateString('en-NG') : 'the scheduled date';
+            const msg = `${planRow.plan_name} program has been approved for payout. Settlement will be processed on ${dateStr}.`;
+            await query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, 'Plan Approved for Payout', $2, 'payout')`, [planRow.user_id, msg]);
+            const { rows: finalRows } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
+            updated = finalRows[0];
+            await logAudit(req.user.id, 'AUTO_APPROVE_ELIGIBILITY_FASTFORWARD', 'savings_plan', planId, { reason: 'fast-forward', plan: planRow.plan_name, payoutDate });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error post-processing fast-forward eligibility:', e);
     }
 
     await logAudit(req.user.id, 'FAST_FORWARD_CLEARANCE', 'savings_plan', planId, { userId, days, newDate });
