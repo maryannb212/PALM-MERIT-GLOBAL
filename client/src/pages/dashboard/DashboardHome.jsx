@@ -72,6 +72,36 @@ const DashboardHome = () => {
     if (bDismissed) setBirthdayDismissed(true);
   }, []);
 
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const { data } = await getMyNotifications();
+        setNotifications(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Error fetching notifications:', err);
+      }
+    };
+    fetchNotifications();
+  }, []);
+
+  const handleMarkRead = async (notifId) => {
+    try {
+      await markNotificationRead(notifId);
+      setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error('Error marking notification read:', err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error('Error marking all notifications read:', err);
+    }
+  };
+
   if (!profileLoaded) {
     return <div className="loading-container" style={{ textAlign: 'center', padding: '80px 20px' }}><div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid #e1e1e1', borderTop: '4px solid #800020', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div><p>Loading your profile...</p></div>;
   }
@@ -211,6 +241,8 @@ const DashboardHome = () => {
                   PAYMENT: { icon: '💳', bg: '#ecfdf5', border: '#a7f3d0', color: '#065f46' },
                   PROMO: { icon: '✨', bg: '#fefce8', border: '#fde68a', color: '#92400e' },
                   ALERT: { icon: '⚠️', bg: '#fef2f2', border: '#fecaca', color: '#991b1b' },
+                  clearance: { icon: '🔓', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' },
+                  payout: { icon: '💰', bg: '#fefce8', border: '#fde68a', color: '#854d0e' },
                 };
                 const style = typeStyles[notif.type] || typeStyles.SYSTEM;
                 return (
