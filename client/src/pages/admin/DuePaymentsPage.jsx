@@ -71,6 +71,7 @@ const DuePaymentsPage = () => {
       userMap[uid].plans.push({
         plan_id: entry.plan_id,
         plan_name: entry.plan_name,
+        plan_status: entry.plan_status,
         number_of_accounts: numAccounts,
         per_account_amount: perAccountAmount,
         expected_installment: entry.expected_installment,
@@ -306,7 +307,13 @@ const DuePaymentsPage = () => {
                                       )}
                                     </td>
                                     <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                      {p.is_matured ? (
+                                      {p.plan_status === 'eligibility_review' ? (
+                                        <span style={{
+                                          display: 'inline-block', padding: '2px 10px', borderRadius: 10,
+                                          fontSize: '0.7rem', fontWeight: 700,
+                                          background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe'
+                                        }}>REVIEW</span>
+                                      ) : p.is_matured ? (
                                         <span style={{
                                           display: 'inline-block', padding: '2px 10px', borderRadius: 10,
                                           fontSize: '0.7rem', fontWeight: 700,

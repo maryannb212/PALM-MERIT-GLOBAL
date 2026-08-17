@@ -1342,6 +1342,7 @@ export const getDuePayments = async (req, res) => {
       SELECT 
         sp.id AS plan_id,
         sp.plan_name,
+        sp.status AS plan_status,
         sp.start_date,
         sp.maturity_date,
         sp.number_of_accounts,
@@ -1357,7 +1358,7 @@ export const getDuePayments = async (req, res) => {
          ORDER BY created_at DESC LIMIT 1) AS last_payment_date
       FROM savings_plans sp
       JOIN users u ON sp.user_id = u.id
-      WHERE sp.status = 'active'
+      WHERE sp.status IN ('active', 'eligibility_review')
       ORDER BY u.first_name, u.last_name, sp.plan_name
     `);
 
@@ -1403,6 +1404,7 @@ export const getDuePayments = async (req, res) => {
       const entry = {
         plan_id: plan.plan_id,
         plan_name: plan.plan_name,
+        plan_status: plan.plan_status,
         number_of_accounts: numAccounts,
         per_account_amount: perAccountAmount,
         expected_installment: expectedInstallment,
