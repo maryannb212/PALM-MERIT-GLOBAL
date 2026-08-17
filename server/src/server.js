@@ -7,6 +7,7 @@ import logger from './utils/logger.js';
 import { exec } from 'child_process';
 import util from 'util';
 import { startDeductionJob } from './jobs/deductionJob.js';
+import { startMaturityJob } from './jobs/maturityCron.js';
 
 const execPromise = util.promisify(exec);
 
@@ -52,6 +53,7 @@ const startServer = async (retries = 5) => {
         // Production scheduling can be handled by GitHub Actions or Render Cron.
         if (process.env.ENABLE_INTERNAL_CRON === 'true') {
           startDeductionJob();
+          startMaturityJob();
         }
       });
 
