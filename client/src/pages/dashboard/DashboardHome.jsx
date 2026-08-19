@@ -393,15 +393,24 @@ const DashboardHome = () => {
             </div>
           ) : (
             <div className="week-transactions">
-              {recentTransactions.map((plan) => (
+              {recentTransactions.map((plan) => {
+                const statusLabels = {
+                  active: 'Active', completed: 'Completed', cancelled: 'Cancelled',
+                  maturity: 'Completed', eligibility_review: 'Completed',
+                  pending_clearance: 'Pending Clearance', pending_settlement: 'Eligibility Review',
+                  settled: 'Paid'
+                };
+                const displayStatus = statusLabels[plan.status] || plan.status;
+                return (
                 <div className="week-tx-row" key={plan.id}>
                   <span className="week-tx-name">{plan.plan_name}</span>
                   <span className={`badge badge-${plan.status === 'active' ? 'success' : 'warning'}`}>
-                    {plan.status}
+                    {displayStatus}
                   </span>
                   <span className="week-tx-amount">{formatCurrency(plan.current_amount)}</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

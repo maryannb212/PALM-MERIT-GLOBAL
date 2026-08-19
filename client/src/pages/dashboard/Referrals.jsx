@@ -289,7 +289,13 @@ const Referrals = () => {
                     const contributions = countContributions(plan.start_date || plan.created_at, plan.preferred_day, isDaily);
                     const nextPayDate = getNextPaymentDate(plan);
                     const progress = plan.target_amount > 0 ? ((plan.current_amount / plan.target_amount) * 100).toFixed(1) : 0;
-                    const status = plan.status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const statusLabels = {
+                      active: 'Active', completed: 'Completed', cancelled: 'Cancelled',
+                      maturity: 'Completed', eligibility_review: 'Completed',
+                      pending_clearance: 'Pending Clearance', pending_settlement: 'Eligibility Review',
+                      settled: 'Paid'
+                    };
+                    const status = statusLabels[plan.status] || plan.status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                     return (
                       <tr key={plan.id}>
                         <td>
