@@ -86,7 +86,13 @@ export const runStartupCatchupDeductions = async () => {
         const currentAmount = parseFloat(lockedPlans[0].current_amount || 0);
 
         if (currentAmount < expectedTotal) {
-          const owedAmount = Math.floor(expectedTotal - currentAmount);
+          const targetAmount = parseFloat(plan.target_amount || 0);
+          const remainingToTarget = targetAmount > 0 ? Math.floor(targetAmount - currentAmount) : Infinity;
+          if (remainingToTarget <= 0) {
+            await client.query('ROLLBACK');
+            continue;
+          }
+          const owedAmount = Math.floor(Math.min(expectedTotal - currentAmount, remainingToTarget));
           console.log(`Plan ${plan.id} (${plan.plan_name}) is behind. Expected: N${expectedTotal}, Actual: N${currentAmount}. Catching up N${owedAmount}...`);
 
           const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [plan.user_id]);
@@ -180,6 +186,15 @@ const processDuePlan = async (plan, config, watDateStr, watNow) => {
       return;
     }
 
+    const targetAmount = parseFloat(lockedPlans[0].target_amount || 0);
+    const currentAmountLocked = parseFloat(lockedPlans[0].current_amount || 0);
+    const remainingToTarget = targetAmount > 0 ? Math.floor(targetAmount - currentAmountLocked) : Infinity;
+    if (remainingToTarget <= 0) {
+      console.log(`Plan ${plan.id}: target already reached (N${currentAmountLocked}/N${targetAmount}). Skipping deduction.`);
+      await client.query('ROLLBACK');
+      return;
+    }
+
     const { rows: existingTransactions } = await client.query(`
       SELECT created_at FROM transactions
       WHERE plan_id = $1 AND type IN ('savings', 'penalty') AND status = 'completed'
@@ -215,7 +230,7 @@ const processDuePlan = async (plan, config, watDateStr, watNow) => {
     const doubledDue = Math.floor(fullDue * 2);
     const payableAccounts = Math.floor(balance / perAccountAmount);
     const payableAmount = payableAccounts * perAccountAmount;
-    const savingsAmount = Math.floor(Math.min(payableAmount, fullDue));
+    const savingsAmount = Math.floor(Math.min(payableAmount, fullDue, remainingToTarget));
 
     if (savingsAmount > 0) {
       await client.query('UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2', [savingsAmount, plan.user_id]);
