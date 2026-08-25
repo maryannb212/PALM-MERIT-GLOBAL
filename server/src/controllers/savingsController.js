@@ -759,7 +759,7 @@ export const clearDefaults = async (req, res) => {
         );
       }
 
-      const newPenalty = penaltyAmount - penaltySettled;
+      const newPenalty = penaltyAmount - cost;
       if (newPenalty <= 0) {
         await client.query(
           'UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1',
