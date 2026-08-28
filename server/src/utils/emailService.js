@@ -10,12 +10,21 @@ if (process.env.SENDGRID_API_KEY) {
 }
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT) || 465,
+  secure: process.env.SMTP_SECURE === 'true' || (process.env.SMTP_PORT || '465') === '465',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+});
+
+transporter.verify((error) => {
+  if (error) {
+    console.error('SMTP connection verification failed:', error.message);
+  } else {
+    console.log('SMTP connection verified successfully');
+  }
 });
 
 /**
@@ -23,12 +32,16 @@ const transporter = nodemailer.createTransport({
  */
 export const sendEmail = async ({ to, subject, text, html }) => {
   const fromName = process.env.EMAIL_FROM_NAME || 'Palm Merit Global';
-  const defaultFromEmail = process.env.EMAIL_FROM || 'info@palmmeritglobal.com';
+  const defaultFromEmail = process.env.EMAIL_FROM || 'Topsecreetdeveloper@gmail.com';
   const brevoEmail = process.env.BREVO_SENDER_EMAIL || defaultFromEmail;
   const from = `"${fromName}" <${defaultFromEmail}>`;
   
   try {
-    if (process.env.NODE_ENV === 'production' && process.env.BREVO_API_KEY) {
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      const info = await transporter.sendMail({ from, to, subject, text, html });
+      console.log(`Email sent via Gmail SMTP to ${to}: ${info.messageId}`);
+      return info;
+    } else if (process.env.NODE_ENV === 'production' && process.env.BREVO_API_KEY) {
       const payload = {
         sender: { name: fromName, email: brevoEmail },
         to: [{ email: to }],
@@ -52,7 +65,7 @@ export const sendEmail = async ({ to, subject, text, html }) => {
       return { success: true };
     } else {
       const info = await transporter.sendMail({ from, to, subject, text, html });
-      console.log(`Email sent via Nodemailer: ${info.messageId}`);
+      console.log(`Email sent via nodemailer: ${info.messageId}`);
       return info;
     }
   } catch (error) {
