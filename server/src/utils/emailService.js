@@ -69,10 +69,9 @@ export const sendEmail = async ({ to, subject, text, html }) => {
       return info;
     }
   } catch (error) {
-    console.error('Error sending email:', error.response?.data || error.message);
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Email sending failed');
-    }
+    const detail = error.response?.data || error.message || 'Unknown email error';
+    console.error('Error sending email:', detail);
+    throw new Error(`Email delivery failed: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}`);
   }
 };
 

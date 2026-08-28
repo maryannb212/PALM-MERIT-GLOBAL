@@ -399,9 +399,16 @@ export const forgotPassword = async (req, res) => {
     const otp = await createAndSaveOTP(user.id, 'reset');
     
     if (user.email) {
-      sendOTPEmail(user.email, otp.code, 'Password Reset').catch(err => {
-        console.error('[Auth Service] Background Password Reset OTP delivery failed (Email):', err.message);
-      });
+      try {
+        await sendOTPEmail(user.email, otp.code, 'Password Reset');
+      } catch (err) {
+        console.error('[Auth Service] Password Reset OTP email delivery failed:', err.message);
+        return res.status(502).json({
+          message: 'Failed to send password reset code by email. Please try again later or contact support.'
+        });
+      }
+    } else {
+      return res.status(400).json({ message: 'This account has no email address on file. Please contact support.' });
     }
 
     res.json({ 
