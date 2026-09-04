@@ -161,7 +161,9 @@ export const getDailyAccountStats = (filter = 'today', from, to) => {
   return API.get(url);
 };
 export const getWebhookLogs = () => API.get('/admin/webhook-logs');
+export const retryWebhookLog = (logId) => API.post(`/admin/webhook-logs/${logId}/retry`);
 export const getRecentTransfers = (hours = 24) => API.get(`/admin/transactions/recent?hours=${hours}`);
+export const adminFastForwardClearance = (userId, data) => API.post(`/admin/users/${userId}/fast-forward-clearance`, data);
 
 
 // Ambassador endpoints

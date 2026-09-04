@@ -39,6 +39,22 @@ const SupportTicketsPage = () => {
     }
   };
 
+  const handleReply = async (ticketId) => {
+    const reply = window.prompt('Enter reply to the user:');
+    if (!reply) return;
+    try {
+      setUpdatingId(ticketId);
+      await updateAdminTicket(ticketId, { adminReply: reply });
+      setTickets(tickets.map(t => t.id === ticketId ? { ...t } : t));
+      alert('Reply sent to user');
+    } catch (err) {
+      console.error('Failed to reply to ticket', err);
+      alert('Failed to send reply');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const getStatusBadgeClass = (status) => {
     switch(status) {
       case 'open': return 'status-pending';
@@ -144,6 +160,7 @@ const SupportTicketsPage = () => {
                         <option value="resolved">Resolved</option>
                         <option value="closed">Closed</option>
                       </select>
+                      <button className="btn-filter" style={{ marginLeft: '8px' }} onClick={() => handleReply(ticket.id)} disabled={updatingId === ticket.id}>Reply</button>
                     </td>
                   </tr>
                 ))}

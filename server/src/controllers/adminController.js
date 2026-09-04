@@ -4,6 +4,8 @@ import { logAudit } from '../models/auditModel.js';
 import { processCompletedPayment, createTransaction } from '../models/transactionModel.js';
 import * as withdrawalController from './withdrawalController.js';
 import jsonwebtoken from 'jsonwebtoken';
+import axios from 'axios';
+import crypto from 'crypto';
 
 /**
  * Get all users
@@ -111,6 +113,76 @@ export const getUserById = async (req, res) => {
     const plansResult = await query(plansSql, [id]);
     user.savings_plans = plansResult.rows;
 
+    // Compute cycle information per plan (duration, elapsed days, completion, messages)
+    for (const plan of user.savings_plans) {
+      try {
+        // determine contribution start date from earliest savings transaction if present
+        const { rows: contribRows } = await query(
+          `SELECT MIN(created_at) AS contribution_date FROM transactions WHERE plan_id = $1 AND type = 'savings'`,
+          [plan.id]
+        );
+        const contributionDate = contribRows[0].contribution_date ? new Date(contribRows[0].contribution_date) : (plan.start_date ? new Date(plan.start_date) : null);
+
+        // duration mapping (days) - align with weekly/daily config
+        const durationMap = {
+          'CREST': 84,        // 12 weeks
+          'SILVER': 350,      // 50 weeks
+          'GOLDEN_BASKET': 350,
+          'ISUSU': 30         // 30 days
+        };
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const now = new Date();
+        const durationDays = durationMap[plan.plan_name] || 0;
+
+        plan.cycleDurationDays = durationDays;
+        if (contributionDate) {
+          const elapsed = Math.floor((now.getTime() - new Date(contributionDate).getTime()) / msPerDay);
+          plan.cycleDaysElapsed = elapsed;
+        } else {
+          plan.cycleDaysElapsed = null;
+        }
+
+        // expected contributions based on plan config
+        const cfg = {
+          'CREST': { amount: 4000, weeks: 12 },
+          'SILVER': { amount: 1500, weeks: 50 },
+          'GOLDEN_BASKET': { amount: 2000, weeks: 50 },
+          'ISUSU': { amount: 500, days: 30 }
+        };
+        const c = cfg[plan.plan_name];
+        const numAccounts = plan.number_of_accounts || 1;
+        let expectedContributions = 0;
+        if (c) {
+          if (c.days) expectedContributions = c.amount * numAccounts * c.days;
+          else expectedContributions = c.amount * numAccounts * c.weeks;
+        }
+
+        const currentAmount = parseFloat(plan.current_amount || 0);
+        const contributionsComplete = currentAmount >= expectedContributions;
+
+        const cycleTimeReached = (plan.cycleDaysElapsed !== null && durationDays > 0) ? (plan.cycleDaysElapsed >= durationDays) : false;
+
+        plan.cycleCompleted = contributionsComplete && cycleTimeReached;
+
+        if (plan.cycleCompleted) {
+          // compute clearance availability date (next 6 days)
+          const clearanceDate = new Date(now.getTime() + (6 * msPerDay));
+          const clearanceDateStr = clearanceDate.toLocaleDateString('en-NG');
+          plan.computed_status = 'completed';
+          plan.completionMessage = `Savings cycle completed — congratulations 🍷 🎉. Clearance will be available on ${clearanceDateStr}.`;
+          plan.clearanceAvailableDate = clearanceDateStr;
+        } else {
+          plan.computed_status = plan.status;
+        }
+      } catch (err) {
+        console.error('Error computing cycle info for plan', plan.id, err);
+        plan.cycleDurationDays = null;
+        plan.cycleDaysElapsed = null;
+        plan.cycleCompleted = false;
+        plan.computed_status = plan.status;
+      }
+    }
+
     const defaultsSql = `
       SELECT id, plan_id, missed_date, penalty_amount, resolved, resolved_at, created_at
       FROM defaults
@@ -181,6 +253,120 @@ export const updateUser = async (req, res) => {
   } catch (error) {
     console.error('Error updating user:', error);
     res.status(500).json({ message: 'Server error updating user' });
+  }
+};
+
+/**
+ * Fast-forward or set a savings plan's clearance date for testing.
+ * POST /api/admin/users/:userId/fast-forward-clearance
+ * Body: { planId: uuid, days?: integer, newDate?: ISOString }
+ */
+export const fastForwardClearance = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { planId, days, newDate } = req.body;
+
+    if (!planId) return res.status(400).json({ message: 'planId is required' });
+
+    // Validate ownership
+    const { rows: planRows } = await query('SELECT id, user_id, clearance_date FROM savings_plans WHERE id = $1 AND user_id = $2', [planId, userId]);
+    if (planRows.length === 0) return res.status(404).json({ message: 'Plan not found for user' });
+
+    let updated;
+    // Normalize days if provided as string
+    let parsedDays = null;
+    if (typeof days === 'string' && days.trim() !== '') {
+      const dnum = parseInt(days, 10);
+      if (!isNaN(dnum)) parsedDays = dnum;
+    } else if (typeof days === 'number' && Number.isInteger(days)) {
+      parsedDays = days;
+    }
+
+    if (newDate) {
+      // Accept YYYY-MM-DD or full ISO
+      let nd = null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(newDate.trim())) {
+        // Treat as local date at midnight (UTC)
+        nd = new Date(newDate.trim() + 'T00:00:00.000Z');
+      } else {
+        nd = new Date(newDate);
+      }
+      if (!nd || isNaN(nd.getTime())) return res.status(400).json({ message: 'Invalid newDate' });
+      const iso = nd.toISOString();
+      const { rows } = await query('UPDATE savings_plans SET clearance_date = $1, end_date = $1, maturity_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [iso, planId]);
+      updated = rows[0];
+    } else if (parsedDays !== null) {
+      // Advance end_date/clearance_date by parsedDays; if null, start from now
+      const base = planRows[0].end_date ? new Date(planRows[0].end_date) : (planRows[0].clearance_date ? new Date(planRows[0].clearance_date) : new Date());
+      const newDt = new Date(base.getTime() + (parsedDays * 24 * 60 * 60 * 1000));
+      const iso = newDt.toISOString();
+      const { rows } = await query('UPDATE savings_plans SET clearance_date = $1, end_date = $1, maturity_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *', [iso, planId]);
+      updated = rows[0];
+    } else {
+      return res.status(400).json({ message: 'Either days (integer) or newDate (ISO or YYYY-MM-DD) is required' });
+    }
+
+    // After updating dates, if plan has completed required contributions, transition status and notify user
+    try {
+      const { rows: refreshed } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
+      const planRow = refreshed[0];
+      if (planRow) {
+        // Compute expected contributions similar to approveEligibility
+        const cfg = {
+          'CREST': { amount: 4000, weeks: 12 },
+          'SILVER': { amount: 1500, weeks: 50 },
+          'GOLDEN_BASKET': { amount: 2000, weeks: 50 },
+          'ISUSU': { amount: 500, days: 30 }
+        };
+        const c = cfg[planRow.plan_name];
+        const numAccounts = planRow.number_of_accounts || 1;
+        let expected = 0;
+        if (c) {
+          if (c.days) expected = c.amount * numAccounts * c.days;
+          else expected = c.amount * numAccounts * c.weeks;
+        }
+
+        const currentAmount = parseFloat(planRow.current_amount || 0);
+        if (expected > 0 && currentAmount >= expected) {
+          // Contributions complete — if CREST/SILVER require clearance, move to pending_clearance
+          if (['CREST', 'SILVER'].includes(planRow.plan_name)) {
+            await query("UPDATE savings_plans SET status = 'pending_clearance', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [planId]);
+            const accounts = planRow.number_of_accounts || 1;
+            const totalFee = accounts * 3000;
+            const msg = `${planRow.plan_name} program has passed eligibility review. Pay ₦${totalFee.toLocaleString()} clearance fee (₦3,000 × ${accounts} account(s)) to proceed to settlement.`;
+            await query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, 'Clearance Required', $2, 'clearance')`, [planRow.user_id, msg]);
+            const { rows: finalRows } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
+            updated = finalRows[0];
+            await logAudit(req.user.id, 'AUTO_APPROVE_ELIGIBILITY_FASTFORWARD', 'savings_plan', planId, { reason: 'fast-forward', plan: planRow.plan_name });
+          } else {
+            // For other plans, mark as pending (approved) and notify
+            let payoutDate = null;
+            const planStart = new Date(planRow.start_date);
+            if (planRow.plan_name === 'GOLDEN_BASKET') {
+              payoutDate = new Date(planStart.getTime() + (364 * 24 * 60 * 60 * 1000));
+            } else {
+              payoutDate = new Date(Date.now() + (14 * 24 * 60 * 60 * 1000));
+            }
+            await query('UPDATE savings_plans SET status = $1, payout_date = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3', ['pending', payoutDate, planId]);
+            const dateStr = payoutDate ? new Date(payoutDate).toLocaleDateString('en-NG') : 'the scheduled date';
+            const msg = `${planRow.plan_name} program has been approved for payout. Settlement will be processed on ${dateStr}.`;
+            await query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, 'Plan Approved for Payout', $2, 'payout')`, [planRow.user_id, msg]);
+            const { rows: finalRows } = await query('SELECT * FROM savings_plans WHERE id = $1', [planId]);
+            updated = finalRows[0];
+            await logAudit(req.user.id, 'AUTO_APPROVE_ELIGIBILITY_FASTFORWARD', 'savings_plan', planId, { reason: 'fast-forward', plan: planRow.plan_name, payoutDate });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error post-processing fast-forward eligibility:', e);
+    }
+
+    await logAudit(req.user.id, 'FAST_FORWARD_CLEARANCE', 'savings_plan', planId, { userId, days, newDate });
+
+    res.json({ message: 'Clearance date updated', plan: updated });
+  } catch (error) {
+    console.error('Error fast-forwarding clearance:', error);
+    res.status(500).json({ message: 'Failed to fast-forward clearance' });
   }
 };
 
@@ -286,46 +472,45 @@ export const getAllTickets = async (req, res) => {
  * PUT /api/admin/tickets/:id
  */
 export const updateTicket = async (req, res) => {
+  const t = await getClient();
   try {
     const { id } = req.params;
     const { status, adminReply } = req.body;
 
-    const validStatuses = ['open', 'in-progress', 'resolved', 'closed'];
-    if (status && !validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
-    }
-
-    let sql = `UPDATE tickets SET updated_at = CURRENT_TIMESTAMP`;
-    const params = [id];
+    await t.query('BEGIN');
 
     if (status) {
-      sql += `, status = $${params.push(status)}`;
-    }
-    
-    // We'll need to add admin_reply column if it doesn't exist, 
-    // for now let's assume it's part of the tickets table or we handle it via notifications
-    
-    sql += ` WHERE id = $1 RETURNING *`;
-    const result = await query(sql, params);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Ticket not found' });
+      const validStatuses = ['open', 'in-progress', 'resolved', 'closed'];
+      if (!validStatuses.includes(status)) {
+        await t.query('ROLLBACK');
+        return res.status(400).json({ message: 'Invalid status' });
+      }
+      await t.query('UPDATE tickets SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [status, id]);
     }
 
+    // If adminReply provided, attempt to persist it in ticket_messages table if exists
     if (adminReply) {
-      await createNotification(
-        result.rows[0].user_id,
-        'SUPPORT',
-        'Support Ticket Update',
-        `Admin replied to your ticket: ${adminReply}`
-      );
+      const { rows: existsRows } = await t.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ticket_messages') as exists");
+      const exists = existsRows[0]?.exists;
+      if (exists) {
+        await t.query('INSERT INTO ticket_messages (ticket_id, sender, message, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)', [id, 'admin', adminReply]);
+      } else {
+        // Fallback: add a notification to the user
+        const tr = await t.query('SELECT user_id, title FROM tickets WHERE id = $1', [id]);
+        if (tr.rows.length > 0) {
+          const ticket = tr.rows[0];
+          await createNotification(ticket.user_id, 'SUPPORT', 'Support Ticket Update', `Admin replied to your ticket: ${adminReply}`);
+        }
+      }
     }
 
+    await t.query('COMMIT');
     await logAudit(req.user.id, 'UPDATE_TICKET', 'ticket', id, { status, adminReply });
-
-    res.json({ message: 'Ticket updated', ticket: result.rows[0] });
+    const { rows: updated } = await query('SELECT * FROM tickets WHERE id = $1', [id]);
+    res.json({ message: 'Ticket updated', ticket: updated[0] });
   } catch (error) {
     console.error('Error updating ticket:', error);
+    try { await t.query('ROLLBACK'); } catch (e) {}
     res.status(500).json({ message: 'Server error updating ticket' });
   }
 };
@@ -864,6 +1049,88 @@ export const getWebhookLogs = async (req, res) => {
   }
 };
 
+/**
+ * Retry processing of a logged webhook event (admin action)
+ * POST /api/admin/webhook-logs/:id/retry
+ */
+export const retryWebhookLog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await query('SELECT * FROM webhook_logs WHERE id = $1', [id]);
+    if (rows.length === 0) return res.status(404).json({ message: 'Webhook log not found' });
+
+    const log = rows[0];
+    const payload = log.payload || null;
+    const source = log.source || 'paystack';
+
+    if (source === 'paystack') {
+      const reference = log.reference || (payload && payload.data && payload.data.reference) || null;
+      if (!reference) return res.status(400).json({ message: 'No reference available to retry' });
+
+      // Try to re-verify with Paystack if configured
+      let verifiedAmount = null;
+      let gatewayRef = null;
+      const secret = (process.env.PAYSTACK_SECRET_KEY || '').trim().replace(/^\"|\"$/g, '');
+      if (secret) {
+        try {
+          const verifyRes = await axios.get(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+            headers: { Authorization: `Bearer ${secret}` },
+            timeout: 10000
+          });
+          const data = verifyRes.data?.data;
+          if (data && data.status === 'success') {
+            verifiedAmount = data.amount / 100;
+            gatewayRef = data.id?.toString() || null;
+          }
+        } catch (err) {
+          console.warn('Paystack verify failed during retry:', err.message);
+        }
+      }
+
+      const result = await processCompletedPayment(reference, verifiedAmount, gatewayRef, 'paystack');
+
+      await query("UPDATE webhook_logs SET status = 'processed', note = COALESCE(note, '') || ' | retried by admin' WHERE id = $1", [id]);
+      return res.json({ message: 'Retry processed', result });
+    }
+
+    if (source === 'lotus') {
+      // lotus payload should contain data.amount and reserved_account details for VAs
+      const p = payload || {};
+      const accountNumber = p.data?.reserved_account?.account_details?.account_number || null;
+      const reference = log.reference || p.data?.reference || p.reference || null;
+      const rawAmount = p.data?.amount || p.amount || 0;
+      const amount = Number(rawAmount || 0);
+
+      if (!reference) return res.status(400).json({ message: 'No reference available to retry' });
+
+      if (accountNumber && amount > 0) {
+        // find user
+        const { rows: userRows } = await query('SELECT id FROM users WHERE virtual_account_number = $1', [accountNumber]);
+        const user = userRows[0];
+        if (!user) return res.status(404).json({ message: 'User for VA not found' });
+
+        // ensure transaction exists
+        const tx = await query('SELECT * FROM transactions WHERE reference = $1', [reference]);
+        if (!tx.rows[0]) {
+          await createTransaction(user.id, null, 'wallet_topup', amount, reference, 'lotus');
+        }
+
+        const result = await processCompletedPayment(reference, amount, reference, 'lotus');
+        await query("UPDATE webhook_logs SET status = 'processed', note = COALESCE(note, '') || ' | retried by admin' WHERE id = $1", [id]);
+        return res.json({ message: 'Retry processed', result });
+      }
+
+      return res.status(400).json({ message: 'Lotus payload missing VA account or amount' });
+    }
+
+    return res.status(400).json({ message: 'Unsupported webhook source for retry' });
+  } catch (error) {
+    console.error('Error retrying webhook log:', error);
+    try { await query("UPDATE webhook_logs SET status = 'error', note = COALESCE(note, '') || ' | retry failed: ' || $2 WHERE id = $1", [req.params.id, String(error.message)]); } catch (e) {}
+    res.status(500).json({ message: 'Failed to retry webhook' });
+  }
+};
+
 export const getSystemStatus = async (req, res) => {
   try {
     const lotusMerchant = process.env.LOTUS_MERCHANT_KEY || '';
@@ -1075,6 +1342,7 @@ export const getDuePayments = async (req, res) => {
       SELECT 
         sp.id AS plan_id,
         sp.plan_name,
+        sp.status AS plan_status,
         sp.start_date,
         sp.maturity_date,
         sp.number_of_accounts,
@@ -1090,7 +1358,7 @@ export const getDuePayments = async (req, res) => {
          ORDER BY created_at DESC LIMIT 1) AS last_payment_date
       FROM savings_plans sp
       JOIN users u ON sp.user_id = u.id
-      WHERE sp.status = 'active'
+      WHERE sp.status IN ('active', 'eligibility_review')
       ORDER BY u.first_name, u.last_name, sp.plan_name
     `);
 
@@ -1136,6 +1404,7 @@ export const getDuePayments = async (req, res) => {
       const entry = {
         plan_id: plan.plan_id,
         plan_name: plan.plan_name,
+        plan_status: plan.plan_status,
         number_of_accounts: numAccounts,
         per_account_amount: perAccountAmount,
         expected_installment: expectedInstallment,

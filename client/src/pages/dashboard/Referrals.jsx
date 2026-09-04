@@ -289,7 +289,13 @@ const Referrals = () => {
                     const contributions = countContributions(plan.start_date || plan.created_at, plan.preferred_day, isDaily);
                     const nextPayDate = getNextPaymentDate(plan);
                     const progress = plan.target_amount > 0 ? ((plan.current_amount / plan.target_amount) * 100).toFixed(1) : 0;
-                    const status = plan.status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const statusLabels = {
+                      active: 'Active', completed: 'Completed', cancelled: 'Cancelled',
+                      maturity: 'Completed', eligibility_review: 'Completed',
+                      pending_clearance: 'Pending Clearance', pending_settlement: 'Eligibility Review',
+                      settled: 'Paid'
+                    };
+                    const status = statusLabels[plan.status] || plan.status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                     return (
                       <tr key={plan.id}>
                         <td>
@@ -415,6 +421,8 @@ const Referrals = () => {
                 <thead>
                   <tr>
                     <th>Name</th>
+                    <th>Contact</th>
+                    <th>Status</th>
                     <th>Code Used</th>
                     <th>Joined Date</th>
                     <th>Date Used</th>
@@ -425,6 +433,29 @@ const Referrals = () => {
                     return (
                       <tr key={downline.id}>
                         <td style={{fontWeight: '600'}}>{downline.firstName} {downline.lastName}</td>
+                        <td>
+                          <div>{downline.phone || 'No phone number'}</div>
+                          <small style={{ color: '#64748b' }}>{downline.email || 'No email address'}</small>
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              color: downline.hasDefault ? '#b91c1c' : '#15803d',
+                              fontWeight: '700'
+                            }}
+                            title={downline.hasDefault ? `${downline.defaultCount} outstanding default(s)` : 'No outstanding defaults'}
+                          >
+                            {downline.hasDefault ? <><FaTimesCircle /> Not Active</> : <><FaCheckCircle /> Active</>}
+                          </span>
+                          {downline.hasDefault && (
+                            <div style={{ color: '#b91c1c', fontSize: '0.75rem', marginTop: '4px' }}>
+                              Has outstanding default
+                            </div>
+                          )}
+                        </td>
                         <td><span style={{background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', color: '#475569'}}>{downline.usedSpecificCode}</span></td>
                         <td>{new Date(downline.createdAt).toLocaleDateString()}</td>
                         <td>

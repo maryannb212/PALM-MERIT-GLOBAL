@@ -66,7 +66,12 @@ export const subscribeToPlan = async (req, res) => {
 
         // Lock the row immediately to prevent concurrent consumption
         const { rows: refCodes } = await client.query(
-          'SELECT id, user_id, status, unlock_date, expires_at FROM referral_codes WHERE code = $1 FOR UPDATE',
+          `SELECT rc.id, rc.user_id, rc.status, rc.unlock_date, rc.expires_at,
+                  sp.plan_name AS referral_plan_name
+           FROM referral_codes rc
+           LEFT JOIN savings_plans sp ON sp.id = rc.plan_id
+           WHERE rc.code = $1
+           FOR UPDATE OF rc`,
           [codeStr]
         );
 
@@ -92,6 +97,10 @@ export const subscribeToPlan = async (req, res) => {
 
         if (rc.status === 'locked') {
           throw new Error('This referral code is not yet activated/unlocked. No account will be created. Please wait for it to unlock or enter NEW to subscribe without a referral.');
+        }
+
+        if (rc.referral_plan_name && rc.referral_plan_name !== planName) {
+          throw new Error(`This referral code belongs to the ${rc.referral_plan_name} plan and cannot be used to create a ${planName} plan.`);
         }
 
         // Check if code has expired by expires_at
@@ -702,7 +711,7 @@ export const clearDefaults = async (req, res) => {
     const balance = Math.floor(parseFloat(users[0].available_balance));
 
     const { rows: defaults } = await client.query(`
-      SELECT d.id, d.plan_id, d.penalty_amount, d.missed_date, sp.plan_name, sp.number_of_accounts, sp.current_amount
+      SELECT d.id, d.plan_id, d.penalty_amount, d.missed_date, sp.plan_name, sp.number_of_accounts, sp.current_amount, sp.target_amount
       FROM defaults d
       JOIN savings_plans sp ON d.plan_id = sp.id
       WHERE d.user_id = $1 AND d.resolved = FALSE
@@ -720,6 +729,7 @@ export const clearDefaults = async (req, res) => {
     let totalToSavings = 0;
     let resolvedDefaults = 0;
     const results = [];
+    const remainingByPlan = {};
 
     for (const d of defaults) {
       if (remainingBalance <= 0) break;
@@ -736,17 +746,27 @@ export const clearDefaults = async (req, res) => {
 
       if (accountsToClear <= 0) continue;
 
+      if (!(d.plan_id in remainingByPlan)) {
+        const tAmount = parseFloat(d.target_amount || 0);
+        const cAmount = parseFloat(d.current_amount || 0);
+        remainingByPlan[d.plan_id] = tAmount > 0 ? Math.floor(tAmount - cAmount) : Infinity;
+      }
+
       const cost = accountsToClear * perAccountCost;
-      const savingsPortion = accountsToClear * perAccountAmount;
+      const savingsPortion = Math.min(accountsToClear * perAccountAmount, Math.max(0, remainingByPlan[d.plan_id]));
+      remainingByPlan[d.plan_id] -= savingsPortion;
+      const penaltySettled = cost - savingsPortion;
 
       remainingBalance -= cost;
       totalDeducted += cost;
       totalToSavings += savingsPortion;
 
-      await client.query(
-        'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-        [savingsPortion, d.plan_id]
-      );
+      if (savingsPortion > 0) {
+        await client.query(
+          'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+          [savingsPortion, d.plan_id]
+        );
+      }
 
       const newPenalty = penaltyAmount - cost;
       if (newPenalty <= 0) {
@@ -827,7 +847,7 @@ export const clearDefaultById = async (req, res) => {
     const { defaultId } = req.params;
 
     const { rows: defaults } = await client.query(`
-      SELECT d.id, d.penalty_amount, d.plan_id, d.missed_date, sp.plan_name, sp.number_of_accounts
+      SELECT d.id, d.penalty_amount, d.plan_id, d.missed_date, sp.plan_name, sp.number_of_accounts, sp.current_amount, sp.target_amount
       FROM defaults d
       JOIN savings_plans sp ON d.plan_id = sp.id
       WHERE d.id = $1 AND d.user_id = $2 AND d.resolved = FALSE
@@ -860,17 +880,23 @@ export const clearDefaultById = async (req, res) => {
       });
     }
 
-    const savingsPortion = Math.floor(penaltyAmount / 2);
+    const tAmount = parseFloat(d.target_amount || 0);
+    const cAmount = parseFloat(d.current_amount || 0);
+    const remainingToTarget = tAmount > 0 ? Math.floor(tAmount - cAmount) : Infinity;
+    const savingsPortion = Math.min(Math.floor(penaltyAmount / 2), Math.max(0, remainingToTarget));
+    const penaltySettled = penaltyAmount - savingsPortion;
 
     await client.query(
       'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
       [penaltyAmount, userId]
     );
 
-    await client.query(
-      'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [savingsPortion, d.plan_id]
-    );
+    if (savingsPortion > 0) {
+      await client.query(
+        'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [savingsPortion, d.plan_id]
+      );
+    }
 
     await client.query(
       'UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1',
@@ -885,7 +911,7 @@ export const clearDefaultById = async (req, res) => {
     );
 
     await createWalletLedgerEntry(client, userId, 'debit', penaltyAmount, reference,
-      `Cleared default for ${d.plan_name}: ₦${savingsPortion.toLocaleString()} to savings, ₦${savingsPortion.toLocaleString()} penalty settled`);
+      `Cleared default for ${d.plan_name}: ₦${savingsPortion.toLocaleString()} to savings, ₦${penaltySettled.toLocaleString()} penalty settled`);
 
     await client.query('COMMIT');
 

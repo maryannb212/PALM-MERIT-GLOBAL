@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import API from '../../services/api';
-import { FaUserCheck, FaSpinner, FaTimes, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
+import { FaUserCheck, FaSpinner, FaTimes, FaCheck, FaExclamationTriangle, FaSearch, FaTimesCircle } from 'react-icons/fa';
 import './Admin.css'; // Reusing standard admin styles
 
 const EligibilityQueue = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [approvedAmount, setApprovedAmount] = useState('');
@@ -29,6 +30,19 @@ const EligibilityQueue = () => {
   useEffect(() => {
     fetchQueue();
   }, []);
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredPlans = plans.filter((plan) => {
+    if (!normalizedSearch) return true;
+
+    return [
+      plan.first_name,
+      plan.last_name,
+      plan.email,
+      plan.phone,
+      plan.plan_name
+    ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
+  });
 
   const handleApprove = async () => {
     if (!approvedAmount) {
@@ -74,8 +88,36 @@ const EligibilityQueue = () => {
       {error && <div className="alert alert-danger"><FaExclamationTriangle /> {error}</div>}
 
       <div className="admin-table-container">
+        <div className="eligibility-search-toolbar">
+          <div className="eligibility-search-box">
+            <FaSearch className="eligibility-search-icon" aria-hidden="true" />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search by name, email, phone or plan"
+              aria-label="Search eligibility review users"
+              className="eligibility-search-input"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                aria-label="Clear user search"
+                title="Clear search"
+                className="eligibility-search-clear"
+              >
+                <FaTimesCircle />
+              </button>
+            )}
+          </div>
+          {normalizedSearch && <span className="eligibility-search-count">{filteredPlans.length} found</span>}
+        </div>
+
         {plans.length === 0 ? (
           <p style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No plans currently in review.</p>
+        ) : filteredPlans.length === 0 ? (
+          <p style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No users match &quot;{searchTerm}&quot;.</p>
         ) : (
           <table className="admin-table">
             <thead>
@@ -88,7 +130,7 @@ const EligibilityQueue = () => {
               </tr>
             </thead>
             <tbody>
-              {plans.map(plan => (
+              {filteredPlans.map(plan => (
                 <tr key={plan.id}>
                   <td>
                     {plan.first_name} {plan.last_name}

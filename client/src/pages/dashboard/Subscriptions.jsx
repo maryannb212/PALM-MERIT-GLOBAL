@@ -48,10 +48,10 @@ const Subscriptions = () => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'active': return <span className="badge badge-success">Active</span>;
-      case 'eligibility_review': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Eligibility Review</span>;
-      case 'matured': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Eligibility Review</span>;
+      case 'eligibility_review': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Completed</span>;
+      case 'matured': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Completed</span>;
       case 'pending_clearance': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Pending Clearance</span>;
-      case 'pending_settlement': return <span className="badge" style={{ background: '#3b82f6', color: '#fff' }}>Approved for Payout</span>;
+      case 'pending_settlement': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Eligibility Review</span>;
       case 'settled': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Paid</span>;
       default: return <span className="badge badge-secondary">{status}</span>;
     }
@@ -74,9 +74,13 @@ const Subscriptions = () => {
               <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>Active Savings Programs</span>
               <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => p.status === 'active').length}</strong>
             </div>
-            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #3b82f6' }}>
-              <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>In Review / Clearance</span>
-              <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => ['matured', 'eligibility_review', 'pending_clearance'].includes(p.status)).length}</strong>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #10b981' }}>
+              <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>Completed</span>
+              <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => ['matured', 'eligibility_review'].includes(p.status)).length}</strong>
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #f59e0b' }}>
+              <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>In Clearance / Review</span>
+              <strong style={{ fontSize: '1.5rem' }}>{plans.filter(p => ['pending_clearance', 'pending_settlement'].includes(p.status)).length}</strong>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', borderLeft: '3px solid #10b981' }}>
               <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginBottom: '5px' }}>Settled Accounts</span>
@@ -86,7 +90,7 @@ const Subscriptions = () => {
         </div>
 
         {/* ─── T-Shirt Reminder Banner ─── */}
-        {!user?.tshirt_paid && plans.some(p => ['matured', 'pending_clearance'].includes(p.status) && p.clearance_required) && (
+        {!user?.tshirt_paid && plans.some(p => ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required) && (
           <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px' }}>
             <div className="tshirt-content">
               <div className="tshirt-icon">👕</div>
@@ -139,10 +143,10 @@ const Subscriptions = () => {
             Active <span className="tab-badge">{plans.filter(p => p.status === 'active').length}</span>
           </div>
           <div className={`subs-tab ${activeTab === 'matured' ? 'active' : ''}`} onClick={() => setActiveTab('matured')}>
-            Eligibility Review <span className="tab-badge">{plans.filter(p => ['matured', 'eligibility_review', 'pending_clearance'].includes(p.status)).length}</span>
+            Completed <span className="tab-badge">{plans.filter(p => ['matured', 'eligibility_review', 'pending_clearance'].includes(p.status)).length}</span>
           </div>
           <div className={`subs-tab ${activeTab === 'payouts' ? 'active' : ''}`} onClick={() => setActiveTab('payouts')}>
-            Approved & Paid <span className="tab-badge">{plans.filter(p => ['pending_settlement', 'settled'].includes(p.status)).length}</span>
+            Eligibility Review & Paid <span className="tab-badge">{plans.filter(p => ['pending_settlement', 'settled'].includes(p.status)).length}</span>
           </div>
         </div>
 
@@ -244,8 +248,15 @@ const Subscriptions = () => {
 
                   {plan.status === 'eligibility_review' && (
                     <div className="payout-info">
-                      <FaExclamationCircle /> 
-                      <span>Your plan is currently undergoing Eligibility Review for referral bonuses.</span>
+                      <FaCheckCircle /> 
+                      <span>Your savings cycle has been completed. Awaiting admin review.</span>
+                    </div>
+                  )}
+
+                  {plan.status === 'matured' && plan.plan_name !== 'GOLDEN_BASKET' && (
+                    <div className="payout-info">
+                      <FaCheckCircle /> 
+                      <span>Your savings cycle has been completed. Awaiting admin review.</span>
                     </div>
                   )}
 
@@ -261,7 +272,7 @@ const Subscriptions = () => {
                   {plan.status === 'pending_settlement' && (
                     <div className="payout-info">
                       <FaClock /> 
-                      <span>Settlement Date: {new Date(plan.payout_date).toLocaleDateString()}</span>
+                      <span>Your plan is under eligibility review for settlement. {plan.payout_date && `Settlement Date: ${new Date(plan.payout_date).toLocaleDateString()}`}</span>
                     </div>
                   )}
 
@@ -274,8 +285,8 @@ const Subscriptions = () => {
 
                   {plan.status === 'matured' && plan.plan_name === 'GOLDEN_BASKET' && (
                      <div className="payout-info">
-                       <FaExclamationCircle /> 
-                       <span>Waiting for system update to Clearance-free status...</span>
+                       <FaCheckCircle /> 
+                       <span>Cycle completed. GOLDEN_BASKET is clearance-free — awaiting settlement.</span>
                      </div>
                   )}
                 </div>

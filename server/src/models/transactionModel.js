@@ -294,20 +294,73 @@ export const processCompletedPayment = async (
       if (completedTx.plan_id) {
 
         if (creditAmount > 0) {
-          await client.query(
+
+          // Cap plan credit at target_amount; route excess to wallet
+          const { rows: capPlanRows } = await client.query(
             `
-              UPDATE savings_plans
-              SET
-                current_amount =
-                  COALESCE(current_amount, 0) + $1,
-                updated_at = CURRENT_TIMESTAMP
-              WHERE id = $2
+              SELECT current_amount, target_amount
+              FROM savings_plans
+              WHERE id = $1
+              FOR UPDATE
             `,
-            [
-              creditAmount,
-              completedTx.plan_id
-            ]
+            [completedTx.plan_id]
           );
+
+          let toPlan = creditAmount;
+          let toWallet = 0;
+
+          if (capPlanRows.length > 0) {
+            const tAmount = parseFloat(capPlanRows[0].target_amount || 0);
+            const cAmount = parseFloat(capPlanRows[0].current_amount || 0);
+            if (tAmount > 0) {
+              const remaining = Math.floor(tAmount - cAmount);
+              if (remaining <= 0) {
+                toPlan = 0;
+                toWallet = creditAmount;
+              } else if (remaining < creditAmount) {
+                toPlan = remaining;
+                toWallet = creditAmount - remaining;
+              }
+            }
+          }
+
+          if (toPlan > 0) {
+            await client.query(
+              `
+                UPDATE savings_plans
+                SET
+                  current_amount =
+                    COALESCE(current_amount, 0) + $1,
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+              `,
+              [
+                toPlan,
+                completedTx.plan_id
+              ]
+            );
+          }
+
+          if (toWallet > 0) {
+            await client.query(
+              `
+                UPDATE users
+                SET
+                  available_balance =
+                    COALESCE(available_balance, 0) + $1,
+                  wallet_balance =
+                    COALESCE(wallet_balance, 0) + $1
+                WHERE id = $2
+              `,
+              [
+                toWallet,
+                completedTx.user_id
+              ]
+            );
+            console.log(
+              `[PLAN TARGET CAP] Plan ${completedTx.plan_id} at target — ₦${toWallet} routed to wallet`
+            );
+          }
         }
 
         console.log(

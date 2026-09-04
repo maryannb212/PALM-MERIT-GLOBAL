@@ -100,6 +100,11 @@ const DefaultDetail = () => {
       case 'active': return <span className="defaults-badge" style={{ background: '#d4edda', color: '#155724' }}>Active</span>;
       case 'completed': return <span className="defaults-badge" style={{ background: '#cce5ff', color: '#004085' }}>Completed</span>;
       case 'cancelled': return <span className="defaults-badge" style={{ background: '#f8d7da', color: '#721c24' }}>Cancelled</span>;
+      case 'eligibility_review': return <span className="defaults-badge" style={{ background: '#d4edda', color: '#155724' }}>Completed</span>;
+      case 'matured': return <span className="defaults-badge" style={{ background: '#d4edda', color: '#155724' }}>Completed</span>;
+      case 'pending_clearance': return <span className="defaults-badge" style={{ background: '#fff3cd', color: '#856404' }}>Pending Clearance</span>;
+      case 'pending_settlement': return <span className="defaults-badge" style={{ background: '#fff3cd', color: '#856404' }}>Eligibility Review</span>;
+      case 'settled': return <span className="defaults-badge" style={{ background: '#d4edda', color: '#155724' }}>Paid</span>;
       default: return <span className="defaults-badge" style={{ background: '#e2e3e5', color: '#383d41' }}>{status}</span>;
     }
   };

@@ -104,6 +104,23 @@
   - Backend: Added `rc.updated_at` to all 3 downline queries (`getAdminReferralStats`, `getUserById`, `getReferredDownlines`) and passed it through as `usedAt` in results.
   - Frontend admin (`AdminReferrals.jsx`): Added "Code" and "Date Used" columns to the expanded downline sub-table, showing the referral code used and when it was consumed.
 
+### Done (new)
+- **Fixed over-target deduction bug** (reported via Chinaza Uzochukwu: savings showed ₦952k vs ₦912k target):
+  - Root cause: `processDuePlan` in `deductionJob.js` never checked `target_amount` — it kept deducting weekly while a plan was still `active` (plans only leave `active` on maturity date via `maturityCron`). Chinaza's plan hit exactly ₦912,000, then the Aug 17 run deducted another ₦40,000 (10 accounts × ₦4,000 — all her wallet had) → ₦952,000, wallet left at ₦417.67.
+  - Fix in `deductionJob.js` `processDuePlan`: skip plan entirely when `current_amount >= target_amount`; cap final `savingsAmount` at remaining-to-target (`Math.min(payableAmount, fullDue, remainingToTarget)`).
+  - Same target cap added to `runStartupCatchupDeductions` (`owedAmount = Math.min(expectedTotal - currentAmount, remainingToTarget)`).
+  - The user-visible "saved 48k → cleared default → now 50k" was the per-account view: 912k/19 = ₦48k target vs 952k/19 ≈ ₦50k actual.
+  - **Data fix applied on live Neon DB** (transactional, with audit trail): clamped `current_amount` to target and refunded over-deduction to wallet (`available_balance` + `wallet_balance`) with `refund` transaction + `wallet_transactions` credit entry (refs `ADJ-OVERTGT-*`):
+    - Chinaza Uzochukwu (CREST ×19): 952,000 → 912,000; wallet +40,000 (now ₦40,417.67)
+    - Edwin Mitx (ISUSU): 19,000 → 15,000; wallet +4,000
+    - Ifechukwu Nelson (ISUSU): 17,500 → 15,000; wallet +2,500
+  - Verified: 0 plans remain over target in live DB.
+- **Hardened ALL `current_amount` writers against target overshoot** (audit found 3 residual paths beyond the deduction job):
+  - `transactionModel.js` `processCompletedPayment` (plan-tagged deposit/wallet_topup/contribution): plan credit capped at remaining-to-target (`SELECT ... FOR UPDATE` on plan); excess routed to user wallet.
+  - `savingsController.js` `clearDefaults`: savings portion per cleared account capped at remaining-to-target (tracked per plan across loop iterations — multiple defaults can hit one plan); excess shifts to penalty settlement so books stay balanced (wallet debited = savings credited + penalty settled).
+  - `savingsController.js` `clearDefaultById`: same cap — `savingsPortion = min(penaltyAmount/2, remainingToTarget)`, remainder settles penalty.
+- **Verification performed**: 23-case logic simulation of all capped paths (all pass — at-target skip, final-week cap, per-account granularity preserved, NULL-target legacy behavior unchanged, clearance book balancing, deposit split) + 14-point live DB integrity check (all pass — no plans over target, wallets restored exactly, avail==wallet_balance for all users, no negative balances, audit trail complete: 3 refund txns + 3 ledger credits totaling ₦46,500, Chinaza's resolved default untouched, txn history intact).
+
 ### In Progress
 - (none)
 
@@ -115,6 +132,7 @@
 - **Downline calculation now uses `referral_codes` table** alongside `referred_by`. This means ALL code owners see their downlines even if the subscriber already had a different `referred_by` from registration. "Stolen" and self-consumed downlines are returned to their code owners automatically — no `referred_by` column changes needed.
 - **Wallet balance IS used to settle defaults** (via the Clear Defaults button on the defaults page). Lotus Bank is no longer used for user-facing default clearance.
 - Deduction job only: (a) pays contributions if wallet can afford ≥1 account, (b) creates a default if can't cover even 1 account.
+- **Deductions must never exceed `target_amount`**: plans stay `active` until maturity date, so the deduction job itself enforces the target cap (skip when reached; final payment capped at remaining-to-target).
 - `missed_date` in defaults table should consistently be Africa/Lagos date to match deduction job's 6PM WAT schedule.
 - `available_balance` only is read (no longer reads `wallet_balance`) from users table in deduction job since `wallet_balance` is derived.
 - `settleOutstandingPenalties` supports both full and partial default settlement from incoming deposits (legacy — still works for general deposits but defaults page no longer uses Lotus).

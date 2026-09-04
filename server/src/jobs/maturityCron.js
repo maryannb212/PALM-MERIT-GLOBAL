@@ -11,9 +11,9 @@ const PLAN_CONFIG = {
 
 const getDurationDays = (planName) => {
   switch (planName) {
-    case 'CREST': return 90;
-    case 'SILVER': return 360;
-    case 'GOLDEN_BASKET': return 360;
+    case 'CREST': return 84; // user-defined: 84 days (12 weeks)
+    case 'SILVER': return 350; // ~50 weeks
+    case 'GOLDEN_BASKET': return 350;
     case 'ISUSU': return 30;
     default: return 0;
   }
@@ -76,7 +76,18 @@ export const runMaturityCheck = async () => {
           SET status = $1, maturity_date = $2, updated_at = CURRENT_TIMESTAMP
           WHERE id = $3
         `;
-        await client.query(updateQuery, [newStatus, now, plan.id]);
+        await client.query(updateQuery, [newStatus, maturityDate, plan.id]);
+
+        // Insert a user notification about cycle completion and clearance availability (6 days ahead)
+        try {
+          const msPerDay = 24 * 60 * 60 * 1000;
+          const clearanceDate = new Date(maturityDate.getTime() + (6 * msPerDay));
+          const clearanceDateStr = clearanceDate.toLocaleDateString('en-NG');
+          const msg = `Savings cycle completed — congratulations 🍷 🎉. Clearance will be available on ${clearanceDateStr}.`;
+          await client.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'clearance')`, [plan.user_id, 'Savings cycle completed', msg]);
+        } catch (err) {
+          logger.error('Failed to insert cycle completion notification for plan', plan.id, err);
+        }
       }
     }
 

@@ -80,7 +80,7 @@ const Clearance = () => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'pending_clearance': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Pending Clearance</span>;
-      case 'pending_settlement': return <span className="badge" style={{ background: '#3b82f6', color: '#fff' }}>Pending Approval</span>;
+      case 'pending_settlement': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Eligibility Review</span>;
       case 'settled': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Settled</span>;
       default: return <span className="badge badge-secondary">{status}</span>;
     }

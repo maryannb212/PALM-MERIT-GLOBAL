@@ -19,6 +19,8 @@ import {
   getEligibilityQueue,
   approveEligibility,
   getWebhookLogs,
+  retryWebhookLog,
+  fastForwardClearance,
   getSystemStatus,
   getTransactionDebug, 
   getRecentTransfers, 
@@ -81,6 +83,8 @@ router.get('/eligibility-queue', getEligibilityQueue);
 router.post('/approve-eligibility', approveEligibility);
 router.post('/reconcile-lotus-va', reconcileLotusVA);
 router.get('/webhook-logs', getWebhookLogs);
+router.post('/webhook-logs/:id/retry', retryWebhookLog);
+router.post('/users/:userId/fast-forward-clearance', fastForwardClearance);
 router.get('/system-status', getSystemStatus);
 router.get('/transaction-debug/:reference', getTransactionDebug);
 router.get('/transactions/recent', getRecentTransfers);
