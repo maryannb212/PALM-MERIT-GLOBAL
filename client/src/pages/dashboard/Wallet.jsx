@@ -43,8 +43,8 @@ const Wallet = () => {
 
 
 
-  const isClearanceDue = plans.some(p => 
-    ['matured', 'pending_clearance'].includes(p.status) && p.clearance_required
+  const isClearanceDue = plans.some(p =>
+    ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required
   );
 
   useEffect(() => {

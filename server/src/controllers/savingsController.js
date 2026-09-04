@@ -66,7 +66,12 @@ export const subscribeToPlan = async (req, res) => {
 
         // Lock the row immediately to prevent concurrent consumption
         const { rows: refCodes } = await client.query(
-          'SELECT id, user_id, status, unlock_date, expires_at FROM referral_codes WHERE code = $1 FOR UPDATE',
+          `SELECT rc.id, rc.user_id, rc.status, rc.unlock_date, rc.expires_at,
+                  sp.plan_name AS referral_plan_name
+           FROM referral_codes rc
+           LEFT JOIN savings_plans sp ON sp.id = rc.plan_id
+           WHERE rc.code = $1
+           FOR UPDATE OF rc`,
           [codeStr]
         );
 
@@ -92,6 +97,10 @@ export const subscribeToPlan = async (req, res) => {
 
         if (rc.status === 'locked') {
           throw new Error('This referral code is not yet activated/unlocked. No account will be created. Please wait for it to unlock or enter NEW to subscribe without a referral.');
+        }
+
+        if (rc.referral_plan_name && rc.referral_plan_name !== planName) {
+          throw new Error(`This referral code belongs to the ${rc.referral_plan_name} plan and cannot be used to create a ${planName} plan.`);
         }
 
         // Check if code has expired by expires_at

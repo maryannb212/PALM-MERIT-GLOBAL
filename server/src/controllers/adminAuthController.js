@@ -36,7 +36,7 @@ export const ceoLogin = async (req, res) => {
       // Create token
       const token = jwt.sign(
         { id: 'ceo-admin-id', role: 'admin' },
-        process.env.JWT_SECRET || 'supersecretkey_change_in_production',
+        process.env.JWT_SECRET || 'secret',
         { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
       );
 

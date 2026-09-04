@@ -90,7 +90,7 @@ const Subscriptions = () => {
         </div>
 
         {/* ─── T-Shirt Reminder Banner ─── */}
-        {!user?.tshirt_paid && plans.some(p => ['matured', 'pending_clearance'].includes(p.status) && p.clearance_required) && (
+        {!user?.tshirt_paid && plans.some(p => ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required) && (
           <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px' }}>
             <div className="tshirt-content">
               <div className="tshirt-icon">👕</div>

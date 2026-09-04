@@ -58,7 +58,15 @@ export const getReferredDownlines = async (userId) => {
       [downline.id]
     );
 
+    const { rows: defaultSummary } = await query(
+      `SELECT COUNT(*)::int AS count, COALESCE(SUM(penalty_amount), 0) AS amount
+       FROM defaults
+       WHERE user_id = $1 AND resolved = FALSE`,
+      [downline.id]
+    );
+
     const status = calculateDownlineStatus(downline, plans);
+    const defaultCount = defaultSummary[0]?.count || 0;
 
     detailedDownlines.push({
       id: downline.id,
@@ -81,7 +89,10 @@ export const getReferredDownlines = async (userId) => {
       })),
       referralStatus: status, // locked, inactive, pending, active, disqualified
       usedSpecificCode: downline.used_specific_code || 'Legacy',
-      usedAt: downline.used_at
+      usedAt: downline.used_at,
+      hasDefault: defaultCount > 0,
+      defaultCount,
+      outstandingDefault: parseFloat(defaultSummary[0]?.amount || 0)
     });
   }
 
