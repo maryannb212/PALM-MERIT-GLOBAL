@@ -10,10 +10,9 @@ const plans = [
 ];
 
 const testimonials = [
-  { quote: 'Palm Merit celebrates progress and gives members a clear path towards meaningful goals.', name: 'Charles Nwachukwu', role: 'Palm Merit member', image: '/testimonials/IMG_5427.jpeg' },
-  { quote: 'The cooperative makes every milestone feel like a shared achievement.', name: 'Gladys Kingsley', role: 'Palm Merit member', image: '/testimonials/IMG_5444.jpeg' },
-  { quote: 'I am grateful for the support, structure, and opportunity to complete my programme cycle.', name: 'Stephens Florence', role: 'Palm Merit member', image: '/testimonials/IMG_5446.jpeg' },
-  { quote: 'Palm Merit puts people at the center of progress.', name: 'Chinaro Maduako', role: 'Palm Merit member', image: '/testimonials/IMG_8874.jpg' }
+  { quote: 'I was honestly doubting at first. Today, I am standing here with my foodstuffs and my savings, grateful that I stayed consistent with Palm Merit.', name: 'Gladys Kingsley', role: 'Palm Merit member', image: '/testimonials/IMG_5427.jpeg' },
+  { quote: 'This journey taught me that small contributions can become something meaningful. Seeing the food items and savings come through made the whole experience real for me.', name: 'Stephens Florence', role: 'Palm Merit member', image: '/testimonials/IMG_5444.jpeg' },
+  { quote: 'There were moments I wondered if I would complete my cycle, but Palm Merit gave me the structure to keep going. Today, I can celebrate both my savings and the food support I received.', name: 'Chinaro Maduako', role: 'Palm Merit member', image: '/testimonials/IMG_5446.jpeg' }
 ];
 
 const useReveal = () => {
@@ -74,7 +73,7 @@ const HomePage = () => {
             <div className="hero-statement glass"><span>YOUR NEXT MILESTONE</span><strong>₦48,000</strong><small>CREST target</small><div className="mini-progress"><i /></div><b>72% on track</b></div>
             <div className="hero-float hero-float-top"><FaWallet /><span>Build steadily</span></div>
             <div className="hero-float hero-float-bottom"><FaUsers /><span>Grow together</span></div>
-            <div className="hero-seal"><span>PM</span><small>Est.<br />2019</small></div>
+            <div className="hero-seal"><span>PM</span><small>Est.<br />2026</small></div>
           </div>
         </div>
         <a href="#story" className="scroll-cue">Scroll to explore <span>↓</span></a>
