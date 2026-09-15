@@ -58,7 +58,7 @@ const Footer = () => {
         <p>&copy; {new Date().getFullYear()} Palm Merit Global Resources. All rights reserved.</p>
         <p className="footer-credit">
           <span>Designed &amp; developed by</span>
-          <a href="https://allsmarttechhub.com" target="_blank" rel="noreferrer">All Smart Tech <span aria-hidden="true">↗</span></a>
+          <a href="https://my-porfolio-opal.vercel.app/" target="_blank" rel="noreferrer">All Smart Tech Hub <span aria-hidden="true">↗</span></a>
         </p>
       </div>
     </footer>
