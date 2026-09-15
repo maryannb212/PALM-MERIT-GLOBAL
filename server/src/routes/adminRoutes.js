@@ -17,6 +17,8 @@ import {
   rejectWithdrawal,
   getAdminReferralStats,
   getEligibilityQueue,
+  enableUserClearance,
+  getMaturitySummary,
   approveEligibility,
   getWebhookLogs,
   retryWebhookLog,
@@ -80,6 +82,8 @@ router.post('/approve-payout', approvePayout);
 router.get('/ceo/schedule', getCEOSchedule);
 router.get('/referrals', getAdminReferralStats);
 router.get('/eligibility-queue', getEligibilityQueue);
+router.post('/users/:userId/enable-clearance', enableUserClearance);
+router.get('/maturity-summary', getMaturitySummary);
 router.post('/approve-eligibility', approveEligibility);
 router.post('/reconcile-lotus-va', reconcileLotusVA);
 router.get('/webhook-logs', getWebhookLogs);

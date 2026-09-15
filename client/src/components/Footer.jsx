@@ -29,6 +29,8 @@ const Footer = () => {
             <li><Link to="/">Home</Link></li>
             <li><Link to="/about">About Us Mission</Link></li>
             <li><Link to="/terms">Terms & Conditions</Link></li>
+            <li><Link to="/faq">Frequently Asked Questions</Link></li>
+            <li><Link to="/testimonials">Member Stories</Link></li>
             <li><Link to="/register">Join the Community</Link></li>
           </ul>
         </div>
@@ -54,19 +56,11 @@ const Footer = () => {
       </div>
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} Palm Merit Global Resources. All rights reserved.</p>
-               <p className="footer-credit">
-    Designed & Developed by{" "}
-    <a
-      href="https://allsmarttechhub.com"
-      target="_blank"
-      rel="noreferrer"
-    >
-      All Smart Tech
-    </a>
-  </p>
-</div>
-
-
+        <p className="footer-credit">
+          <span>Designed &amp; developed by</span>
+          <a href="https://allsmarttechhub.com" target="_blank" rel="noreferrer">All Smart Tech <span aria-hidden="true">↗</span></a>
+        </p>
+      </div>
     </footer>
   );
 };

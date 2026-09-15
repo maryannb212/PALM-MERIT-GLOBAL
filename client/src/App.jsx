@@ -12,6 +12,8 @@ import AdminLockedRoute from './components/AdminLockedRoute';
 const HomePage = lazy(() => import('./pages/public/HomePage'));
 const AboutPage = lazy(() => import('./pages/public/AboutPage'));
 const TermsPage = lazy(() => import('./pages/public/TermsPage'));
+const FAQPage = lazy(() => import('./pages/public/FAQPage'));
+const TestimonialsPage = lazy(() => import('./pages/public/TestimonialsPage'));
 const Ambassadors = lazy(() => import('./pages/Ambassadors'));
 
 // Auth Pages
@@ -82,6 +84,8 @@ const AppLayout = () => {
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/testimonials" element={<TestimonialsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
