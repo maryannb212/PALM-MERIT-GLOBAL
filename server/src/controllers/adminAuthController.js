@@ -22,10 +22,9 @@ export const ceoLogin = async (req, res) => {
       return res.status(400).json({ message: 'Officer username and password cannot be empty' });
     }
 
-    // Strict Server Configuration Check: Default to 'admin'/'admin123' only if they are not defined.
-    // If they are explicitly defined as empty strings in env, reject and throw configuration alert.
-    const adminUsername = (process.env.ADMIN_USERNAME || 'admin').trim();
-    const adminPassword = (process.env.ADMIN_PASSWORD || 'admin123').trim();
+    // Admin credentials must be explicitly configured on the server.
+    const adminUsername = (process.env.ADMIN_USERNAME || '').trim();
+    const adminPassword = (process.env.ADMIN_PASSWORD || '').trim();
 
     if (adminUsername === '' || adminPassword === '') {
       console.error('[SECURITY ALERT] Administrative credentials are left blank in environment configurations!');
