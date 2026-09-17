@@ -164,7 +164,7 @@ const Wallet = () => {
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
   return (
-    <>
+    <div className="dashboard-page wallet-page">
         <header className="dashboard-header">
           <h2>My Wallet</h2>
         </header>
@@ -457,7 +457,7 @@ const Wallet = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

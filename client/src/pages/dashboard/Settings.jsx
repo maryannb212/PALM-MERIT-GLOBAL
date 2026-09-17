@@ -117,7 +117,7 @@ const Settings = () => {
   });
 
   return (
-    <>
+    <div className="dashboard-page settings-page">
       <header className="dashboard-header">
         <h2>Account Settings</h2>
       </header>
@@ -409,7 +409,7 @@ const Settings = () => {
           </p>
         )}
       </div>
-    </>
+    </div>
   );
 };
 

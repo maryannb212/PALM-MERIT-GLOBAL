@@ -58,7 +58,7 @@ const Subscriptions = () => {
   };
 
   return (
-    <>
+    <div className="dashboard-page subscriptions-page">
         <header className="dashboard-header" style={{ marginBottom: '20px' }}>
           <h2>Portfolio & Subscriptions</h2>
         </header>
@@ -294,7 +294,7 @@ const Subscriptions = () => {
             })}
           </div>
         )}
-    </>
+    </div>
   );
 };
 
