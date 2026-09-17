@@ -1319,6 +1319,13 @@
   overflow-y: auto;
 }
 
+.dashboard-home .notification-empty-state {
+  padding: 28px 16px;
+  color: #64748b;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
 .dashboard-home .notification-popover-item {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
@@ -1394,6 +1401,215 @@
   font-weight: 800;
   line-height: 13px;
   text-align: center;
+}
+
+.dashboard-home .notification-count.is-zero {
+  background: #94a3b8;
+  border-color: #6a0826;
+}
+
+.dashboard-home .notification-popover-item {
+  position: relative;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  padding-right: 12px;
+  cursor: default;
+}
+
+.dashboard-home .notification-popover-item.is-unread {
+  border-left: 3px solid #6a0826;
+}
+
+.dashboard-home .notification-popover-item time {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+}
+
+.dashboard-home .notification-popover-actions {
+  display: flex;
+  grid-column: 3;
+  grid-row: 1;
+  align-self: end;
+  justify-content: flex-end;
+  min-width: 28px;
+  margin-top: 22px;
+}
+
+.dashboard-home .notification-read-button,
+.dashboard-home .notification-dismiss-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #fff;
+  color: #6a0826;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.dashboard-home .notification-read-button {
+  padding: 0 8px;
+}
+
+.dashboard-home .notification-dismiss-button {
+  width: 26px;
+  padding: 0;
+  color: #64748b;
+}
+
+.dashboard-home .notification-read-button:hover,
+.dashboard-home .notification-dismiss-button:hover {
+  border-color: #6a0826;
+  background: #fffafc;
+  color: #4d0013;
+}
+
+@media (max-width: 520px) {
+  .dashboard-home .notification-popover {
+    right: 8px;
+    width: calc(100vw - 32px);
+  }
+
+  .dashboard-home .notification-popover-item {
+    grid-template-columns: 30px minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .dashboard-home .notification-popover-item time {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+    margin-top: 4px;
+  }
+
+  .dashboard-home .notification-popover-actions {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    margin-top: 4px;
+    margin-left: auto;
+  }
+}
+
+/* Full-page notification center. */
+.dashboard-home .notification-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(26, 0, 6, 0.58);
+  backdrop-filter: blur(5px);
+}
+
+.dashboard-home .notification-overlay .notification-popover {
+  position: relative;
+  inset: auto;
+  right: auto;
+  top: auto;
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 64px));
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgba(26, 0, 6, 0.32);
+}
+
+.dashboard-home .notification-overlay .notification-popover-header {
+  flex: 0 0 auto;
+  padding: 22px 24px;
+  background: linear-gradient(120deg, #4d0013, #6a0826);
+  border-bottom: 0;
+}
+
+.dashboard-home .notification-overlay .notification-popover-header strong {
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.dashboard-home .notification-overlay .notification-popover-header span {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.dashboard-home .notification-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-home .notification-overlay .notification-popover-header button {
+  color: #f1d26b;
+}
+
+.dashboard-home .notification-overlay .notification-close-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff !important;
+}
+
+.dashboard-home .notification-overlay .notification-close-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dashboard-home .notification-overlay .notification-popover-list {
+  flex: 1 1 auto;
+  max-height: none;
+  padding: 8px;
+  background: #f8fafc;
+}
+
+.dashboard-home .notification-overlay .notification-popover-item {
+  min-height: 88px;
+  margin-bottom: 8px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.dashboard-home .notification-overlay .notification-popover-item:last-child {
+  margin-bottom: 0;
+}
+
+.dashboard-home .notification-overlay .notification-empty-state {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  color: #64748b;
+}
+
+.dashboard-home .notification-overlay .notification-popover-footer {
+  flex: 0 0 auto;
+  padding: 16px;
+  background: #fff;
+}
+
+@media (max-width: 600px) {
+  .dashboard-home .notification-overlay {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .dashboard-home .notification-overlay .notification-popover {
+    width: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .dashboard-home .notification-overlay .notification-popover-header {
+    padding: 20px 16px;
+  }
 }
 
 /* Transaction history and bank details share the public fintech palette. */
@@ -1802,6 +2018,62 @@
     align-items: flex-start;
     flex-wrap: wrap;
     gap: 8px;
+  }
+}
+
+/* Final layout corrections for dashboard popovers and clearance figures. */
+.dashboard-home .welcome-card {
+  overflow: visible;
+  z-index: 30;
+}
+
+.dashboard-home .welcome-card::after {
+  pointer-events: none;
+}
+
+.clearance-page .clearance-wallet-card {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.clearance-page .clearance-wallet-info,
+.clearance-page .clearance-wallet-value,
+.clearance-page .defaults-plan-stat {
+  min-width: 0;
+}
+
+.clearance-page .defaults-plan-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.clearance-page .defaults-plan-stat {
+  justify-content: center;
+}
+
+.clearance-page .defaults-plan-stat .dps-label {
+  min-height: 2.1em;
+  line-height: 1.35;
+}
+
+.clearance-page .defaults-plan-stat .dps-value,
+.clearance-page .clearance-wallet-value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+@media (max-width: 768px) {
+  .clearance-page .clearance-wallet-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .clearance-page .clearance-wallet-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: center;
   }
 }
 

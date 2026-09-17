@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import MembershipPaywall from '../../components/MembershipPaywall';
-import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaWhatsapp, FaPlus, FaExchangeAlt, FaBoxOpen, FaReceipt } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes, FaWhatsapp, FaPlus, FaExchangeAlt, FaBoxOpen, FaReceipt } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -19,6 +19,7 @@ const DashboardHome = () => {
   const [error, setError] = useState(null);
   const [birthdayDismissed, setBirthdayDismissed] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [dismissedNotifications, setDismissedNotifications] = useState([]);
   const [showAllNotifs, setShowAllNotifs] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const handleCopy = (text) => {
@@ -102,6 +103,10 @@ const DashboardHome = () => {
     }
   };
 
+  const handleDismissNotification = (notifId) => {
+    setDismissedNotifications(prev => [...prev, notifId]);
+  };
+
   if (!profileLoaded) {
     return <div className="loading-container" style={{ textAlign: 'center', padding: '80px 20px' }}><div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid #e1e1e1', borderTop: '4px solid #800020', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div><p>Loading your profile...</p></div>;
   }
@@ -176,28 +181,41 @@ const DashboardHome = () => {
           <div className="welcome-tools">
             <button type="button" className="notification-trigger" aria-label="View notifications" title="View notifications" onClick={() => setShowAllNotifs(!showAllNotifs)}>
               <FaBell />
-              {notifications.filter(n => !n.is_read).length > 0 && <span className="notification-count">{notifications.filter(n => !n.is_read).length}</span>}
+              <span className={`notification-count ${notifications.filter(n => !n.is_read).length === 0 ? 'is-zero' : ''}`}>
+                {notifications.filter(n => !n.is_read).length}
+              </span>
             </button>
           </div>
-          {showAllNotifs && notifications.length > 0 && (
-            <div className="notification-popover">
-              <div className="notification-popover-header">
-                <div><strong>Notifications</strong><span>{notifications.filter(n => !n.is_read).length} unread</span></div>
-                {notifications.some(n => !n.is_read) && <button type="button" onClick={handleMarkAllRead}><FaCheckDouble /> Mark all read</button>}
-              </div>
-              <div className="notification-popover-list">
-                {notifications.slice(0, 5).map(notif => {
-                  const icon = notif.type === 'PAYMENT' ? '💳' : notif.type === 'ALERT' ? '⚠️' : notif.type === 'clearance' ? '🔓' : notif.type === 'payout' ? '💰' : '📢';
-                  return (
-                    <button type="button" className={`notification-popover-item ${notif.is_read ? 'is-read' : 'is-unread'}`} key={notif.id} onClick={() => !notif.is_read && handleMarkRead(notif.id)}>
-                      <span className="notification-icon">{icon}</span>
-                      <span className="notification-popover-copy"><strong>{notif.title}</strong><small>{notif.message}</small></span>
-                      <time>{new Date(notif.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</time>
-                    </button>
-                  );
-                })}
-              </div>
-              {notifications.length > 5 && <button type="button" className="notification-popover-footer" onClick={() => navigate('/dashboard/settings')}>Manage all notifications</button>}
+          {showAllNotifs && (
+            <div className="notification-overlay" role="dialog" aria-modal="true" aria-label="Notifications" onClick={() => setShowAllNotifs(false)}>
+              <section className="notification-popover" onClick={(event) => event.stopPropagation()}>
+                <div className="notification-popover-header">
+                  <div><strong>Notifications</strong><span>{notifications.filter(n => !n.is_read).length} unread</span></div>
+                  <div className="notification-header-actions">
+                    {notifications.some(n => !n.is_read) && <button type="button" onClick={handleMarkAllRead}><FaCheckDouble /> Mark all read</button>}
+                    <button type="button" className="notification-close-button" aria-label="Close notifications" onClick={() => setShowAllNotifs(false)}><FaTimes /></button>
+                  </div>
+                </div>
+                <div className="notification-popover-list">
+                  {notifications.filter(n => !dismissedNotifications.includes(n.id)).length === 0 ? (
+                    <div className="notification-empty-state">You are all caught up.</div>
+                  ) : notifications.filter(n => !dismissedNotifications.includes(n.id)).map(notif => {
+                    const icon = notif.type === 'PAYMENT' ? '💳' : notif.type === 'ALERT' ? '⚠️' : notif.type === 'clearance' ? '🔓' : notif.type === 'payout' ? '💰' : '📢';
+                    return (
+                      <div className={`notification-popover-item ${notif.is_read ? 'is-read' : 'is-unread'}`} key={notif.id}>
+                        <span className="notification-icon">{icon}</span>
+                        <span className="notification-popover-copy"><strong>{notif.title}</strong><small>{notif.message}</small></span>
+                        <time>{new Date(notif.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</time>
+                        <div className="notification-popover-actions">
+                          {!notif.is_read && <button type="button" className="notification-read-button" onClick={() => handleMarkRead(notif.id)}>Read</button>}
+                          {notif.is_read && <button type="button" className="notification-dismiss-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => handleDismissNotification(notif.id)}><FaTimes /></button>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {notifications.length > 5 && <button type="button" className="notification-popover-footer" onClick={() => { setShowAllNotifs(false); navigate('/dashboard/settings'); }}>Manage all notifications</button>}
+              </section>
             </div>
           )}
         </div>
