@@ -173,6 +173,9 @@ export const updateAmbassador = (id, data) => API.put(`/ambassadors/${id}`, data
 export const deleteAmbassador = (id) => API.delete(`/ambassadors/${id}`);
 
 export const getDuePayments = () => API.get('/admin/due-payments');
+export const enableUserClearance = (userId, planId) => API.post(`/admin/users/${userId}/enable-clearance`, { planId });
+export const getMaturitySummary = () => API.get('/admin/maturity-summary');
+export const runMaturityCheck = () => API.post('/admin/trigger/maturity');
 
 // Clearance
 export const getMyClearancePlans = () => API.get('/savings/my-plans'); // re-uses getMyPlans

@@ -127,7 +127,7 @@ const Clearance = () => {
   ];
 
   return (
-    <>
+    <div className="dashboard-page clearance-page">
       <header className="dashboard-header">
         <h2>Program Clearance</h2>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -297,7 +297,7 @@ const Clearance = () => {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 };
 

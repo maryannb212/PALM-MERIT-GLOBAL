@@ -928,6 +928,82 @@ export const getEligibilityQueue = async (req, res) => {
 };
 
 /**
+ * Complete a user's cycle administratively and expose clearance.
+ * POST /api/admin/users/:userId/enable-clearance
+ */
+export const enableUserClearance = async (req, res) => {
+  const { userId } = req.params;
+  const { planId } = req.body || {};
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+    const params = planId ? [planId, userId] : [userId];
+    const planQuery = planId
+      ? 'SELECT * FROM savings_plans WHERE id = $1 AND user_id = $2 FOR UPDATE'
+      : `SELECT * FROM savings_plans WHERE user_id = $1 AND status IN ('active', 'eligibility_review') ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`;
+    const { rows: plans } = await client.query(planQuery, params);
+
+    if (plans.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'No active or eligibility-review savings plan found for this user.' });
+    }
+
+    const plan = plans[0];
+    if (['pending_clearance', 'pending_settlement', 'settled'].includes(plan.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'This plan is already in the clearance or settlement pipeline.' });
+    }
+
+    const { rows: updated } = await client.query(`
+      UPDATE savings_plans
+      SET status = 'pending_clearance', clearance_required = TRUE,
+          accounts_cleared = COALESCE(accounts_cleared, 0), updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `, [plan.id]);
+
+    const accounts = plan.number_of_accounts || 1;
+    const fee = accounts * 3000;
+    await client.query(`
+      INSERT INTO notifications (user_id, title, message, type)
+      VALUES ($1, 'Clearance Available', $2, 'clearance')
+    `, [userId, `${plan.plan_name} has been completed by Management. Clearance is now available at ₦3,000 per account (₦${fee.toLocaleString()} total).`]);
+    await logAudit(req.user.id, 'ENABLE_USER_CLEARANCE', 'savings_plan', plan.id, { userId, planName: plan.plan_name });
+    await client.query('COMMIT');
+
+    res.json({ message: 'User cycle completed and clearance enabled.', plan: updated[0] });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error enabling user clearance:', error);
+    res.status(500).json({ message: 'Server error enabling user clearance' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Return a compact maturity/clearance pipeline summary for the admin dashboard.
+ * GET /api/admin/maturity-summary
+ */
+export const getMaturitySummary = async (req, res) => {
+  try {
+    const { rows } = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'active')::int AS active_plans,
+        COUNT(*) FILTER (WHERE status = 'eligibility_review')::int AS eligibility_review,
+        COUNT(*) FILTER (WHERE status = 'pending_clearance')::int AS pending_clearance,
+        COUNT(*) FILTER (WHERE status = 'pending_settlement')::int AS pending_settlement
+      FROM savings_plans
+    `);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error fetching maturity summary:', error);
+    res.status(500).json({ message: 'Server error fetching maturity summary' });
+  }
+};
+
+/**
  * Approve a plan from eligibility review, setting final payout amount
  * POST /api/admin/approve-eligibility
  */
