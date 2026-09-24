@@ -6,6 +6,7 @@ import * as withdrawalController from './withdrawalController.js';
 import jsonwebtoken from 'jsonwebtoken';
 import axios from 'axios';
 import crypto from 'crypto';
+import { assertCrestSettlementEligible, evaluateCrestEligibility } from '../services/crestPolicyService.js';
 
 /**
  * Get all users
@@ -17,7 +18,7 @@ export const getAllUsers = async (req, res) => {
       SELECT 
         u.id, u.first_name, u.last_name, u.email, u.phone, u.role, 
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.available_balance, u.held_balance, u.created_at,
-        u.referral_code, u.referred_by,
+        u.referral_code, u.referred_by, u.status,
         referrer.first_name AS referrer_first_name,
         referrer.last_name AS referrer_last_name,
         (SELECT COUNT(*) FROM referral_codes rc WHERE rc.user_id = u.id AND rc.used_by_user_id IS NOT NULL)
@@ -215,7 +216,7 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date } = req.body;
+    const { first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date, status } = req.body;
 
     const toNum = (val) => {
       if (val === '' || val === null || val === undefined) return null;
@@ -239,11 +240,12 @@ export const updateUser = async (req, res) => {
           referral_code = COALESCE(NULLIF($10, ''), referral_code),
           referred_by = COALESCE($11, referred_by),
           referral_unlock_date = COALESCE($12::timestamp, referral_unlock_date),
-          referral_expiry_date = COALESCE($13::timestamp, referral_expiry_date)
-      WHERE id = $14
-      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date;
+          referral_expiry_date = COALESCE($13::timestamp, referral_expiry_date),
+          status = COALESCE(NULLIF($14, ''), status)
+      WHERE id = $15
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date, status;
     `;
-    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, toNum(wallet_balance), toNum(available_balance), toNum(held_balance), referral_code, toUUID(referred_by), referral_unlock_date || null, referral_expiry_date || null, id]);
+    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, toNum(wallet_balance), toNum(available_balance), toNum(held_balance), referral_code, toUUID(referred_by), referral_unlock_date || null, referral_expiry_date || null, status || null, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
@@ -1546,11 +1548,20 @@ export const getClearancePlans = async (req, res) => {
         AND sp.clearance_required = TRUE
       ORDER BY sp.updated_at DESC
     `, [Array.isArray(statusFilter) ? statusFilter : [statusFilter]]);
-    res.json(rows.map(r => ({
-      ...r,
-      accounts_cleared: parseInt(r.accounts_cleared || 0, 10),
-      number_of_accounts: r.number_of_accounts || 1,
-    })));
+    const plans = [];
+    for (const row of rows) {
+      const item = {
+        ...row,
+        accounts_cleared: parseInt(row.accounts_cleared || 0, 10),
+        number_of_accounts: row.number_of_accounts || 1,
+      };
+      if (row.plan_name === 'CREST') {
+        const evaluation = await evaluateCrestEligibility({ query }, row.id, req.user.id, { skipSnapshot: true });
+        item.crest_eligibility = evaluation;
+      }
+      plans.push(item);
+    }
+    res.json(plans);
   } catch (error) {
     console.error('Error fetching clearance plans:', error);
     res.status(500).json({ message: 'Server error fetching clearance plans' });
@@ -1611,6 +1622,7 @@ export const adminSettleClearance = async (req, res) => {
 
     const client = await getClient();
     try {
+      await client.query('BEGIN');
       const { rows: plans } = await client.query('SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE', [planId]);
       if (plans.length === 0) throw new Error('Plan not found');
       const plan = plans[0];
@@ -1618,14 +1630,15 @@ export const adminSettleClearance = async (req, res) => {
       if (plan.status !== 'pending_settlement') {
         throw new Error('Plan is not pending admin approval');
       }
-
-      await client.query('BEGIN');
+      if (plan.plan_name === 'CREST') {
+        await assertCrestSettlementEligible(client, planId, req.user.id);
+      }
 
       const { rows: updated } = await client.query(`
         UPDATE savings_plans
-        SET status = 'settled', updated_at = CURRENT_TIMESTAMP
+        SET status = 'settled', settled_at = CURRENT_TIMESTAMP, settled_by = $2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 RETURNING *
-      `, [planId]);
+      `, [planId, req.user.id]);
 
       const accounts = plan.number_of_accounts || 1;
       const alreadyCleared = parseInt(plan.accounts_cleared || 0, 10);
@@ -1762,7 +1775,7 @@ export const getUserCodes = async (req, res) => {
     // Auto-expire codes past their expires_at
     await query(
       `UPDATE referral_codes SET status = 'expired', updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = $1 AND status IN ('available', 'locked') AND expires_at IS NOT NULL AND expires_at <= NOW()`,
+       WHERE user_id = $1 AND status IN ('available', 'locked') AND used_by_user_id IS NULL AND expires_at IS NOT NULL AND expires_at <= NOW()`,
       [id]
     );
 
@@ -2280,3 +2293,84 @@ export const reassignReferralCode = async (req, res) => {
     res.status(500).json({ message: 'Server error reassigning referral code' });
   }
 };
+
+/**
+ * Reassign an expired Crest link to a new Crest account.  This is deliberately
+ * separate from correcting a historic "used by" record above.
+ */
+export const reassignExpiredReferralCode = async (req, res) => {
+  const { codeId } = req.params;
+  const { targetUserId, reason } = req.body;
+  if (!targetUserId || !reason?.trim()) return res.status(400).json({ message: 'Target user and reassignment reason are required.' });
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const { rows: codes } = await client.query(
+      `SELECT rc.*, sp.plan_name FROM referral_codes rc LEFT JOIN savings_plans sp ON sp.id = rc.plan_id
+       WHERE rc.id = $1 FOR UPDATE`, [codeId]
+    );
+    const code = codes[0];
+    if (!code) throw new Error('Referral code not found');
+    if (code.plan_name !== 'CREST' || code.status !== 'expired') throw new Error('Only expired Crest referral links can be reassigned.');
+    const { rows: targetPlans } = await client.query(
+      `SELECT id FROM savings_plans WHERE user_id = $1 AND plan_name = 'CREST'
+       AND status NOT IN ('cancelled', 'settled') ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [targetUserId]
+    );
+    if (!targetPlans[0]) throw new Error('The new owner needs an active Crest account.');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await client.query(
+      `UPDATE referral_codes SET user_id = $1, plan_id = $2, status = 'available', used_by_user_id = NULL,
+       unlock_date = NULL, expires_at = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4`,
+      [targetUserId, targetPlans[0].id, expiresAt, codeId]
+    );
+    await client.query(
+      `INSERT INTO referral_reassignments
+       (referral_code_id, previous_owner_id, new_owner_id, actor_user_id, reason, previous_status, new_status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'available')`,
+      [codeId, code.user_id, targetUserId, req.user.id, reason.trim(), code.status]
+    );
+    await logAudit(req.user.id, 'REASSIGN_EXPIRED_CREST_REFERRAL', 'referral_code', codeId, { previousOwnerId: code.user_id, newOwnerId: targetUserId, reason: reason.trim() });
+    await client.query('COMMIT');
+    res.json({ message: 'Expired Crest link reassigned for a new 7-day usage period.', expiresAt });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Suspend or reactivate a user account
+ * PUT /api/admin/users/:id/status
+ */
+export const updateUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['active', 'suspended'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status. Must be active or suspended' });
+    }
+
+    const { rows } = await query(
+      'UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, first_name, last_name, email, status',
+      [status, id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    await logAudit(req.user.id, status === 'suspended' ? 'SUSPEND_USER' : 'REACTIVATE_USER', 'user', id, { status });
+
+    res.json({
+      message: `User account has been ${status === 'suspended' ? 'suspended' : 'reactivated'} successfully.`,
+      user: rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating user status:', error);
+    res.status(500).json({ message: 'Server error updating user status' });
+  }
+};
+

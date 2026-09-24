@@ -1,7 +1,7 @@
 import React from 'react';
 import './TermsPage.css';
 
-const terms = [
+export const terms = [
   ['Membership', ['Membership is open to persons 18 years and above.', 'Members are expected to provide correct information during registration and comply with the rules of their chosen programme.']],
   ['Account Security', ['Members are responsible for keeping their username, password and account details safe.', 'Palm Merit will not be responsible for losses caused by a member sharing their login details or allowing an unauthorised person to access their account.', 'Members should only transact through official approved representatives, website or app.']],
   ['Fraud and Scam Warning', ['Beware of scammers and fake representatives.', 'Palm Merit will not be responsible for money sent to unauthorised persons or through unofficial channels.', 'Always contact our official customer service channels or visit our office when in doubt.']],

@@ -39,11 +39,13 @@ import {
   getUserCodes,
   assignReferralCode,
   reassignReferralCode,
+  reassignExpiredReferralCode,
   unlockReferralCode,
   lockReferralCode,
   reactivateReferralCode,
   unassignReferralCode,
-  deleteReferralCode
+  deleteReferralCode,
+  updateUserStatus
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -63,6 +65,7 @@ router.use(protect, admin);
 router.get('/users', getAllUsers);
 router.get('/users/:id', getUserById);
 router.put('/users/:id', updateUser);
+router.put('/users/:id/status', updateUserStatus);
 router.delete('/users/:id', deleteUser);
 router.get('/stats', getDashboardStats);
 router.get('/tickets', getAllTickets);
@@ -109,6 +112,7 @@ router.post('/impersonate/:userId', impersonateUser);
 router.get('/codes/users/:id', getUserCodes);
 router.post('/referral-codes/:codeId/assign', assignReferralCode);
 router.put('/referral-codes/:codeId/reassign', reassignReferralCode);
+router.post('/referral-codes/:codeId/reassign-expired', reassignExpiredReferralCode);
 router.put('/referral-codes/:codeId/unlock', unlockReferralCode);
 router.put('/referral-codes/:codeId/lock', lockReferralCode);
 router.put('/referral-codes/:codeId/reactivate', reactivateReferralCode);

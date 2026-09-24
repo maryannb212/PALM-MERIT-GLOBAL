@@ -16,7 +16,7 @@ const RegisterPage = () => {
     surname: '', middleName: '', firstName: '', dob: '', phone: '',
     address: '', nearestBusStop: '',
     nokName: '', nokRelationship: '', nokPhone: '', nokAddress: '', nokDob: '',
-    email: '', password: '', confirmPassword: '', referredByCode: ''
+    email: '', password: '', confirmPassword: '', referredByCode: '', termsAccepted: false
   });
 
   useEffect(() => {
@@ -86,7 +86,9 @@ const RegisterPage = () => {
         nokName: formData.nokName,
         nokRelationship: formData.nokRelationship,
         nokPhone: formData.nokPhone,
-        referredByCode: formData.referredByCode || undefined
+        referredByCode: formData.referredByCode || undefined,
+        termsAccepted: formData.termsAccepted,
+        termsVersion: '1.0'
       });
       
       navigate('/dashboard');
@@ -259,16 +261,23 @@ const RegisterPage = () => {
                 </div>
 
                 <div className="auth-alert warning mt-3">
-                  <small>
-                    By clicking Complete Registration, you confirm that you have read and accepted our 
-                    <Link to="/terms" target="_blank" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 'bold' }}> Terms & Conditions</Link>. 
-                    Registration fees are non-refundable.
-                  </small>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', lineHeight: 1.45 }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.termsAccepted}
+                      onChange={(e) => setFormData({ ...formData, termsAccepted: e.target.checked })}
+                      required
+                      style={{ marginTop: '3px', flex: '0 0 auto' }}
+                    />
+                    <small style={{ display: 'block', flex: '1 1 auto' }}>
+                      I have read and agree to the Palm Merit <Link to="/terms" target="_blank" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 'bold' }}>Terms & Conditions</Link> (version 1.0).
+                    </small>
+                  </label>
                 </div>
                 
                 <div className="form-actions mt-4">
                   <Button type="button" variant="outline" onClick={prevStep}>Back</Button>
-                  <Button type="submit" variant="accent" disabled={isLoading}>
+                  <Button type="submit" variant="accent" disabled={isLoading || !formData.termsAccepted}>
                     {isLoading ? 'Creating Account...' : 'Complete Registration'}
                   </Button>
                 </div>

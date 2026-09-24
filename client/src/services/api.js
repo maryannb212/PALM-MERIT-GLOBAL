@@ -75,6 +75,8 @@ export const updateBvn = (bvn) => API.post('/auth/update-bvn', { bvn });
 // Savings endpoints
 export const subscribeToPlan = (planData) => API.post('/savings/subscribe', planData);
 export const getMyPlans = () => API.get('/savings/my-plans');
+export const getCrestEligibility = (planId) => API.get(`/savings/crest-eligibility?planId=${encodeURIComponent(planId)}`);
+export const acceptProgrammeTerms = () => API.post('/savings/terms-acceptance', { acceptanceType: 'REGISTRATION', termsVersion: '1.0' });
 export const payClearanceFee = (data) => API.post('/savings/pay-clearance', data);
 export const payTshirtFee = () => API.post('/savings/pay-tshirt');
 export const cancelSubscription = (planId) => API.delete(`/savings/cancel/${planId}`);
@@ -140,6 +142,7 @@ export const getAdminStats = () => API.get('/admin/stats');
 export const getAllUsers = () => API.get('/admin/users');
 export const getAdminUserById = (id) => API.get(`/admin/users/${id}`);
 export const updateAdminUser = (id, data) => API.put(`/admin/users/${id}`, data);
+export const toggleUserSuspension = (userId, suspend) => API.put(`/admin/users/${userId}/status`, { status: suspend ? 'suspended' : 'active' });
 export const deleteAdminUser = (id) => API.delete(`/admin/users/${id}`);
 export const getAllAdminTickets = () => API.get('/admin/tickets');
 export const updateAdminTicket = (id, data) => API.put(`/admin/tickets/${id}`, data);
@@ -208,6 +211,8 @@ export const assignReferralCode = (codeId, targetUserId) =>
   API.post(`/admin/referral-codes/${codeId}/assign`, { targetUserId });
 export const reassignReferralCode = (codeId, targetUserId) =>
   API.put(`/admin/referral-codes/${codeId}/reassign`, { targetUserId });
+export const reassignExpiredReferralCode = (codeId, targetUserId, reason) =>
+  API.post(`/admin/referral-codes/${codeId}/reassign-expired`, { targetUserId, reason });
 export const unlockReferralCode = (codeId) =>
   API.put(`/admin/referral-codes/${codeId}/unlock`);
 export const lockReferralCode = (codeId, unlockDate) =>

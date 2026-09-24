@@ -11,7 +11,7 @@ const PLAN_CONFIG = {
 
 const getDurationDays = (planName) => {
   switch (planName) {
-    case 'CREST': return 84; // user-defined: 84 days (12 weeks)
+    case 'CREST': return 90; // Crest policy: completion is day 90
     case 'SILVER': return 350; // ~50 weeks
     case 'GOLDEN_BASKET': return 350;
     case 'ISUSU': return 30;

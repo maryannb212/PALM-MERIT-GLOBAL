@@ -2,11 +2,21 @@ import { createSavingsPlan, getUserSavingsPlans } from '../models/savingsModel.j
 import { getClient, query } from '../config/db.js';
 import { createWalletLedgerEntry } from '../models/transactionModel.js';
 import { createReferralCodeForPlan } from '../models/referralModel.js';
+import { assertCrestClearanceEligible } from '../services/crestPolicyService.js';
 
 export const subscribeToPlan = async (req, res) => {
   try {
     const { planName, targetAmount, numberOfAccounts, referralCode } = req.body;
     const userId = req.user.id;
+
+    const { rows: termsRows } = await query(
+      `SELECT 1 FROM terms_acceptances
+       WHERE user_id = $1 AND terms_version = '1.0' AND acceptance_type = 'REGISTRATION' AND accepted = TRUE`,
+      [userId]
+    );
+    if (!termsRows[0]) {
+      return res.status(400).json({ message: 'Please accept the Palm Merit Terms & Conditions before choosing a programme.' });
+    }
 
     if (!planName || !targetAmount) {
       return res.status(400).json({ message: 'Plan name and target amount are required' });
@@ -146,7 +156,7 @@ export const subscribeToPlan = async (req, res) => {
 
       // Calculate end_date based on plan duration
       const planDurations = {
-        CREST: { weeks: 12 },
+        CREST: { days: 90 },
         SILVER: { weeks: 50 },
         GOLDEN_BASKET: { weeks: 50 },
         ISUSU: { days: 30 }
@@ -159,8 +169,12 @@ export const subscribeToPlan = async (req, res) => {
       }
 
       const { rows: updatedPlanRows } = await client.query(
-        'UPDATE savings_plans SET end_date = $1, maturity_date = $1 WHERE id = $2 RETURNING *',
-        [endDate, plan.id]
+        `UPDATE savings_plans SET end_date = $1, maturity_date = $1,
+          completion_date = CASE WHEN $3 = 'CREST' THEN $1 ELSE completion_date END,
+          earliest_settlement_date = CASE WHEN $3 = 'CREST' THEN $1 + INTERVAL '2 days' ELSE earliest_settlement_date END,
+          latest_settlement_date = CASE WHEN $3 = 'CREST' THEN $1 + INTERVAL '8 days' ELSE latest_settlement_date END
+         WHERE id = $2 RETURNING *`,
+        [endDate, plan.id, planName]
       );
       Object.assign(plan, updatedPlanRows[0]);
 
@@ -249,6 +263,10 @@ export const payClearanceFee = async (req, res) => {
       }
       if (plan.clearance_paid) {
         throw new Error('Clearance already paid fully');
+      }
+
+      if (plan.plan_name === 'CREST') {
+        await assertCrestClearanceEligible(client, plan.id, userId);
       }
 
       const { rows: users } = await client.query('SELECT available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
@@ -405,6 +423,9 @@ export const bulkClearance = async (req, res) => {
       // Calculate total fee (3000 per remaining account per plan)
       let totalFee = 0;
       for (const plan of plans) {
+        if (plan.plan_name === 'CREST') {
+          await assertCrestClearanceEligible(client, plan.id, userId);
+        }
         const accounts = plan.number_of_accounts || 1;
         const alreadyCleared = parseInt(plan.accounts_cleared || 0, 10);
         const remaining = accounts - alreadyCleared;
