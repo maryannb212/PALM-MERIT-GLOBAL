@@ -1498,7 +1498,7 @@
 .dashboard-home .notification-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 20000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1509,6 +1509,7 @@
 
 .dashboard-home .notification-overlay .notification-popover {
   position: relative;
+  z-index: 1;
   inset: auto;
   right: auto;
   top: auto;
@@ -1541,6 +1542,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
+  z-index: 2;
 }
 
 .dashboard-home .notification-overlay .notification-popover-header button {
@@ -1548,8 +1551,13 @@
 }
 
 .dashboard-home .notification-overlay .notification-close-button {
+  position: relative;
+  z-index: 3;
   width: 32px;
   height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 8px;
@@ -1730,6 +1738,15 @@
 
   .dashboard-home .notification-overlay .notification-popover-header {
     padding: 20px 16px;
+  }
+
+  .clearance-confirm-actions {
+    justify-content: stretch;
+  }
+
+  .clearance-confirm-actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
   }
 }
 
@@ -5298,6 +5315,49 @@ input:checked + .slider:before {
   font-size: 0.82rem;
   opacity: 0.9;
   font-weight: 800;
+}
+
+.wallet-visibility-button,
+.wallet-visibility-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  color: #ff781f;
+}
+
+.wallet-visibility-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wallet-visibility-button:hover {
+  color: #c2410c;
+}
+
+.wallet-visibility-icon {
+  font-size: 0.85rem;
+}
+
+.clearance-confirm-actions {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.clearance-confirm-actions .btn {
+  min-width: 112px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
 }
 
 .clearance-insufficient {

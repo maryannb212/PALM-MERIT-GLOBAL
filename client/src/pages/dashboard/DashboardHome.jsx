@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead } from '../../services/api';
@@ -186,8 +187,9 @@ const DashboardHome = () => {
               </span>
             </button>
           </div>
-          {showAllNotifs && (
-            <div className="notification-overlay" role="dialog" aria-modal="true" aria-label="Notifications" onClick={() => setShowAllNotifs(false)}>
+          {showAllNotifs && createPortal((
+            <div className="dashboard-home notification-portal">
+              <div className="notification-overlay" role="dialog" aria-modal="true" aria-label="Notifications" onClick={() => setShowAllNotifs(false)}>
               <section className="notification-popover" onClick={(event) => event.stopPropagation()}>
                 <div className="notification-popover-header">
                   <div><strong>Notifications</strong><span>{notifications.filter(n => !n.is_read).length} unread</span></div>
@@ -216,8 +218,9 @@ const DashboardHome = () => {
                 </div>
                 {notifications.length > 5 && <button type="button" className="notification-popover-footer" onClick={() => { setShowAllNotifs(false); navigate('/dashboard/settings'); }}>Manage all notifications</button>}
               </section>
+              </div>
             </div>
-          )}
+          ), document.body)}
         </div>
 
         <div className="quick-actions" aria-label="Quick actions">

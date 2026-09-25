@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { getMyTransactions, payTshirtFee, getMyPlans, generateVirtualAccount, updateBvn } from '../../services/api';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -176,10 +177,15 @@ const Wallet = () => {
           <div className="virtual-account-balance" onClick={() => setHideBalances(!hideBalances)} style={{ cursor: 'pointer' }}>
             <span className="label" style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
               Wallet Balance 
-              <button onClick={(e) => { e.stopPropagation(); refreshProfile(); }} style={{ background: 'none', border: 'none', color: '#ff781f', cursor: 'pointer', fontSize: '0.85rem', padding: '0', textDecoration: 'underline' }} title="Refresh balance">
-                &#x21bb;
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setHideBalances(!hideBalances); }}
+                className="wallet-visibility-button"
+                aria-label={hideBalances ? 'Show wallet balance' : 'Hide wallet balance'}
+                title={hideBalances ? 'Show wallet balance' : 'Hide wallet balance'}
+              >
+                {hideBalances ? <FaEye /> : <FaEyeSlash />}
               </button>
-              <span style={{ fontSize: '0.85rem', color: '#ff781f' }}>({hideBalances ? 'Show' : 'Hide'})</span>
             </span>
             <span className="amount">
               {hideBalances ? (
@@ -291,7 +297,7 @@ const Wallet = () => {
             <div className="stat-icon">💰</div>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
               Available Balance
-              <span style={{ fontSize: '0.8rem', color: '#ff781f', textDecoration: 'underline' }}>({hideBalances ? 'Show' : 'Hide'})</span>
+              <span className="wallet-visibility-icon" aria-hidden="true">{hideBalances ? <FaEye /> : <FaEyeSlash />}</span>
             </h3>
             <div className="stat-value">
               {hideBalances ? (
@@ -305,7 +311,7 @@ const Wallet = () => {
             <div className="stat-icon">🔒</div>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
               Held Balance
-              <span style={{ fontSize: '0.8rem', color: '#ff781f', textDecoration: 'underline' }}>({hideBalances ? 'Show' : 'Hide'})</span>
+              <span className="wallet-visibility-icon" aria-hidden="true">{hideBalances ? <FaEye /> : <FaEyeSlash />}</span>
             </h3>
             <div className="stat-value">
               {hideBalances ? (
