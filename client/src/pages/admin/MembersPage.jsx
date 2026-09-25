@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser, impersonateUser, enableUserClearance, toggleUserSuspension } from '../../services/api';
-import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle, FaLink, FaUserFriends, FaMask, FaUnlockAlt, FaBan } from 'react-icons/fa';
+import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser, impersonateUser, toggleUserSuspension } from '../../services/api';
+import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle, FaLink, FaUserFriends, FaMask, FaBan } from 'react-icons/fa';
 import EditMemberModal from './EditMemberModal';
 import MemberDetailsModal from './MemberDetailsModal';
 import UserDefaultsModal from './UserDefaultsModal';
@@ -22,7 +22,6 @@ const MembersPage = () => {
   const [defaultsUserName, setDefaultsUserName] = useState('');
   const [isDefaultsModalOpen, setIsDefaultsModalOpen] = useState(false);
   const [impersonatingId, setImpersonatingId] = useState(null);
-  const [enablingClearanceId, setEnablingClearanceId] = useState(null);
 
   const avatarColors = ['#800020', '#D4AF37', '#1e293b', '#475569', '#64748b'];
 
@@ -124,21 +123,6 @@ const MembersPage = () => {
       fetchMembers();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update user');
-    }
-  };
-
-  const handleEnableClearance = async (member) => {
-    const name = `${member.first_name || ''} ${member.last_name || ''}`.trim();
-    if (!window.confirm(`Complete the saving cycle for ${name} and make clearance available?`)) return;
-    try {
-      setEnablingClearanceId(member.id);
-      const { data } = await enableUserClearance(member.id);
-      toast.success(data.message || 'Clearance enabled for this user.');
-      fetchMembers();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not enable clearance.');
-    } finally {
-      setEnablingClearanceId(null);
     }
   };
 
@@ -318,16 +302,6 @@ const MembersPage = () => {
                       })}
                     </td>
                     <td className="text-right">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-accent"
-                        onClick={() => handleEnableClearance(member)}
-                        disabled={enablingClearanceId === member.id}
-                        title="Complete cycle and enable clearance"
-                        style={{ marginRight: 6 }}
-                      >
-                        <FaUnlockAlt /> {enablingClearanceId === member.id ? 'Enabling...' : 'Enable Clearance'}
-                      </button>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                         {member.kyc_status !== 'verified' && (
                           <button 

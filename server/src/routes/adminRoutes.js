@@ -18,6 +18,8 @@ import {
   getAdminReferralStats,
   getEligibilityQueue,
   enableUserClearance,
+  reEnableClearance,
+  getClearanceCandidates,
   getMaturitySummary,
   approveEligibility,
   getWebhookLogs,
@@ -99,7 +101,11 @@ router.delete('/payments/:id', deleteTestPayment);
 router.get('/due-payments', getDuePayments);
 // Clearance
 router.get('/clearance', getClearancePlans);
+router.get('/clearance/candidates', getClearanceCandidates);
+router.post('/clearance/enable', enableUserClearance);
+router.post('/clearance/re-enable', reEnableClearance);
 router.post('/clearance/settle', adminSettleClearance);
+router.post('/users/:userId/re-enable-clearance', reEnableClearance);
 // Daily Account Stats
 router.get('/daily-accounts', getDailyAccountStats);
 // User Defaults

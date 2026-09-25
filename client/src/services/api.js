@@ -176,7 +176,14 @@ export const updateAmbassador = (id, data) => API.put(`/ambassadors/${id}`, data
 export const deleteAmbassador = (id) => API.delete(`/ambassadors/${id}`);
 
 export const getDuePayments = () => API.get('/admin/due-payments');
-export const enableUserClearance = (userId, planId) => API.post(`/admin/users/${userId}/enable-clearance`, { planId });
+export const enableUserClearance = (userIdOrData, planId) => {
+  if (typeof userIdOrData === 'object' && userIdOrData !== null) {
+    return API.post('/admin/clearance/enable', userIdOrData);
+  }
+  return API.post(`/admin/users/${userIdOrData}/enable-clearance`, { planId });
+};
+export const reEnableClearance = (data) => API.post('/admin/clearance/re-enable', data);
+export const getClearanceCandidates = () => API.get('/admin/clearance/candidates');
 export const getMaturitySummary = () => API.get('/admin/maturity-summary');
 export const runMaturityCheck = () => API.post('/admin/trigger/maturity');
 

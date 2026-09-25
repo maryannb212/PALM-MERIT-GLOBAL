@@ -934,16 +934,29 @@ export const getEligibilityQueue = async (req, res) => {
  * POST /api/admin/users/:userId/enable-clearance
  */
 export const enableUserClearance = async (req, res) => {
-  const { userId } = req.params;
+  const userId = req.params.userId || req.body?.userId;
   const { planId } = req.body || {};
   const client = await getClient();
 
   try {
     await client.query('BEGIN');
-    const params = planId ? [planId, userId] : [userId];
-    const planQuery = planId
-      ? 'SELECT * FROM savings_plans WHERE id = $1 AND user_id = $2 FOR UPDATE'
-      : `SELECT * FROM savings_plans WHERE user_id = $1 AND status IN ('active', 'eligibility_review') ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`;
+    if (!userId && !planId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'User ID or Plan ID is required.' });
+    }
+
+    let planQuery;
+    let params;
+    if (planId && userId) {
+      planQuery = 'SELECT * FROM savings_plans WHERE id = $1 AND user_id = $2 FOR UPDATE';
+      params = [planId, userId];
+    } else if (planId) {
+      planQuery = 'SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE';
+      params = [planId];
+    } else {
+      planQuery = `SELECT * FROM savings_plans WHERE user_id = $1 AND status IN ('active', 'eligibility_review') ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`;
+      params = [userId];
+    }
     const { rows: plans } = await client.query(planQuery, params);
 
     if (plans.length === 0) {
@@ -952,9 +965,11 @@ export const enableUserClearance = async (req, res) => {
     }
 
     const plan = plans[0];
+    const targetUserId = plan.user_id;
+
     if (['pending_clearance', 'pending_settlement', 'settled'].includes(plan.status)) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ message: 'This plan is already in the clearance or settlement pipeline.' });
+      return res.status(400).json({ message: 'This plan is already in the clearance or settlement pipeline. Use Re-enable Clearance if you wish to reset or reopen clearance.' });
     }
 
     const { rows: updated } = await client.query(`
@@ -970,8 +985,8 @@ export const enableUserClearance = async (req, res) => {
     await client.query(`
       INSERT INTO notifications (user_id, title, message, type)
       VALUES ($1, 'Clearance Available', $2, 'clearance')
-    `, [userId, `${plan.plan_name} has been completed by Management. Clearance is now available at ₦3,000 per account (₦${fee.toLocaleString()} total).`]);
-    await logAudit(req.user.id, 'ENABLE_USER_CLEARANCE', 'savings_plan', plan.id, { userId, planName: plan.plan_name });
+    `, [targetUserId, `${plan.plan_name} has been completed by Management. Clearance is now available at ₦3,000 per account (₦${fee.toLocaleString()} total).`]);
+    await logAudit(req.user.id, 'ENABLE_USER_CLEARANCE', 'savings_plan', plan.id, { userId: targetUserId, planName: plan.plan_name });
     await client.query('COMMIT');
 
     res.json({ message: 'User cycle completed and clearance enabled.', plan: updated[0] });
@@ -981,6 +996,147 @@ export const enableUserClearance = async (req, res) => {
     res.status(500).json({ message: 'Server error enabling user clearance' });
   } finally {
     client.release();
+  }
+};
+
+/**
+ * Re-enable savings account (returns to normal active status),
+ * or reset clearance pipeline.
+ * POST /api/admin/clearance/re-enable
+ * or POST /api/admin/users/:userId/re-enable-clearance
+ */
+export const reEnableClearance = async (req, res) => {
+  const userId = req.params.userId || req.body?.userId;
+  const { planId, targetStatus = 'active', resetAccounts = true } = req.body || {};
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    if (!userId && !planId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Plan ID or User ID is required.' });
+    }
+
+    let planQuery;
+    let params;
+    if (planId) {
+      planQuery = 'SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE';
+      params = [planId];
+    } else {
+      planQuery = `SELECT * FROM savings_plans WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`;
+      params = [userId];
+    }
+    const { rows: plans } = await client.query(planQuery, params);
+
+    if (plans.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Plan not found.' });
+    }
+
+    const plan = plans[0];
+    const targetUserId = plan.user_id;
+
+    if (targetStatus === 'active') {
+      const { rows: updated } = await client.query(`
+        UPDATE savings_plans
+        SET status = 'active',
+            clearance_required = FALSE,
+            clearance_paid = FALSE,
+            accounts_cleared = 0,
+            settled_at = NULL,
+            settled_by = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING *
+      `, [plan.id]);
+
+      // Cancel any pending payout created for this plan
+      await client.query(`
+        UPDATE payouts 
+        SET status = 'cancelled' 
+        WHERE plan_id = $1 AND status = 'pending'
+      `, [plan.id]);
+
+      await client.query(`
+        INSERT INTO notifications (user_id, title, message, type)
+        VALUES ($1, 'Savings Account Re-enabled', $2, 'savings')
+      `, [targetUserId, `Your ${plan.plan_name} savings account has been re-enabled and returned to normal active status by Management.`]);
+
+      await logAudit(req.user.id, 'RE_ENABLE_SAVINGS_ACCOUNT', 'savings_plan', plan.id, {
+        userId: targetUserId,
+        planName: plan.plan_name,
+        previousStatus: plan.status,
+        newStatus: 'active'
+      });
+
+      await client.query('COMMIT');
+      return res.json({ message: 'Savings account re-enabled and returned to normal active status.', plan: updated[0] });
+    } else {
+      const accounts = plan.number_of_accounts || 1;
+      const accountsClearedVal = resetAccounts ? 0 : Math.min(parseInt(plan.accounts_cleared || 0, 10), accounts);
+
+      const { rows: updated } = await client.query(`
+        UPDATE savings_plans
+        SET status = 'pending_clearance',
+            clearance_required = TRUE,
+            clearance_paid = FALSE,
+            accounts_cleared = $1,
+            settled_at = NULL,
+            settled_by = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *
+      `, [accountsClearedVal, plan.id]);
+
+      const remainingToPay = accounts - accountsClearedVal;
+      const fee = remainingToPay * 3000;
+
+      await client.query(`
+        INSERT INTO notifications (user_id, title, message, type)
+        VALUES ($1, 'Clearance Re-enabled', $2, 'clearance')
+      `, [targetUserId, `Clearance has been re-enabled for your ${plan.plan_name} plan by Management. Clearance fee: ₦3,000 per account (₦${fee.toLocaleString()} remaining).`]);
+
+      await logAudit(req.user.id, 'RE_ENABLE_CLEARANCE_PIPELINE', 'savings_plan', plan.id, {
+        userId: targetUserId,
+        planName: plan.plan_name,
+        previousStatus: plan.status,
+        resetAccounts: !!resetAccounts
+      });
+
+      await client.query('COMMIT');
+      return res.json({ message: 'Clearance re-enabled successfully.', plan: updated[0] });
+    }
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error re-enabling clearance / savings plan:', error);
+    res.status(500).json({ message: error.message || 'Server error re-enabling plan' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Return active / review plans that can have clearance enabled administratively.
+ * GET /api/admin/clearance/candidates
+ */
+export const getClearanceCandidates = async (req, res) => {
+  try {
+    const { rows } = await query(`
+      SELECT 
+        sp.id, sp.user_id, sp.plan_name, sp.status, sp.number_of_accounts,
+        sp.target_amount, sp.current_amount, sp.accounts_cleared, sp.clearance_required,
+        sp.created_at, sp.updated_at,
+        u.first_name, u.last_name, u.email, u.phone
+      FROM savings_plans sp
+      JOIN users u ON u.id = sp.user_id
+      WHERE sp.status IN ('active', 'eligibility_review')
+      ORDER BY sp.updated_at DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching clearance candidates:', error);
+    res.status(500).json({ message: 'Server error fetching clearance candidates' });
   }
 };
 
@@ -1533,8 +1689,8 @@ export const getClearancePlans = async (req, res) => {
     const { status } = req.query;
     const validStatuses = ['pending_clearance', 'pending_settlement', 'settled'];
     const statusFilter = status && validStatuses.includes(status)
-      ? status
-      : ['pending_clearance', 'pending_settlement'];
+      ? [status]
+      : validStatuses;
     const { rows } = await query(`
       SELECT
         sp.*,
