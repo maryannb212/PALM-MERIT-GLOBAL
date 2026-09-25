@@ -11,7 +11,7 @@ const PLAN_CONFIG = {
 
 const getDurationDays = (planName) => {
   switch (planName) {
-    case 'CREST': return 84; // user-defined: 84 days (12 weeks)
+    case 'CREST': return 90; // Crest policy: completion is day 90
     case 'SILVER': return 350; // ~50 weeks
     case 'GOLDEN_BASKET': return 350;
     case 'ISUSU': return 30;
@@ -35,6 +35,7 @@ const hasCompletedContributions = (plan) => {
 export const runMaturityCheck = async () => {
   logger.info('Running maturity check job...');
   const client = await pool.connect();
+  const summary = { checked: 0, matured: 0, skippedIncomplete: 0 };
 
   try {
     await client.query('BEGIN');
@@ -47,6 +48,7 @@ export const runMaturityCheck = async () => {
     `);
 
     for (const plan of activePlans) {
+      summary.checked += 1;
       const durationDays = getDurationDays(plan.plan_name);
       if (durationDays === 0) continue;
 
@@ -63,11 +65,13 @@ export const runMaturityCheck = async () => {
       if (now >= maturityDate) {
         // Check that required contributions have been completed
         if (!hasCompletedContributions(plan)) {
+          summary.skippedIncomplete += 1;
           logger.warn(`Plan ${plan.id} (${plan.plan_name}) reached maturity date but hasn't completed all contributions. Skipping.`);
           continue;
         }
 
         logger.info(`Plan ${plan.id} (${plan.plan_name}) has matured.`);
+        summary.matured += 1;
 
         const newStatus = 'eligibility_review';
 
@@ -93,7 +97,7 @@ export const runMaturityCheck = async () => {
 
     await client.query('COMMIT');
     logger.info('Maturity check job completed successfully.');
-    return { success: true, message: 'Maturity check completed' };
+    return { success: true, message: 'Maturity check completed', summary };
   } catch (error) {
     await client.query('ROLLBACK');
     logger.error('Error running maturity check job:', error);

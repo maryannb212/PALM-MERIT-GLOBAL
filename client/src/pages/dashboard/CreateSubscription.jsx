@@ -49,7 +49,9 @@ const CreateSubscription = () => {
   // Calculate End Date
   const calculateEndDate = () => {
     const today = new Date();
-    if (plan.durationLabel.toLowerCase() === 'weeks') {
+    if (plan.id === 'CREST') {
+      today.setDate(today.getDate() + 90);
+    } else if (plan.durationLabel.toLowerCase() === 'weeks') {
       today.setDate(today.getDate() + (parseInt(plan.duration, 10) * 7));
     } else if (plan.durationLabel.toLowerCase() === 'days') {
       today.setDate(today.getDate() + parseInt(plan.duration, 10));

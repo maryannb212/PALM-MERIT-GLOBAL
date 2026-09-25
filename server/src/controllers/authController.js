@@ -10,9 +10,13 @@ import { sendWelcomeEmail, sendOTPEmail } from '../utils/emailService.js';
 import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
 import { getUserReferralCodes } from '../models/referralModel.js';
 import { createVirtualAccount } from '../services/virtualAccountService.js';
+import { createNotification } from '../models/notificationModel.js';
 import admin from '../config/firebaseAdmin.js';
+import { CREST_POLICY } from '../services/crestPolicyService.js';
 
 dotenv.config();
+
+const CURRENT_TERMS_VERSION = '1.0';
 
 const generateAccessToken = (id) => {
   return jsonwebtoken.sign({ id }, process.env.JWT_SECRET || 'secret', {
@@ -35,10 +39,14 @@ const generateRefreshToken = async (userId) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, referredByCode, middleName, dob, address, nearestBusStop, nokName, nokRelationship, nokPhone } = req.body;
+    const { firstName, lastName, email, password, phone, referredByCode, middleName, dob, address, nearestBusStop, nokName, nokRelationship, nokPhone, termsAccepted, termsVersion } = req.body;
 
     if (!firstName || !lastName || !phone || !password) {
       return res.status(400).json({ message: 'Please provide all required fields.' });
+    }
+
+    if (termsAccepted !== true || termsVersion !== CURRENT_TERMS_VERSION) {
+      return res.status(400).json({ message: `You must accept the current Palm Merit Terms & Conditions (version ${CURRENT_TERMS_VERSION}) before registration.` });
     }
 
     // Normalize phone
@@ -93,11 +101,11 @@ export const registerUser = async (req, res) => {
     // Calculate Referral Unlock Date: 25 days after registration by default
     const createdDate = new Date();
     const unlockDate = new Date(createdDate);
-    unlockDate.setDate(unlockDate.getDate() + 25);
+    unlockDate.setDate(unlockDate.getDate() + CREST_POLICY.referralLinkDelayDays);
     
-    // Calculate Default Expiry: 14 days after unlock date (CREST rule)
+    // Calculate Default Expiry: 7 days after unlock date (CREST rule)
     const expiryDate = new Date(unlockDate);
-    expiryDate.setDate(expiryDate.getDate() + 14);
+    expiryDate.setDate(expiryDate.getDate() + CREST_POLICY.referralLinkValidityDays);
 
     const emailToSave = normalizedEmail;
 
@@ -180,6 +188,13 @@ export const registerUser = async (req, res) => {
         );
       }
 
+      await client.query(
+        `INSERT INTO terms_acceptances
+         (user_id, terms_version, acceptance_type, accepted, accepted_at, ip_address, user_agent)
+         VALUES ($1, $2, 'REGISTRATION', TRUE, CURRENT_TIMESTAMP, $3, $4)`,
+        [user.id, CURRENT_TERMS_VERSION, req.ip || null, req.get('user-agent') || null]
+      );
+
       await client.query('COMMIT');
     } catch (txErr) {
       await client.query('ROLLBACK');
@@ -248,6 +263,9 @@ export const loginUser = async (req, res) => {
     const user = await findUserByEmailOrPhone(email);
 
     if (user && (await bcrypt.compare(password, user.password_hash))) {
+      if (user.status === 'suspended') {
+        return res.status(403).json({ message: 'Your account has been suspended. Please contact Palm Merit support.', isSuspended: true });
+      }
       // OTP BYPASSED per user request
       const accessToken = generateAccessToken(user.id);
       const refreshToken = await generateRefreshToken(user.id);
@@ -257,6 +275,12 @@ export const loginUser = async (req, res) => {
          FROM defaults WHERE user_id = $1 AND resolved = FALSE`,
         [user.id]
       );
+      createNotification(
+        user.id,
+        'SOCIAL',
+        'Follow Palm Merit Global',
+        'Follow Palm Merit Global on Facebook and Instagram, engage with our updates, and stand a chance to win a prize as the Best Engaged Palm Meriter.'
+      ).catch(error => console.error('[Auth] Failed to create social follow notification:', error.message));
 
       res.json({
         id: user.id,
@@ -308,6 +332,10 @@ export const verifyLoginOTP = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
+    if (user.status === 'suspended') {
+      return res.status(403).json({ message: 'Your account has been suspended. Please contact Palm Merit support.', isSuspended: true });
+    }
+
     // OTP is valid, update last_login (Non-blocking)
     query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]).catch(err => {
       console.error('[Auth] Failed to update last_login:', err.message);
@@ -315,6 +343,12 @@ export const verifyLoginOTP = async (req, res) => {
 
     const accessToken = generateAccessToken(user.id);
     const refreshToken = await generateRefreshToken(user.id);
+    createNotification(
+      user.id,
+      'SOCIAL',
+      'Follow Palm Merit Global',
+      'Follow Palm Merit Global on Facebook and Instagram, engage with our updates, and stand a chance to win a prize as the Best Engaged Palm Meriter.'
+    ).catch(error => console.error('[Auth] Failed to create social follow notification:', error.message));
 
     res.json({
       id: user.id,
@@ -736,4 +770,3 @@ export const generateVirtualAccount = async (req, res) => {
     res.status(500).json({ message: 'Server error while generating virtual account: ' + error.message });
   }
 };
-

@@ -1,14 +1,32 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getAdminClearance, adminSettleClearance } from '../../services/api';
-import { FaCheckCircle, FaSpinner, FaFilter, FaChevronDown, FaChevronUp, FaUser, FaCreditCard, FaWallet, FaMoneyBillWave } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import { getAdminClearance, adminSettleClearance, reEnableClearance } from '../../services/api';
+import ClearanceOverrideModal from './ClearanceOverrideModal';
+import { 
+  FaCheckCircle, 
+  FaSpinner, 
+  FaFilter, 
+  FaChevronDown, 
+  FaChevronUp, 
+  FaUser, 
+  FaCreditCard, 
+  FaWallet, 
+  FaMoneyBillWave,
+  FaSearch,
+  FaRedoAlt,
+  FaSlidersH
+} from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
 
 const AdminClearance = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [settling, setSettling] = useState(null);
+  const [reEnabling, setReEnabling] = useState(null);
   const [expandedPlan, setExpandedPlan] = useState(null);
+  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -17,6 +35,7 @@ const AdminClearance = () => {
       setPlans(response.data || []);
     } catch (error) {
       console.error('Failed to fetch clearance plans:', error);
+      toast.error('Failed to load clearance plans');
     } finally {
       setLoading(false);
     }
@@ -27,7 +46,7 @@ const AdminClearance = () => {
   }, [fetchPlans]);
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(amount || 0);
   };
 
   const handleSettle = async (planId) => {
@@ -35,12 +54,28 @@ const AdminClearance = () => {
     setSettling(planId);
     try {
       await adminSettleClearance(planId);
-      alert('Plan marked as paid successfully.');
+      toast.success('Plan marked as paid successfully.');
       fetchPlans();
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to approve plan.');
+      toast.error(error.response?.data?.message || 'Failed to approve plan.');
     } finally {
       setSettling(null);
+    }
+  };
+
+  const handleReEnable = async (plan) => {
+    const userFullName = `${plan.first_name || ''} ${plan.last_name || ''}`.trim() || plan.email;
+    if (!window.confirm(`Re-enable savings account for ${userFullName} (${plan.plan_name})?\n\nThis will return the account back to normal ACTIVE status and remove it from the clearance pipeline.`)) return;
+
+    setReEnabling(plan.id);
+    try {
+      await reEnableClearance({ planId: plan.id, targetStatus: 'active' });
+      toast.success('Savings account returned to normal active status.');
+      fetchPlans();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to re-enable savings account.');
+    } finally {
+      setReEnabling(null);
     }
   };
 
@@ -61,19 +96,71 @@ const AdminClearance = () => {
     setExpandedPlan(expandedPlan === planId ? null : planId);
   };
 
+  const filteredPlans = plans.filter(p => {
+    if (!searchQuery.trim()) return true;
+    const term = searchQuery.toLowerCase();
+    const fullName = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
+    const email = (p.email || '').toLowerCase();
+    const planName = (p.plan_name || '').toLowerCase();
+    return fullName.includes(term) || email.includes(term) || planName.includes(term);
+  });
+
   return (
     <>
-      <header className="dashboard-header">
+      <header className="dashboard-header" style={{ flexWrap: 'wrap', gap: 12 }}>
         <h2>Clearance Management</h2>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <FaFilter />
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '0.85rem' }}>
-            <option value="">All Statuses</option>
-            <option value="pending_clearance">Pending Clearance</option>
-            <option value="pending_settlement">Pending Approval</option>
-            <option value="settled">Settled</option>
-          </select>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <FaSearch style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }} />
+            <input
+              type="text"
+              placeholder="Search member, email, plan..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                padding: '6px 12px 6px 30px',
+                borderRadius: 6,
+                border: '1px solid #cbd5e1',
+                fontSize: '0.85rem',
+                outline: 'none',
+                width: 210
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <FaFilter style={{ color: '#64748b', fontSize: '0.85rem' }} />
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+              style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '0.85rem' }}>
+              <option value="">All Statuses</option>
+              <option value="pending_clearance">Pending Clearance</option>
+              <option value="pending_settlement">Pending Approval</option>
+              <option value="settled">Settled</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsOverrideModalOpen(true)}
+            title="Administrative clearance controls (Enable or Re-enable clearance)"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              borderRadius: 6,
+              background: '#1e293b',
+              color: '#f8fafc',
+              border: 'none',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#0f172a'}
+            onMouseLeave={e => e.currentTarget.style.background = '#1e293b'}
+          >
+            <FaSlidersH /> Clearance Override
+          </button>
         </div>
       </header>
 
@@ -103,15 +190,15 @@ const AdminClearance = () => {
 
       {loading ? (
         <div className="defaults-loading">Loading clearance plans...</div>
-      ) : plans.length === 0 ? (
+      ) : filteredPlans.length === 0 ? (
         <div className="defaults-empty">
           <FaCheckCircle className="defaults-empty-icon" />
           <h4>No Clearance Plans Found</h4>
-          <p>No programs are currently in the clearance pipeline.</p>
+          <p>{searchQuery ? `No clearance plans match "${searchQuery}".` : "No programs are currently in the clearance pipeline."}</p>
         </div>
       ) : (
         <div className="defaults-plans-list">
-          {plans.map(plan => {
+          {filteredPlans.map(plan => {
             const accounts = plan.number_of_accounts || 1;
             const ac = parseInt(plan.accounts_cleared || 0, 10);
             const remaining = accounts - ac;
@@ -177,7 +264,7 @@ const AdminClearance = () => {
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       {plan.status === 'pending_settlement' && (
                         <button className="clearance-payall-btn"
                           onClick={() => handleSettle(plan.id)}
@@ -199,6 +286,31 @@ const AdminClearance = () => {
                           Awaiting user payment
                         </span>
                       )}
+
+                      {/* Re-enable Savings Account button */}
+                      <button
+                        type="button"
+                        onClick={() => handleReEnable(plan)}
+                        disabled={reEnabling === plan.id}
+                        title="Return this savings account back to normal active status"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 12px',
+                          borderRadius: 6,
+                          fontSize: '0.82rem',
+                          fontWeight: 600,
+                          background: '#fffbeb',
+                          color: '#b45309',
+                          border: '1px solid #fcd34d',
+                          cursor: reEnabling === plan.id ? 'not-allowed' : 'pointer',
+                          marginLeft: 'auto',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {reEnabling === plan.id ? <><FaSpinner className="fa-spin" /> Re-enabling...</> : <><FaRedoAlt /> Re-enable (Return to Normal)</>}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -207,6 +319,13 @@ const AdminClearance = () => {
           })}
         </div>
       )}
+
+      {/* Hidden Administrative Clearance Controls Modal */}
+      <ClearanceOverrideModal
+        isOpen={isOverrideModalOpen}
+        onClose={() => setIsOverrideModalOpen(false)}
+        onSuccess={fetchPlans}
+      />
     </>
   );
 };

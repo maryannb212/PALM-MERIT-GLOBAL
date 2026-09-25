@@ -6,6 +6,7 @@ import * as withdrawalController from './withdrawalController.js';
 import jsonwebtoken from 'jsonwebtoken';
 import axios from 'axios';
 import crypto from 'crypto';
+import { evaluateCrestEligibility } from '../services/crestPolicyService.js';
 
 /**
  * Get all users
@@ -17,7 +18,7 @@ export const getAllUsers = async (req, res) => {
       SELECT 
         u.id, u.first_name, u.last_name, u.email, u.phone, u.role, 
         u.has_paid_membership, u.kyc_status, u.wallet_balance, u.available_balance, u.held_balance, u.created_at,
-        u.referral_code, u.referred_by,
+        u.referral_code, u.referred_by, u.status,
         referrer.first_name AS referrer_first_name,
         referrer.last_name AS referrer_last_name,
         (SELECT COUNT(*) FROM referral_codes rc WHERE rc.user_id = u.id AND rc.used_by_user_id IS NOT NULL)
@@ -215,7 +216,7 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date } = req.body;
+    const { first_name, last_name, email, phone, role, has_paid_membership, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date, status } = req.body;
 
     const toNum = (val) => {
       if (val === '' || val === null || val === undefined) return null;
@@ -239,11 +240,12 @@ export const updateUser = async (req, res) => {
           referral_code = COALESCE(NULLIF($10, ''), referral_code),
           referred_by = COALESCE($11, referred_by),
           referral_unlock_date = COALESCE($12::timestamp, referral_unlock_date),
-          referral_expiry_date = COALESCE($13::timestamp, referral_expiry_date)
-      WHERE id = $14
-      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date;
+          referral_expiry_date = COALESCE($13::timestamp, referral_expiry_date),
+          status = COALESCE(NULLIF($14, ''), status)
+      WHERE id = $15
+      RETURNING id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, wallet_balance, available_balance, held_balance, referral_code, referred_by, referral_unlock_date, referral_expiry_date, status;
     `;
-    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, toNum(wallet_balance), toNum(available_balance), toNum(held_balance), referral_code, toUUID(referred_by), referral_unlock_date || null, referral_expiry_date || null, id]);
+    const result = await query(sql, [first_name, last_name, email, phone, role, has_paid_membership, toNum(wallet_balance), toNum(available_balance), toNum(held_balance), referral_code, toUUID(referred_by), referral_unlock_date || null, referral_expiry_date || null, status || null, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
@@ -928,6 +930,238 @@ export const getEligibilityQueue = async (req, res) => {
 };
 
 /**
+ * Complete a user's cycle administratively and expose clearance.
+ * POST /api/admin/users/:userId/enable-clearance
+ */
+export const enableUserClearance = async (req, res) => {
+  const userId = req.params.userId || req.body?.userId;
+  const { planId } = req.body || {};
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+    if (!userId && !planId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'User ID or Plan ID is required.' });
+    }
+
+    let planQuery;
+    let params;
+    if (planId && userId) {
+      planQuery = 'SELECT * FROM savings_plans WHERE id = $1 AND user_id = $2 FOR UPDATE';
+      params = [planId, userId];
+    } else if (planId) {
+      planQuery = 'SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE';
+      params = [planId];
+    } else {
+      planQuery = `SELECT * FROM savings_plans WHERE user_id = $1 AND status IN ('active', 'eligibility_review') ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`;
+      params = [userId];
+    }
+    const { rows: plans } = await client.query(planQuery, params);
+
+    if (plans.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'No active or eligibility-review savings plan found for this user.' });
+    }
+
+    const plan = plans[0];
+    const targetUserId = plan.user_id;
+
+    if (['pending_clearance', 'pending_settlement', 'settled'].includes(plan.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'This plan is already in the clearance or settlement pipeline. Use Re-enable Clearance if you wish to reset or reopen clearance.' });
+    }
+
+    const { rows: updated } = await client.query(`
+      UPDATE savings_plans
+      SET status = 'pending_clearance', clearance_required = TRUE,
+          accounts_cleared = COALESCE(accounts_cleared, 0), updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `, [plan.id]);
+
+    const accounts = plan.number_of_accounts || 1;
+    const fee = accounts * 3000;
+    await client.query(`
+      INSERT INTO notifications (user_id, title, message, type)
+      VALUES ($1, 'Clearance Available', $2, 'clearance')
+    `, [targetUserId, `${plan.plan_name} has been completed by Management. Clearance is now available at ₦3,000 per account (₦${fee.toLocaleString()} total).`]);
+    await logAudit(req.user.id, 'ENABLE_USER_CLEARANCE', 'savings_plan', plan.id, { userId: targetUserId, planName: plan.plan_name });
+    await client.query('COMMIT');
+
+    res.json({ message: 'User cycle completed and clearance enabled.', plan: updated[0] });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error enabling user clearance:', error);
+    res.status(500).json({ message: 'Server error enabling user clearance' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Re-enable savings account (returns to normal active status),
+ * or reset clearance pipeline.
+ * POST /api/admin/clearance/re-enable
+ * or POST /api/admin/users/:userId/re-enable-clearance
+ */
+export const reEnableClearance = async (req, res) => {
+  const userId = req.params.userId || req.body?.userId;
+  const { planId, targetStatus = 'active', resetAccounts = true } = req.body || {};
+  const client = await getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    if (!userId && !planId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Plan ID or User ID is required.' });
+    }
+
+    let planQuery;
+    let params;
+    if (planId) {
+      planQuery = 'SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE';
+      params = [planId];
+    } else {
+      planQuery = `SELECT * FROM savings_plans WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1 FOR UPDATE`;
+      params = [userId];
+    }
+    const { rows: plans } = await client.query(planQuery, params);
+
+    if (plans.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Plan not found.' });
+    }
+
+    const plan = plans[0];
+    const targetUserId = plan.user_id;
+
+    if (targetStatus === 'active') {
+      const { rows: updated } = await client.query(`
+        UPDATE savings_plans
+        SET status = 'active',
+            clearance_required = FALSE,
+            clearance_paid = FALSE,
+            accounts_cleared = 0,
+            settled_at = NULL,
+            settled_by = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING *
+      `, [plan.id]);
+
+      // Cancel any pending payout created for this plan
+      await client.query(`
+        UPDATE payouts 
+        SET status = 'cancelled' 
+        WHERE plan_id = $1 AND status = 'pending'
+      `, [plan.id]);
+
+      await client.query(`
+        INSERT INTO notifications (user_id, title, message, type)
+        VALUES ($1, 'Savings Account Re-enabled', $2, 'savings')
+      `, [targetUserId, `Your ${plan.plan_name} savings account has been re-enabled and returned to normal active status by Management.`]);
+
+      await logAudit(req.user.id, 'RE_ENABLE_SAVINGS_ACCOUNT', 'savings_plan', plan.id, {
+        userId: targetUserId,
+        planName: plan.plan_name,
+        previousStatus: plan.status,
+        newStatus: 'active'
+      });
+
+      await client.query('COMMIT');
+      return res.json({ message: 'Savings account re-enabled and returned to normal active status.', plan: updated[0] });
+    } else {
+      const accounts = plan.number_of_accounts || 1;
+      const accountsClearedVal = resetAccounts ? 0 : Math.min(parseInt(plan.accounts_cleared || 0, 10), accounts);
+
+      const { rows: updated } = await client.query(`
+        UPDATE savings_plans
+        SET status = 'pending_clearance',
+            clearance_required = TRUE,
+            clearance_paid = FALSE,
+            accounts_cleared = $1,
+            settled_at = NULL,
+            settled_by = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *
+      `, [accountsClearedVal, plan.id]);
+
+      const remainingToPay = accounts - accountsClearedVal;
+      const fee = remainingToPay * 3000;
+
+      await client.query(`
+        INSERT INTO notifications (user_id, title, message, type)
+        VALUES ($1, 'Clearance Re-enabled', $2, 'clearance')
+      `, [targetUserId, `Clearance has been re-enabled for your ${plan.plan_name} plan by Management. Clearance fee: ₦3,000 per account (₦${fee.toLocaleString()} remaining).`]);
+
+      await logAudit(req.user.id, 'RE_ENABLE_CLEARANCE_PIPELINE', 'savings_plan', plan.id, {
+        userId: targetUserId,
+        planName: plan.plan_name,
+        previousStatus: plan.status,
+        resetAccounts: !!resetAccounts
+      });
+
+      await client.query('COMMIT');
+      return res.json({ message: 'Clearance re-enabled successfully.', plan: updated[0] });
+    }
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error re-enabling clearance / savings plan:', error);
+    res.status(500).json({ message: error.message || 'Server error re-enabling plan' });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Return active / review plans that can have clearance enabled administratively.
+ * GET /api/admin/clearance/candidates
+ */
+export const getClearanceCandidates = async (req, res) => {
+  try {
+    const { rows } = await query(`
+      SELECT 
+        sp.id, sp.user_id, sp.plan_name, sp.status, sp.number_of_accounts,
+        sp.target_amount, sp.current_amount, sp.accounts_cleared, sp.clearance_required,
+        sp.created_at, sp.updated_at,
+        u.first_name, u.last_name, u.email, u.phone
+      FROM savings_plans sp
+      JOIN users u ON u.id = sp.user_id
+      WHERE sp.status IN ('active', 'eligibility_review')
+      ORDER BY sp.updated_at DESC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching clearance candidates:', error);
+    res.status(500).json({ message: 'Server error fetching clearance candidates' });
+  }
+};
+
+/**
+ * Return a compact maturity/clearance pipeline summary for the admin dashboard.
+ * GET /api/admin/maturity-summary
+ */
+export const getMaturitySummary = async (req, res) => {
+  try {
+    const { rows } = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'active')::int AS active_plans,
+        COUNT(*) FILTER (WHERE status = 'eligibility_review')::int AS eligibility_review,
+        COUNT(*) FILTER (WHERE status = 'pending_clearance')::int AS pending_clearance,
+        COUNT(*) FILTER (WHERE status = 'pending_settlement')::int AS pending_settlement
+      FROM savings_plans
+    `);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error fetching maturity summary:', error);
+    res.status(500).json({ message: 'Server error fetching maturity summary' });
+  }
+};
+
+/**
  * Approve a plan from eligibility review, setting final payout amount
  * POST /api/admin/approve-eligibility
  */
@@ -1455,8 +1689,8 @@ export const getClearancePlans = async (req, res) => {
     const { status } = req.query;
     const validStatuses = ['pending_clearance', 'pending_settlement', 'settled'];
     const statusFilter = status && validStatuses.includes(status)
-      ? status
-      : ['pending_clearance', 'pending_settlement'];
+      ? [status]
+      : validStatuses;
     const { rows } = await query(`
       SELECT
         sp.*,
@@ -1470,11 +1704,20 @@ export const getClearancePlans = async (req, res) => {
         AND sp.clearance_required = TRUE
       ORDER BY sp.updated_at DESC
     `, [Array.isArray(statusFilter) ? statusFilter : [statusFilter]]);
-    res.json(rows.map(r => ({
-      ...r,
-      accounts_cleared: parseInt(r.accounts_cleared || 0, 10),
-      number_of_accounts: r.number_of_accounts || 1,
-    })));
+    const plans = [];
+    for (const row of rows) {
+      const item = {
+        ...row,
+        accounts_cleared: parseInt(row.accounts_cleared || 0, 10),
+        number_of_accounts: row.number_of_accounts || 1,
+      };
+      if (row.plan_name === 'CREST') {
+        const evaluation = await evaluateCrestEligibility({ query }, row.id, req.user.id, { skipSnapshot: true });
+        item.crest_eligibility = evaluation;
+      }
+      plans.push(item);
+    }
+    res.json(plans);
   } catch (error) {
     console.error('Error fetching clearance plans:', error);
     res.status(500).json({ message: 'Server error fetching clearance plans' });
@@ -1532,9 +1775,13 @@ export const adminSettleClearance = async (req, res) => {
   try {
     const { planId } = req.body;
     if (!planId) return res.status(400).json({ message: 'Plan ID required' });
+    const adminId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.user?.id || '')
+      ? req.user.id
+      : null;
 
     const client = await getClient();
     try {
+      await client.query('BEGIN');
       const { rows: plans } = await client.query('SELECT * FROM savings_plans WHERE id = $1 FOR UPDATE', [planId]);
       if (plans.length === 0) throw new Error('Plan not found');
       const plan = plans[0];
@@ -1542,24 +1789,28 @@ export const adminSettleClearance = async (req, res) => {
       if (plan.status !== 'pending_settlement') {
         throw new Error('Plan is not pending admin approval');
       }
-
-      await client.query('BEGIN');
-
       const { rows: updated } = await client.query(`
         UPDATE savings_plans
-        SET status = 'settled', updated_at = CURRENT_TIMESTAMP
+        SET status = 'settled', settled_at = CURRENT_TIMESTAMP, settled_by = $2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 RETURNING *
-      `, [planId]);
+      `, [planId, adminId]);
 
-      const accounts = plan.number_of_accounts || 1;
-      const alreadyCleared = parseInt(plan.accounts_cleared || 0, 10);
-      const remainingFee = (accounts - alreadyCleared) * 3000;
+      const payoutAmount = Math.floor(Number(plan.target_amount || 0));
+      const { rowCount: updatedPayouts } = await client.query(`
+        UPDATE payouts
+        SET status = 'settled',
+            approved_by = $2,
+            approved_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE plan_id = $1
+      `, [planId, adminId]);
 
-      const reference = `SETTLE-${Date.now()}`;
-      await client.query(`
-        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-        VALUES ($1, $2, 'admin_settlement', $3, 'completed', $4)
-      `, [plan.user_id, planId, remainingFee, reference]);
+      if (updatedPayouts === 0) {
+        await client.query(`
+          INSERT INTO payouts (user_id, plan_id, amount, payout_type, status, approved_by, approved_at, notes)
+          VALUES ($1, $2, $3, 'cash', 'settled', $4, CURRENT_TIMESTAMP, 'Settled by admin')
+        `, [plan.user_id, planId, payoutAmount, adminId]);
+      }
 
       const msg = `${plan.plan_name} program has been approved and paid.`;
       await client.query(`
@@ -1686,7 +1937,7 @@ export const getUserCodes = async (req, res) => {
     // Auto-expire codes past their expires_at
     await query(
       `UPDATE referral_codes SET status = 'expired', updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = $1 AND status IN ('available', 'locked') AND expires_at IS NOT NULL AND expires_at <= NOW()`,
+       WHERE user_id = $1 AND status IN ('available', 'locked') AND used_by_user_id IS NULL AND expires_at IS NOT NULL AND expires_at <= NOW()`,
       [id]
     );
 
@@ -2202,5 +2453,85 @@ export const reassignReferralCode = async (req, res) => {
   } catch (error) {
     console.error('Error reassigning referral code:', error);
     res.status(500).json({ message: 'Server error reassigning referral code' });
+  }
+};
+
+/**
+ * Reassign an expired Crest link to a new Crest account.  This is deliberately
+ * separate from correcting a historic "used by" record above.
+ */
+export const reassignExpiredReferralCode = async (req, res) => {
+  const { codeId } = req.params;
+  const { targetUserId, reason } = req.body;
+  if (!targetUserId || !reason?.trim()) return res.status(400).json({ message: 'Target user and reassignment reason are required.' });
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const { rows: codes } = await client.query(
+      `SELECT rc.*, sp.plan_name FROM referral_codes rc LEFT JOIN savings_plans sp ON sp.id = rc.plan_id
+       WHERE rc.id = $1 FOR UPDATE`, [codeId]
+    );
+    const code = codes[0];
+    if (!code) throw new Error('Referral code not found');
+    if (code.plan_name !== 'CREST' || code.status !== 'expired') throw new Error('Only expired Crest referral links can be reassigned.');
+    const { rows: targetPlans } = await client.query(
+      `SELECT id FROM savings_plans WHERE user_id = $1 AND plan_name = 'CREST'
+       AND status NOT IN ('cancelled', 'settled') ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [targetUserId]
+    );
+    if (!targetPlans[0]) throw new Error('The new owner needs an active Crest account.');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await client.query(
+      `UPDATE referral_codes SET user_id = $1, plan_id = $2, status = 'available', used_by_user_id = NULL,
+       unlock_date = NULL, expires_at = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4`,
+      [targetUserId, targetPlans[0].id, expiresAt, codeId]
+    );
+    await client.query(
+      `INSERT INTO referral_reassignments
+       (referral_code_id, previous_owner_id, new_owner_id, actor_user_id, reason, previous_status, new_status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'available')`,
+      [codeId, code.user_id, targetUserId, req.user.id, reason.trim(), code.status]
+    );
+    await logAudit(req.user.id, 'REASSIGN_EXPIRED_CREST_REFERRAL', 'referral_code', codeId, { previousOwnerId: code.user_id, newOwnerId: targetUserId, reason: reason.trim() });
+    await client.query('COMMIT');
+    res.json({ message: 'Expired Crest link reassigned for a new 7-day usage period.', expiresAt });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Suspend or reactivate a user account
+ * PUT /api/admin/users/:id/status
+ */
+export const updateUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['active', 'suspended'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status. Must be active or suspended' });
+    }
+
+    const { rows } = await query(
+      'UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, first_name, last_name, email, status',
+      [status, id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    await logAudit(req.user.id, status === 'suspended' ? 'SUSPEND_USER' : 'REACTIVATE_USER', 'user', id, { status });
+
+    res.json({
+      message: `User account has been ${status === 'suspended' ? 'suspended' : 'reactivated'} successfully.`,
+      user: rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating user status:', error);
+    res.status(500).json({ message: 'Server error updating user status' });
   }
 };

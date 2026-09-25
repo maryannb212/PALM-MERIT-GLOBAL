@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getMyPlans, getMyNotifications, markNotificationRead, markAllNotificationsRead } from '../../services/api';
 import DepositModal from '../../components/DepositModal';
 import MembershipPaywall from '../../components/MembershipPaywall';
-import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes, FaWhatsapp } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaBell, FaCheckDouble, FaTimes, FaWhatsapp, FaPlus, FaExchangeAlt, FaBoxOpen, FaReceipt } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -19,6 +20,7 @@ const DashboardHome = () => {
   const [error, setError] = useState(null);
   const [birthdayDismissed, setBirthdayDismissed] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [dismissedNotifications, setDismissedNotifications] = useState([]);
   const [showAllNotifs, setShowAllNotifs] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const handleCopy = (text) => {
@@ -102,6 +104,10 @@ const DashboardHome = () => {
     }
   };
 
+  const handleDismissNotification = (notifId) => {
+    setDismissedNotifications(prev => [...prev, notifId]);
+  };
+
   if (!profileLoaded) {
     return <div className="loading-container" style={{ textAlign: 'center', padding: '80px 20px' }}><div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid #e1e1e1', borderTop: '4px solid #800020', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div><p>Loading your profile...</p></div>;
   }
@@ -158,8 +164,8 @@ const DashboardHome = () => {
   });
 
   return (
-    <>
-        {/* ─── Welcome Card ─── */}
+    <div className="dashboard-home">
+        {/* ─── Dashboard Header ─── */}
         <div className="welcome-card">
           <div className="welcome-avatar">
             {user?.profileImage ? (
@@ -169,10 +175,60 @@ const DashboardHome = () => {
             )}
           </div>
           <div className="welcome-text">
-            <h2>👋 Welcome back, {user?.firstName} {user?.lastName}!</h2>
-            <p>Empowering your financial future — {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <span className="dashboard-kicker">MEMBER OVERVIEW</span>
+            <h2>Welcome back, {user?.firstName} {user?.lastName}</h2>
+            <p>{new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} <span className="welcome-divider">•</span> Keep building your future.</p>
           </div>
+          <div className="welcome-tools">
+            <button type="button" className="notification-trigger" aria-label="View notifications" title="View notifications" onClick={() => setShowAllNotifs(!showAllNotifs)}>
+              <FaBell />
+              <span className={`notification-count ${notifications.filter(n => !n.is_read).length === 0 ? 'is-zero' : ''}`}>
+                {notifications.filter(n => !n.is_read).length}
+              </span>
+            </button>
+          </div>
+          {showAllNotifs && createPortal((
+            <div className="dashboard-home notification-portal">
+              <div className="notification-overlay" role="dialog" aria-modal="true" aria-label="Notifications" onClick={() => setShowAllNotifs(false)}>
+              <section className="notification-popover" onClick={(event) => event.stopPropagation()}>
+                <div className="notification-popover-header">
+                  <div><strong>Notifications</strong><span>{notifications.filter(n => !n.is_read).length} unread</span></div>
+                  <div className="notification-header-actions">
+                    {notifications.some(n => !n.is_read) && <button type="button" onClick={handleMarkAllRead}><FaCheckDouble /> Mark all read</button>}
+                    <button type="button" className="notification-close-button" aria-label="Close notifications" onClick={() => setShowAllNotifs(false)}><FaTimes /></button>
+                  </div>
+                </div>
+                <div className="notification-popover-list">
+                  {notifications.filter(n => !dismissedNotifications.includes(n.id)).length === 0 ? (
+                    <div className="notification-empty-state">You are all caught up.</div>
+                  ) : notifications.filter(n => !dismissedNotifications.includes(n.id)).map(notif => {
+                    const icon = notif.type === 'PAYMENT' ? '💳' : notif.type === 'ALERT' ? '⚠️' : notif.type === 'clearance' ? '🔓' : notif.type === 'payout' ? '💰' : '📢';
+                    return (
+                      <div className={`notification-popover-item ${notif.is_read ? 'is-read' : 'is-unread'}`} key={notif.id}>
+                        <span className="notification-icon">{icon}</span>
+                        <span className="notification-popover-copy"><strong>{notif.title}</strong><small>{notif.message}</small></span>
+                        <time>{new Date(notif.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</time>
+                        <div className="notification-popover-actions">
+                          {!notif.is_read && <button type="button" className="notification-read-button" onClick={() => handleMarkRead(notif.id)}>Read</button>}
+                          {notif.is_read && <button type="button" className="notification-dismiss-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => handleDismissNotification(notif.id)}><FaTimes /></button>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {notifications.length > 5 && <button type="button" className="notification-popover-footer" onClick={() => { setShowAllNotifs(false); navigate('/dashboard/settings'); }}>Manage all notifications</button>}
+              </section>
+              </div>
+            </div>
+          ), document.body)}
+        </div>
 
+        <div className="quick-actions" aria-label="Quick actions">
+          <span className="quick-actions-label">Quick actions</span>
+          <Link to="/dashboard/wallet" className="quick-action"><span className="quick-action-icon burgundy"><FaPlus /></span><span>Fund wallet</span></Link>
+          <Link to="/dashboard/withdraw" className="quick-action"><span className="quick-action-icon emerald"><FaExchangeAlt /></span><span>Transfer</span></Link>
+          <Link to="/dashboard/packages" className="quick-action"><span className="quick-action-icon gold"><FaBoxOpen /></span><span>Cooperative</span></Link>
+          <Link to="/dashboard/receipt" className="quick-action"><span className="quick-action-icon slate"><FaReceipt /></span><span>Receipts</span></Link>
         </div>
 
         {/* ─── Community Banner ─── */}
@@ -206,73 +262,6 @@ const DashboardHome = () => {
               <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>Wishing you a fantastic day and prosperous year ahead from the Palm Merit Global team.</p>
             </div>
             <button onClick={handleDismissBirthday} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#000', opacity: 0.7 }}>&times;</button>
-          </div>
-        )}
-
-
-        {/* ─── Notifications Feed ─── */}
-        {notifications.length > 0 && (
-          <div className="dashboard-section" style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
-                <FaBell style={{ color: 'var(--color-primary)' }} />
-                Notifications
-                {notifications.filter(n => !n.is_read).length > 0 && (
-                  <span style={{ background: '#e74c3c', color: '#fff', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '20px', fontWeight: 'bold' }}>
-                    {notifications.filter(n => !n.is_read).length} new
-                  </span>
-                )}
-              </h3>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                {notifications.some(n => !n.is_read) && (
-                  <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: '600' }}>
-                    <FaCheckDouble /> Mark all read
-                  </button>
-                )}
-                <button onClick={() => setShowAllNotifs(!showAllNotifs)} style={{ background: 'none', border: '1px solid #cbd5e1', padding: '4px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.8rem', color: '#475569' }}>
-                  {showAllNotifs ? 'Show Recent' : `View All (${notifications.length})`}
-                </button>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {(showAllNotifs ? notifications : notifications.slice(0, 5)).map(notif => {
-                const typeStyles = {
-                  SYSTEM: { icon: '📢', bg: '#eef2ff', border: '#c7d2fe', color: '#4338ca' },
-                  PAYMENT: { icon: '💳', bg: '#ecfdf5', border: '#a7f3d0', color: '#065f46' },
-                  PROMO: { icon: '✨', bg: '#fefce8', border: '#fde68a', color: '#92400e' },
-                  ALERT: { icon: '⚠️', bg: '#fef2f2', border: '#fecaca', color: '#991b1b' },
-                  clearance: { icon: '🔓', bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' },
-                  payout: { icon: '💰', bg: '#fefce8', border: '#fde68a', color: '#854d0e' },
-                };
-                const style = typeStyles[notif.type] || typeStyles.SYSTEM;
-                return (
-                  <div key={notif.id} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: '12px',
-                    padding: '14px 16px', borderRadius: '10px',
-                    background: notif.is_read ? '#f8fafc' : style.bg,
-                    border: `1px solid ${notif.is_read ? '#e2e8f0' : style.border}`,
-                    opacity: notif.is_read ? 0.75 : 1,
-                    transition: 'all 0.2s ease'
-                  }}>
-                    <span style={{ fontSize: '1.3rem', marginTop: '2px' }}>{style.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                        <strong style={{ color: notif.is_read ? '#64748b' : style.color, fontSize: '0.95rem' }}>{notif.title}</strong>
-                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                          {new Date(notif.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}
-                        </span>
-                      </div>
-                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: notif.is_read ? '#94a3b8' : '#475569', lineHeight: '1.5' }}>{notif.message}</p>
-                    </div>
-                    {!notif.is_read && (
-                      <button onClick={() => handleMarkRead(notif.id)} title="Mark as read" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '0.9rem', padding: '4px', marginTop: '2px', flexShrink: 0 }}>
-                        <FaTimes />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </div>
         )}
 
@@ -324,11 +313,6 @@ const DashboardHome = () => {
                 Outstanding Default: ₦{Number(user.outstandingDefault).toLocaleString()}
               </p>
             )}
-          </div>
-          <div className="stat-card count-card">
-            <div className="stat-icon">📈</div>
-            <h3>My Contributions (7 Days)</h3>
-            <div className="stat-count">{recentTransactions.length}</div>
           </div>
         </div>
 
@@ -528,7 +512,7 @@ const DashboardHome = () => {
           onSuccess={fetchPlans}
         />
       )}
-    </>
+    </div>
 
   );
 };

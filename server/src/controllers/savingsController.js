@@ -8,6 +8,15 @@ export const subscribeToPlan = async (req, res) => {
     const { planName, targetAmount, numberOfAccounts, referralCode } = req.body;
     const userId = req.user.id;
 
+    const { rows: termsRows } = await query(
+      `SELECT 1 FROM terms_acceptances
+       WHERE user_id = $1 AND terms_version = '1.0' AND acceptance_type = 'REGISTRATION' AND accepted = TRUE`,
+      [userId]
+    );
+    if (!termsRows[0]) {
+      return res.status(400).json({ message: 'Please accept the Palm Merit Terms & Conditions before choosing a programme.' });
+    }
+
     if (!planName || !targetAmount) {
       return res.status(400).json({ message: 'Plan name and target amount are required' });
     }
@@ -146,7 +155,7 @@ export const subscribeToPlan = async (req, res) => {
 
       // Calculate end_date based on plan duration
       const planDurations = {
-        CREST: { weeks: 12 },
+        CREST: { days: 90 },
         SILVER: { weeks: 50 },
         GOLDEN_BASKET: { weeks: 50 },
         ISUSU: { days: 30 }
@@ -159,8 +168,12 @@ export const subscribeToPlan = async (req, res) => {
       }
 
       const { rows: updatedPlanRows } = await client.query(
-        'UPDATE savings_plans SET end_date = $1, maturity_date = $1 WHERE id = $2 RETURNING *',
-        [endDate, plan.id]
+        `UPDATE savings_plans SET end_date = $1, maturity_date = $1,
+          completion_date = CASE WHEN $3 = 'CREST' THEN $1 ELSE completion_date END,
+          earliest_settlement_date = CASE WHEN $3 = 'CREST' THEN $1 + INTERVAL '2 days' ELSE earliest_settlement_date END,
+          latest_settlement_date = CASE WHEN $3 = 'CREST' THEN $1 + INTERVAL '8 days' ELSE latest_settlement_date END
+         WHERE id = $2 RETURNING *`,
+        [endDate, plan.id, planName]
       );
       Object.assign(plan, updatedPlanRows[0]);
 
@@ -385,12 +398,8 @@ export const bulkClearance = async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Verify t-shirt paid
       const { rows: users } = await client.query('SELECT available_balance, wallet_balance, tshirt_paid FROM users WHERE id = $1 FOR UPDATE', [userId]);
       const user = users[0];
-      if (!user.tshirt_paid) {
-        throw new Error('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee of ₦5,000 before bulk clearance.');
-      }
 
       // Fetch all pending_clearance plans for this user (where not fully cleared)
       const { rows: plans } = await client.query(
@@ -936,4 +945,3 @@ export const clearDefaultById = async (req, res) => {
     client.release();
   }
 };
-

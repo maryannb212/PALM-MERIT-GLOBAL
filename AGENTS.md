@@ -119,7 +119,20 @@
   - `transactionModel.js` `processCompletedPayment` (plan-tagged deposit/wallet_topup/contribution): plan credit capped at remaining-to-target (`SELECT ... FOR UPDATE` on plan); excess routed to user wallet.
   - `savingsController.js` `clearDefaults`: savings portion per cleared account capped at remaining-to-target (tracked per plan across loop iterations — multiple defaults can hit one plan); excess shifts to penalty settlement so books stay balanced (wallet debited = savings credited + penalty settled).
   - `savingsController.js` `clearDefaultById`: same cap — `savingsPortion = min(penaltyAmount/2, remainingToTarget)`, remainder settles penalty.
-- **Verification performed**: 23-case logic simulation of all capped paths (all pass — at-target skip, final-week cap, per-account granularity preserved, NULL-target legacy behavior unchanged, clearance book balancing, deposit split) + 14-point live DB integrity check (all pass — no plans over target, wallets restored exactly, avail==wallet_balance for all users, no negative balances, audit trail complete: 3 refund txns + 3 ledger credits totaling ₦46,500, Chinaza's resolved default untouched, txn history intact).
+- **Relocated "Enable Clearance" from User Management to Clearance Module & Added "Re-enable Clearance"**:
+  - **Removed oversized button from User Management (`MembersPage.jsx`)**: The "Enable Clearance" button in each table row was removed, eliminating layout distortion and keeping the actions column compact and uniform.
+  - **Added hidden/discreet Clearance Controls Modal (`ClearanceOverrideModal.jsx`)** in the Clearance Management module (`AdminClearance.jsx`):
+    - Triggered via a sleek, compact `<FaSlidersH /> Clearance Override` button in the header.
+    - **Tab 1: Enable Clearance (Active Plans)**: Searches and displays active / eligibility review plans (via `GET /api/admin/clearance/candidates`), showing member name, email, phone, plan name, saved amount vs target, accounts, and fee due. Clicking "Enable Clearance" completes the cycle administratively and moves it to `pending_clearance`.
+    - **Tab 2: Re-enable Clearance**: Searches plans across `pending_clearance`, `pending_settlement`, and `settled` statuses, with an option to reset cleared accounts to 0.
+  - **Added "Re-enable Clearance" button directly on each clearance plan card** in `AdminClearance.jsx`:
+    - Allows admins to reopen clearance on any plan in the clearance list (status reset to `pending_clearance`, `clearance_required = TRUE`, `clearance_paid = FALSE`, `accounts_cleared = 0`, `settled_at = NULL`).
+  - **Backend endpoints added/updated**:
+    - `POST /api/admin/clearance/enable` & `POST /api/admin/users/:userId/enable-clearance`: flexible to accept planId and userId from params or body.
+    - `POST /api/admin/clearance/re-enable` & `POST /api/admin/users/:userId/re-enable-clearance`: re-opens clearance with user notification and audit log (`RE_ENABLE_USER_CLEARANCE`).
+    - `GET /api/admin/clearance/candidates`: returns active/review plans for override modal.
+    - `GET /api/admin/clearance`: defaults to all statuses (`pending_clearance`, `pending_settlement`, `settled`) when no filter is provided so "All Statuses" and paid stats are accurate.
+    - Added instant search filter on `AdminClearance.jsx` for member name, email, or plan.
 
 ### In Progress
 - (none)

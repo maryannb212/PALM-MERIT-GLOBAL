@@ -11,6 +11,8 @@ const Transactions = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -39,19 +41,28 @@ const Transactions = () => {
     .filter(t => (t.type === 'deposit' || t.type === 'wallet_topup') && t.status === 'completed')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
+  const creditTypes = new Set(['deposit', 'wallet_topup', 'refund', 'payout', 'credit']);
   const totalDebit = transactions
-    .filter(t => (t.type === 'withdrawal' || t.type === 'subscription') && t.status === 'completed')
-    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    .filter(t => t.status === 'completed' && !creditTypes.has(String(t.type || '').toLowerCase()))
+    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-  const filteredTransactions = transactions.filter(tx => 
-    (tx.plan_name && tx.plan_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    tx.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tx.status.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTransactions = transactions.filter(tx => {
+    const normalizedSearch = searchTerm.toLowerCase();
+    const matchesSearch = (tx.plan_name && tx.plan_name.toLowerCase().includes(normalizedSearch)) ||
+      tx.type.toLowerCase().includes(normalizedSearch) || tx.status.toLowerCase().includes(normalizedSearch);
+    const matchesType = typeFilter === 'all' || tx.type === typeFilter;
+    const age = Date.now() - new Date(tx.created_at).getTime();
+    const matchesDate = dateFilter === 'all' ||
+      (dateFilter === '24h' && age <= 24 * 60 * 60 * 1000) ||
+      (dateFilter === '7d' && age <= 7 * 24 * 60 * 60 * 1000) ||
+      (dateFilter === '30d' && age <= 30 * 24 * 60 * 60 * 1000) ||
+      (dateFilter === 'month' && new Date(tx.created_at).getMonth() === new Date().getMonth() && new Date(tx.created_at).getFullYear() === new Date().getFullYear());
+    return matchesSearch && matchesType && matchesDate;
+  });
 
   return (
-    <>
-        <header className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="dashboard-page transactions-page">
+      <header className="dashboard-header page-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2>Transaction History</h2>
           <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
             Fund Wallet
@@ -59,7 +70,7 @@ const Transactions = () => {
         </header>
 
         {/* ─── Stats Row ─── */}
-        <div className="stats-grid stats-grid-wallet">
+        <div className="stats-grid stats-grid-wallet transactions-stats">
           <div className="stat-card wallet-balance-card">
             <div className="stat-icon">💰</div>
             <h3>Wallet Balance</h3>
@@ -78,16 +89,21 @@ const Transactions = () => {
         </div>
 
         {/* ─── Transaction History Section ─── */}
-        <div className="transaction-history-section">
+        <div className="transaction-history-section transaction-panel">
           <h3>Transaction History</h3>
           
           <div className="table-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'space-between', marginBottom: '20px' }}>
             <div className="filters" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <select className="control-select">
-                <option>All time</option>
+              <select className="control-select" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}>
+                <option value="all">All time</option>
+                <option value="24h">Last 24 hours</option>
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="month">This month</option>
               </select>
-              <select className="control-select">
-                <option>All Transactions</option>
+              <select className="control-select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                <option value="all">All transactions</option>
+                {[...new Set(transactions.map(tx => tx.type))].map(type => <option key={type} value={type}>{type.replace('_', ' ')}</option>)}
               </select>
             </div>
             <div className="search-box" style={{ flex: '1 1 250px', minWidth: '200px' }}>
@@ -162,7 +178,7 @@ const Transactions = () => {
         onClose={() => setIsModalOpen(false)} 
         onSuccess={() => window.location.reload()}
       />
-    </>
+    </div>
   );
 };
 
