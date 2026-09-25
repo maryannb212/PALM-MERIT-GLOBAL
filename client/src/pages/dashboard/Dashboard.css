@@ -1568,6 +1568,127 @@
   background: #f8fafc;
 }
 
+.social-follow-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(26, 0, 6, 0.7);
+  backdrop-filter: blur(7px);
+}
+
+.social-follow-modal {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 38px 30px 26px;
+  overflow: hidden;
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  border-radius: 22px;
+  background: linear-gradient(145deg, #4d0013, #800020);
+  box-shadow: 0 28px 80px rgba(26, 0, 6, 0.42);
+  color: #fff;
+  text-align: center;
+}
+
+.social-follow-modal::before {
+  content: '';
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  top: -120px;
+  right: -80px;
+  border-radius: 50%;
+  background: rgba(212, 175, 55, 0.15);
+}
+
+.social-follow-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+}
+
+.social-follow-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 14px;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(212, 175, 55, 0.18);
+  font-size: 1.8rem;
+}
+
+.social-follow-kicker {
+  color: #f1d26b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.social-follow-modal h2 {
+  margin: 10px 0 12px;
+  color: #fff;
+  font-size: 1.55rem;
+}
+
+.social-follow-modal p {
+  margin: 0 auto 22px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.social-follow-modal p strong {
+  color: #f1d26b;
+}
+
+.social-follow-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.social-follow-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.social-follow-link.instagram {
+  background: linear-gradient(90deg, #833ab4, #fd1d1d, #fcb045);
+}
+
+.social-follow-link.facebook {
+  background: #1877f2;
+}
+
+.social-follow-later {
+  margin-top: 18px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
 .dashboard-home .notification-overlay .notification-popover-item {
   min-height: 88px;
   margin-bottom: 8px;

@@ -10,6 +10,7 @@ import { sendWelcomeEmail, sendOTPEmail } from '../utils/emailService.js';
 import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
 import { getUserReferralCodes } from '../models/referralModel.js';
 import { createVirtualAccount } from '../services/virtualAccountService.js';
+import { createNotification } from '../models/notificationModel.js';
 import admin from '../config/firebaseAdmin.js';
 import { CREST_POLICY } from '../services/crestPolicyService.js';
 
@@ -274,6 +275,12 @@ export const loginUser = async (req, res) => {
          FROM defaults WHERE user_id = $1 AND resolved = FALSE`,
         [user.id]
       );
+      createNotification(
+        user.id,
+        'SOCIAL',
+        'Follow Palm Merit Global',
+        'Follow Palm Merit Global on Facebook and Instagram, engage with our updates, and stand a chance to win a prize as the Best Engaged Palm Meriter.'
+      ).catch(error => console.error('[Auth] Failed to create social follow notification:', error.message));
 
       res.json({
         id: user.id,
@@ -336,6 +343,12 @@ export const verifyLoginOTP = async (req, res) => {
 
     const accessToken = generateAccessToken(user.id);
     const refreshToken = await generateRefreshToken(user.id);
+    createNotification(
+      user.id,
+      'SOCIAL',
+      'Follow Palm Merit Global',
+      'Follow Palm Merit Global on Facebook and Instagram, engage with our updates, and stand a chance to win a prize as the Best Engaged Palm Meriter.'
+    ).catch(error => console.error('[Auth] Failed to create social follow notification:', error.message));
 
     res.json({
       id: user.id,
@@ -757,4 +770,3 @@ export const generateVirtualAccount = async (req, res) => {
     res.status(500).json({ message: 'Server error while generating virtual account: ' + error.message });
   }
 };
-

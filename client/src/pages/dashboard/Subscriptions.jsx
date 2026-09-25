@@ -96,26 +96,22 @@ const Subscriptions = () => {
           </div>
         </div>
 
-        {/* ─── T-Shirt Reminder Banner ─── */}
+        {/* ─── Default Warning Banner ─── */}
         {!user?.tshirt_paid && plans.some(p => ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required) && (
           <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px' }}>
             <div className="tshirt-content">
               <div className="tshirt-icon">👕</div>
               <div className="tshirt-text">
                 <h4>Incentive T-Shirt Payment Required</h4>
-                <p>Your program clearance is now due! Please pay your ₦5,000 T-shirt fee under the Wallet tab to unlock clearance payments and collect payouts.</p>
+                <p>Your program clearance is now due. Please pay your ₦5,000 T-shirt fee under the Wallet tab. This reminder will remain until the fee is paid.</p>
               </div>
             </div>
-            <button 
-              className="tshirt-btn" 
-              onClick={() => navigate('/dashboard/wallet')}
-            >
+            <button className="tshirt-btn" onClick={() => navigate('/dashboard/wallet')}>
               Go to Wallet
             </button>
           </div>
         )}
 
-        {/* ─── Default Warning Banner ─── */}
         {user?.savingsStatus === 'defaulted' && user?.outstandingDefault > 0 && (
           <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px', borderLeft: '4px solid #dc2626', background: 'rgba(220, 38, 38, 0.1)' }}>
             <div className="tshirt-content">

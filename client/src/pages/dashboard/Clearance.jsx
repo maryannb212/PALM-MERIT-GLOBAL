@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { getMyPlans, payClearanceAccount, getProfile } from '../../services/api';
 import { FaCheckCircle, FaWallet, FaClipboardList, FaMoneyBillWave, FaShieldAlt, FaSpinner, FaCreditCard, FaArrowRight } from 'react-icons/fa';
 import './Dashboard.css';
@@ -24,6 +25,7 @@ const Clearance = () => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [payingAccount, setPayingAccount] = useState(null);
+  const [confirmingPlan, setConfirmingPlan] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -54,24 +56,30 @@ const Clearance = () => {
     setPayingAccount(`${planId}-${accountIndex}`);
     try {
       const { data } = await payClearanceAccount({ planId, accountIndex });
-      alert(data.message);
+      toast.success(data.message || 'Clearance payment completed successfully.');
       fetchData();
     } catch (error) {
-      alert(error.response?.data?.message || 'Payment failed. Ensure you have enough wallet balance.');
+      toast.error(error.response?.data?.message || 'Payment failed. Ensure you have enough wallet balance.');
     } finally {
       setPayingAccount(null);
     }
   };
 
   const handlePayAllRemaining = async (planId) => {
-    if (!window.confirm('Pay clearance fees for all remaining accounts in this plan?')) return;
+    setConfirmingPlan(planId);
+  };
+
+  const confirmPayAllRemaining = async () => {
+    const planId = confirmingPlan;
+    setConfirmingPlan(null);
+    if (!planId) return;
     setPayingAccount(`${planId}-bulk`);
     try {
       const { data } = await payClearanceAccount({ planId });
-      alert(data.message);
+      toast.success(data.message || 'Clearance payment completed successfully.');
       fetchData();
     } catch (error) {
-      alert(error.response?.data?.message || 'Payment failed. Ensure you have enough wallet balance.');
+      toast.error(error.response?.data?.message || 'Payment failed. Ensure you have enough wallet balance.');
     } finally {
       setPayingAccount(null);
     }
@@ -297,6 +305,19 @@ const Clearance = () => {
           </div>
         )}
       </div>
+      {confirmingPlan && (
+        <div className="modal-overlay clearance-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="clearance-confirm-title">
+          <div className="modal-content clearance-confirm-modal">
+            <div className="clearance-confirm-icon"><FaCreditCard /></div>
+            <h3 id="clearance-confirm-title">Confirm clearance payment</h3>
+            <p>This will pay the clearance fee for all remaining accounts in this plan using your wallet balance.</p>
+            <div className="clearance-confirm-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setConfirmingPlan(null)}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={confirmPayAllRemaining}>Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

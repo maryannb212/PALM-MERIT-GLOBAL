@@ -6,7 +6,7 @@ import * as withdrawalController from './withdrawalController.js';
 import jsonwebtoken from 'jsonwebtoken';
 import axios from 'axios';
 import crypto from 'crypto';
-import { assertCrestSettlementEligible, evaluateCrestEligibility } from '../services/crestPolicyService.js';
+import { evaluateCrestEligibility } from '../services/crestPolicyService.js';
 
 /**
  * Get all users
@@ -1775,6 +1775,9 @@ export const adminSettleClearance = async (req, res) => {
   try {
     const { planId } = req.body;
     if (!planId) return res.status(400).json({ message: 'Plan ID required' });
+    const adminId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.user?.id || '')
+      ? req.user.id
+      : null;
 
     const client = await getClient();
     try {
@@ -1786,25 +1789,28 @@ export const adminSettleClearance = async (req, res) => {
       if (plan.status !== 'pending_settlement') {
         throw new Error('Plan is not pending admin approval');
       }
-      if (plan.plan_name === 'CREST') {
-        await assertCrestSettlementEligible(client, planId, req.user.id);
-      }
-
       const { rows: updated } = await client.query(`
         UPDATE savings_plans
         SET status = 'settled', settled_at = CURRENT_TIMESTAMP, settled_by = $2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 RETURNING *
-      `, [planId, req.user.id]);
+      `, [planId, adminId]);
 
-      const accounts = plan.number_of_accounts || 1;
-      const alreadyCleared = parseInt(plan.accounts_cleared || 0, 10);
-      const remainingFee = (accounts - alreadyCleared) * 3000;
+      const payoutAmount = Math.floor(Number(plan.target_amount || 0));
+      const { rowCount: updatedPayouts } = await client.query(`
+        UPDATE payouts
+        SET status = 'settled',
+            approved_by = $2,
+            approved_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE plan_id = $1
+      `, [planId, adminId]);
 
-      const reference = `SETTLE-${Date.now()}`;
-      await client.query(`
-        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-        VALUES ($1, $2, 'admin_settlement', $3, 'completed', $4)
-      `, [plan.user_id, planId, remainingFee, reference]);
+      if (updatedPayouts === 0) {
+        await client.query(`
+          INSERT INTO payouts (user_id, plan_id, amount, payout_type, status, approved_by, approved_at, notes)
+          VALUES ($1, $2, $3, 'cash', 'settled', $4, CURRENT_TIMESTAMP, 'Settled by admin')
+        `, [plan.user_id, planId, payoutAmount, adminId]);
+      }
 
       const msg = `${plan.plan_name} program has been approved and paid.`;
       await client.query(`
@@ -2529,4 +2535,3 @@ export const updateUserStatus = async (req, res) => {
     res.status(500).json({ message: 'Server error updating user status' });
   }
 };
-

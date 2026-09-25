@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { getMyTransactions, payTshirtFee, getMyPlans, generateVirtualAccount, updateBvn } from '../../services/api';
-import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 import './Dashboard.css';
 
@@ -23,7 +22,6 @@ const Wallet = () => {
   const [bvnSubmitting, setBvnSubmitting] = useState(false);
   const [bvnSuccess, setBvnSuccess] = useState('');
 
-
   useEffect(() => {
     const fetchPlans = async () => {
       try {
@@ -36,16 +34,6 @@ const Wallet = () => {
     fetchPlans();
   }, []);
 
-  const oldestPlan = plans.reduce((oldest, p) => {
-    if (!oldest) return p;
-    return new Date(p.created_at) < new Date(oldest.created_at) ? p : oldest;
-  }, null);
-
-
-
-  const isClearanceDue = plans.some(p =>
-    ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required
-  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -69,12 +57,18 @@ const Wallet = () => {
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
+  const handleBvnChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+    setBvnValue(val);
+    setBvnError('');
+    setBvnSuccess('');
+  };
+
   const handleTshirtPayment = async () => {
     if (availableBalance < 5000) {
       alert('Insufficient available balance. Please top up your wallet first.');
       return;
     }
-    
     if (!window.confirm('Are you sure you want to pay ₦5,000 for your Incentive T-Shirt?')) return;
 
     setTshirtLoading(true);
@@ -82,19 +76,12 @@ const Wallet = () => {
       await payTshirtFee();
       updateUser({ tshirt_paid: true });
       alert('T-Shirt payment successful!');
-      window.location.reload();
+      await refreshProfile();
     } catch (error) {
       alert(error.response?.data?.message || 'Payment failed');
     } finally {
       setTshirtLoading(false);
     }
-  };
-
-  const handleBvnChange = (e) => {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
-    setBvnValue(val);
-    setBvnError('');
-    setBvnSuccess('');
   };
 
   const handleBvnSubmit = async () => {
@@ -154,6 +141,9 @@ const Wallet = () => {
   const availableBalance = parseFloat(user?.available_balance || 0);
   const heldBalance = parseFloat(user?.held_balance || 0);
   const walletBalance = parseFloat(user?.walletBalance || user?.wallet_balance || 0);
+  const isClearanceDue = plans.some(p =>
+    ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required
+  );
 
   const totalCredit = transactions
     .filter(t => (t.type === 'deposit' || t.type === 'wallet_topup') && t.status === 'completed')
@@ -281,19 +271,15 @@ const Wallet = () => {
 
         {/* ─── T-Shirt Reminder Banner ─── */}
         {!user?.tshirt_paid && isClearanceDue && (
-          <div className="tshirt-banner">
+          <div className="tshirt-banner" style={{ marginBottom: '20px' }}>
             <div className="tshirt-content">
               <div className="tshirt-icon">👕</div>
               <div className="tshirt-text">
                 <h4>Incentive T-Shirt Payment Required</h4>
-                <p>To participate in PROGRAMMES and collect payouts, please pay your ₦5,000 T-shirt fee.</p>
+                <p>Your program clearance is due. Pay the ₦5,000 T-shirt fee to remove this reminder.</p>
               </div>
             </div>
-            <button 
-              className="tshirt-btn" 
-              onClick={handleTshirtPayment}
-              disabled={tshirtLoading}
-            >
+            <button className="tshirt-btn" onClick={handleTshirtPayment} disabled={tshirtLoading}>
               {tshirtLoading ? 'Processing...' : 'Pay Now'}
             </button>
           </div>

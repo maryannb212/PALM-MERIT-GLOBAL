@@ -2,7 +2,6 @@ import { createSavingsPlan, getUserSavingsPlans } from '../models/savingsModel.j
 import { getClient, query } from '../config/db.js';
 import { createWalletLedgerEntry } from '../models/transactionModel.js';
 import { createReferralCodeForPlan } from '../models/referralModel.js';
-import { assertCrestClearanceEligible } from '../services/crestPolicyService.js';
 
 export const subscribeToPlan = async (req, res) => {
   try {
@@ -265,10 +264,6 @@ export const payClearanceFee = async (req, res) => {
         throw new Error('Clearance already paid fully');
       }
 
-      if (plan.plan_name === 'CREST') {
-        await assertCrestClearanceEligible(client, plan.id, userId);
-      }
-
       const { rows: users } = await client.query('SELECT available_balance, wallet_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
       const user = users[0];
 
@@ -403,12 +398,8 @@ export const bulkClearance = async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Verify t-shirt paid
       const { rows: users } = await client.query('SELECT available_balance, wallet_balance, tshirt_paid FROM users WHERE id = $1 FOR UPDATE', [userId]);
       const user = users[0];
-      if (!user.tshirt_paid) {
-        throw new Error('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee of ₦5,000 before bulk clearance.');
-      }
 
       // Fetch all pending_clearance plans for this user (where not fully cleared)
       const { rows: plans } = await client.query(
@@ -423,9 +414,6 @@ export const bulkClearance = async (req, res) => {
       // Calculate total fee (3000 per remaining account per plan)
       let totalFee = 0;
       for (const plan of plans) {
-        if (plan.plan_name === 'CREST') {
-          await assertCrestClearanceEligible(client, plan.id, userId);
-        }
         const accounts = plan.number_of_accounts || 1;
         const alreadyCleared = parseInt(plan.accounts_cleared || 0, 10);
         const remaining = accounts - alreadyCleared;
@@ -957,4 +945,3 @@ export const clearDefaultById = async (req, res) => {
     client.release();
   }
 };
-
