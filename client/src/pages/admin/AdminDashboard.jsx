@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getAdminStats, getRecentTransfers } from '../../services/api';
-import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink, FaCreditCard } from 'react-icons/fa';
+import { getAdminStats, getRecentTransfers, getMaturitySummary, runMaturityCheck } from '../../services/api';
+import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink, FaCreditCard, FaSyncAlt, FaClipboardCheck } from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
 import './Admin.css';
 
@@ -22,6 +22,8 @@ const AdminDashboard = () => {
     recentUsers: []
   });
   const [recentTransfers, setRecentTransfers] = useState([]);
+  const [maturitySummary, setMaturitySummary] = useState({ eligibility_review: 0, pending_clearance: 0, pending_settlement: 0 });
+  const [maturityRunning, setMaturityRunning] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,10 +52,27 @@ const AdminDashboard = () => {
       });
       const { data: transfers } = await getRecentTransfers(48);
       setRecentTransfers(transfers.slice(0, 10));
+      const { data: maturity } = await getMaturitySummary();
+      setMaturitySummary(maturity);
     } catch (error) {
       console.error('Error fetching admin stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRunMaturity = async () => {
+    if (!window.confirm('Run the maturity check now? Fully funded plans that have reached their maturity day will enter eligibility review.')) return;
+    try {
+      setMaturityRunning(true);
+      const { data } = await runMaturityCheck();
+      const matured = data.summary?.matured || 0;
+      alert(`${matured} plan${matured === 1 ? '' : 's'} moved to eligibility review.`);
+      await fetchStats();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Unable to run maturity check.');
+    } finally {
+      setMaturityRunning(false);
     }
   };
 
@@ -71,6 +90,9 @@ const AdminDashboard = () => {
             <p className="text-muted">Overview of Palm Merit Global platform performance and operations.</p>
           </div>
         </div>
+        <button className="btn btn-primary" type="button" onClick={handleRunMaturity} disabled={maturityRunning}>
+          <FaSyncAlt className={maturityRunning ? 'fa-spin' : ''} /> {maturityRunning ? 'Checking...' : 'Run Maturity Check'}
+        </button>
       </header>
 
       <div className="stats-grid stats-grid-financial">
@@ -122,6 +144,19 @@ const AdminDashboard = () => {
             <h3>AUM</h3>
             <div className="stat-value">{formatCurrency(stats.totalVolume)}</div>
             <p className="stat-label text-success">Total Community Savings</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-card" style={{ marginTop: 24, padding: 22, borderLeft: '4px solid #d4af37' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div className="stat-icon-wrapper" style={{ background: 'rgba(212, 175, 55, 0.12)', color: '#800020' }}><FaClipboardCheck /></div>
+            <div><h3 style={{ margin: 0 }}>Maturity & Clearance Pipeline</h3><p className="text-muted" style={{ margin: '5px 0 0' }}>Run the maturity check and move completed cycles into eligibility review.</p></div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="btn btn-outline" type="button" onClick={() => navigate('/admin/eligibility-queue')}>Eligibility Review ({maturitySummary.eligibility_review || 0})</button>
+            <button className="btn btn-accent" type="button" onClick={() => navigate('/admin/clearance')}>Clearance ({maturitySummary.pending_clearance || 0})</button>
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyPlans } from '../../services/api';
+import { getMyPlans, getCrestEligibility } from '../../services/api';
 
 import './Dashboard.css';
 import { FaPlus, FaCheckCircle, FaClock, FaExclamationCircle, FaHandHoldingUsd } from 'react-icons/fa';
@@ -12,6 +12,7 @@ const Subscriptions = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
+  const [crestEligibility, setCrestEligibility] = useState({});
 
   useEffect(() => {
     fetchPlans();
@@ -21,7 +22,13 @@ const Subscriptions = () => {
     try {
       setLoading(true);
       const response = await getMyPlans();
-      setPlans(response.data || []);
+      const loadedPlans = response.data || [];
+      setPlans(loadedPlans);
+      const crestPlans = loadedPlans.filter(plan => plan.plan_name === 'CREST');
+      const checks = await Promise.all(crestPlans.map(async (plan) => {
+        try { return [plan.id, (await getCrestEligibility(plan.id)).data]; } catch { return [plan.id, null]; }
+      }));
+      setCrestEligibility(Object.fromEntries(checks.filter(([, value]) => value)));
     } catch (error) {
       console.error('Failed to fetch subscriptions:', error);
     } finally {
@@ -58,7 +65,7 @@ const Subscriptions = () => {
   };
 
   return (
-    <>
+    <div className="dashboard-page subscriptions-page">
         <header className="dashboard-header" style={{ marginBottom: '20px' }}>
           <h2>Portfolio & Subscriptions</h2>
         </header>
@@ -89,26 +96,22 @@ const Subscriptions = () => {
           </div>
         </div>
 
-        {/* ─── T-Shirt Reminder Banner ─── */}
+        {/* ─── Default Warning Banner ─── */}
         {!user?.tshirt_paid && plans.some(p => ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required) && (
           <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px' }}>
             <div className="tshirt-content">
               <div className="tshirt-icon">👕</div>
               <div className="tshirt-text">
                 <h4>Incentive T-Shirt Payment Required</h4>
-                <p>Your program clearance is now due! Please pay your ₦5,000 T-shirt fee under the Wallet tab to unlock clearance payments and collect payouts.</p>
+                <p>Your program clearance is now due. Please pay your ₦5,000 T-shirt fee under the Wallet tab. This reminder will remain until the fee is paid.</p>
               </div>
             </div>
-            <button 
-              className="tshirt-btn" 
-              onClick={() => navigate('/dashboard/wallet')}
-            >
+            <button className="tshirt-btn" onClick={() => navigate('/dashboard/wallet')}>
               Go to Wallet
             </button>
           </div>
         )}
 
-        {/* ─── Default Warning Banner ─── */}
         {user?.savingsStatus === 'defaulted' && user?.outstandingDefault > 0 && (
           <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px', borderLeft: '4px solid #dc2626', background: 'rgba(220, 38, 38, 0.1)' }}>
             <div className="tshirt-content">
@@ -168,6 +171,7 @@ const Subscriptions = () => {
               const individualSaved = parseFloat(plan.current_amount || 0) / (plan.number_of_accounts || 1);
               const individualRemaining = Math.max(0, individualTarget - individualSaved);
               const individualROI = calculateROI(plan) / (plan.number_of_accounts || 1);
+              const eligibility = crestEligibility[plan.id];
 
               const getWeeklySavingsAmount = (planName) => {
                 if (planName === 'CREST') return '₦4,000';
@@ -186,6 +190,23 @@ const Subscriptions = () => {
                       {getStatusBadge(plan.status)}
                     </div>
                   </div>
+
+                  {plan.plan_name === 'CREST' && eligibility && (
+                    <section style={{ margin: '12px 0', padding: '14px', border: '1px solid #fde68a', borderRadius: '8px', background: '#fffbeb' }}>
+                      <strong style={{ color: '#92400e' }}>Settlement Eligibility: {eligibility.status.replaceAll('_', ' ')}</strong>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '7px', marginTop: '10px', fontSize: '0.85rem' }}>
+                        <span>{eligibility.programmeCompleted ? '✓' : '○'} Programme completed</span>
+                        <span>{eligibility.directWeeks >= 10 ? '✓' : '○'} Direct referral: {eligibility.directWeeks}/10 weeks</span>
+                        <span>{eligibility.secondLevelWeeks >= 2 ? '✓' : '○'} Second-level: {eligibility.secondLevelWeeks}/2 weeks</span>
+                        <span>{eligibility.cumulativeWeeks >= 12 ? '✓' : '○'} Combined progress: {eligibility.cumulativeWeeks}/12 weeks</span>
+                        <span>{eligibility.clearanceCompleted ? '✓' : '○'} Clearance completed</span>
+                      </div>
+                      <p style={{ margin: '10px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                        Completion: {new Date(eligibility.dates.completionDate).toLocaleDateString()} · Earliest settlement: {new Date(eligibility.dates.earliestSettlementDate).toLocaleDateString()} · Window closes: {new Date(eligibility.dates.latestSettlementDate).toLocaleDateString()}
+                      </p>
+                      {eligibility.reasons?.length > 0 && <p style={{ margin: '7px 0 0', fontSize: '0.8rem', color: '#991b1b' }}>{eligibility.reasons[0]}</p>}
+                    </section>
+                  )}
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px', fontSize: '0.9rem' }}>
                     <p style={{ margin: 0 }}><strong>Target Savings:</strong> {formatCurrency(individualTarget)}</p>
@@ -294,7 +315,7 @@ const Subscriptions = () => {
             })}
           </div>
         )}
-    </>
+    </div>
   );
 };
 

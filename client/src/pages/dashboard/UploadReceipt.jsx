@@ -106,7 +106,7 @@ const UploadReceipt = () => {
   };
 
   return (
-    <>
+    <div className="dashboard-page upload-page">
         <header className="dashboard-header" style={{ marginBottom: '20px' }}>
           <h2>Receipt Upload</h2>
           <p style={{ color: '#64748b' }}>Secure Payment Verification Portal</p>
@@ -228,7 +228,7 @@ const UploadReceipt = () => {
           </div>
 
         </div>
-    </>
+    </div>
   );
 };
 

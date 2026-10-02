@@ -25,7 +25,6 @@ const Navbar = () => {
       <div className="container navbar-container">
         <Link to="/" className="navbar-logo">
           <img src="/logo.png" alt="Palm Merit Global Logo" />
-          <span>Palm Merit Global</span>
         </Link>
         
         <div className="menu-icon" onClick={toggleMenu}>
@@ -41,6 +40,9 @@ const Navbar = () => {
           </li>
           <li className="nav-item">
             <Link to="/terms" className="nav-links" onClick={toggleMenu}>Terms</Link>
+          </li>
+          <li className="nav-item">
+            <Link to="/faq" className="nav-links" onClick={toggleMenu}>FAQ</Link>
           </li>
           <li className="nav-item nav-buttons-mobile">
             {user ? (

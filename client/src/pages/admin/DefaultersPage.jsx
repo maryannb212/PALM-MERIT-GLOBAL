@@ -43,10 +43,10 @@ const DefaultersPage = () => {
   const uniqueUsers = [...new Set(filtered.map(d => d.user_id))].length;
 
   const handleQuickClear = async (defaultId, userId, userName) => {
-    if (!window.confirm(`Clear this default for ${userName}?`)) return;
+    if (!window.confirm(`Clear this default for ${userName}, restore the missed contribution to savings, and credit the matching penalty to the wallet?`)) return;
     try {
-      await updateDefault(defaultId, { resolved: true });
-      setActionMsg({ type: 'success', text: `Default cleared for ${userName}` });
+      const { data } = await updateDefault(defaultId, { resolved: true });
+      setActionMsg({ type: 'success', text: `${userName}: ${data.message}` });
       fetchDefaulters();
     } catch (err) {
       setActionMsg({ type: 'error', text: err.response?.data?.message || 'Failed to clear default' });
@@ -55,10 +55,10 @@ const DefaultersPage = () => {
   };
 
   const handleClearUserDefaults = async (userId, userName) => {
-    if (!window.confirm(`Clear ALL outstanding defaults for ${userName}?`)) return;
+    if (!window.confirm(`Clear all defaults for ${userName}, restore missed contributions to savings, and credit matching penalties to the wallet?`)) return;
     try {
-      await resolveUserDefaults(userId);
-      setActionMsg({ type: 'success', text: `All defaults cleared for ${userName}` });
+      const { data } = await resolveUserDefaults(userId);
+      setActionMsg({ type: 'success', text: `${userName}: ${data.message}` });
       fetchDefaulters();
     } catch (err) {
       setActionMsg({ type: 'error', text: err.response?.data?.message || 'Failed to clear defaults' });
@@ -80,7 +80,7 @@ const DefaultersPage = () => {
             <p className="text-muted">Monitor, edit, and resolve member defaults across all programs.</p>
           </div>
         </div>
-        {(actionMsg) => (
+        {actionMsg && (
           <div style={{
             position: 'fixed', top: 20, right: 20, zIndex: 9999,
             padding: '12px 20px', borderRadius: 8,

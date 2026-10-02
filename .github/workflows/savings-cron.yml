@@ -45,3 +45,6 @@ jobs:
 
       - name: Run penalty job
         run: npm run cron:penalty
+
+      - name: Send cycle completion and clearance notifications
+        run: npm run cron:maturity
