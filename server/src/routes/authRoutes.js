@@ -21,6 +21,21 @@ import rateLimit from 'express-rate-limit';
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 15,
+  keyGenerator: (req) => {
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown-ip';
+
+    const email = typeof req.body?.email === 'string'
+      ? req.body.email.toLowerCase().trim()
+      : '';
+
+    const username = typeof req.body?.username === 'string'
+      ? req.body.username.toLowerCase().trim()
+      : '';
+
+    const identifier = email || username || ip;
+    return `auth:${identifier}`;
+  },
+  skipSuccessfulRequests: true,
   message: { message: 'Too many authentication attempts, please try again after an hour' },
   standardHeaders: true,
   legacyHeaders: false,
