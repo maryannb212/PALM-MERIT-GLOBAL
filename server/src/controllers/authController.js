@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import { createAndSaveOTP, verifyOTP as checkOTP, sendOTP } from '../services/otpService.js';
 import { sendWelcomeEmail, sendOTPEmail } from '../utils/emailService.js';
 
-import { getReferredDownlines, getActiveQualifiedCount } from '../helpers/referralHelper.js';
+import { getReferredDownlines } from '../helpers/referralHelper.js';
 import { getUserReferralCodes } from '../models/referralModel.js';
 import { createVirtualAccount } from '../services/virtualAccountService.js';
 import { createNotification } from '../models/notificationModel.js';
@@ -620,7 +620,7 @@ export const getMyReferrals = async (req, res) => {
   try {
     const userId = req.user.id;
     const downlines = await getReferredDownlines(userId);
-    const activeQualifiedCount = await getActiveQualifiedCount(userId);
+    const activeQualifiedCount = downlines.filter((downline) => downline.referralStatus === 'active').length;
     const myCodes = await getUserReferralCodes(userId);
     
     res.json({

@@ -43,7 +43,7 @@ const DefaultersPage = () => {
   const uniqueUsers = [...new Set(filtered.map(d => d.user_id))].length;
 
   const handleQuickClear = async (defaultId, userId, userName) => {
-    if (!window.confirm(`Deduct the required amount from ${userName}'s wallet, credit the missed contribution to savings, and clear this default?`)) return;
+    if (!window.confirm(`Clear this default for ${userName} and restore the missed contribution to savings? No wallet funds will be deducted.`)) return;
     try {
       const { data } = await updateDefault(defaultId, { resolved: true });
       setActionMsg({ type: 'success', text: `${userName}: ${data.message}` });
@@ -55,7 +55,7 @@ const DefaultersPage = () => {
   };
 
   const handleClearUserDefaults = async (userId, userName) => {
-    if (!window.confirm(`Use ${userName}'s wallet to clear as many full defaulted accounts as possible and credit the missed contributions to savings?`)) return;
+    if (!window.confirm(`Clear all defaults for ${userName} and restore missed contributions to savings? No wallet funds will be deducted.`)) return;
     try {
       const { data } = await resolveUserDefaults(userId);
       setActionMsg({ type: 'success', text: `${userName}: ${data.message}` });

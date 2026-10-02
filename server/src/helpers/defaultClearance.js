@@ -174,3 +174,70 @@ export const clearDefaultsWithWallet = async (client, userId, defaultId = null) 
     newBalance: balance - totalDeducted
   };
 };
+
+export const clearDefaultsByAdmin = async (client, userId, defaultId = null) => {
+  const params = defaultId ? [userId, defaultId] : [userId];
+  const defaultFilter = defaultId ? 'AND d.id = $2' : '';
+  const { rows: defaults } = await client.query(`
+    SELECT d.id, d.plan_id, d.penalty_amount, sp.plan_name,
+           sp.current_amount, sp.target_amount
+    FROM defaults d
+    JOIN savings_plans sp ON sp.id = d.plan_id
+    WHERE d.user_id = $1 AND d.resolved = FALSE ${defaultFilter}
+    ORDER BY d.missed_date ASC, d.id ASC
+    FOR UPDATE OF d, sp
+  `, params);
+
+  if (defaults.length === 0) return { ok: false, reason: 'no_defaults' };
+
+  const remainingByPlan = new Map();
+  let totalToSavings = 0;
+  const results = [];
+
+  for (const record of defaults) {
+    const targetAmount = Number(record.target_amount) || 0;
+    const currentAmount = Number(record.current_amount) || 0;
+    if (!remainingByPlan.has(record.plan_id)) {
+      remainingByPlan.set(
+        record.plan_id,
+        targetAmount > 0 ? Math.max(0, Math.floor(targetAmount - currentAmount)) : Infinity
+      );
+    }
+
+    const missedContribution = Math.floor((Number(record.penalty_amount) || 0) / 2);
+    const savingsRestored = Math.min(missedContribution, remainingByPlan.get(record.plan_id));
+    remainingByPlan.set(record.plan_id, remainingByPlan.get(record.plan_id) - savingsRestored);
+
+    if (savingsRestored > 0) {
+      await client.query(
+        'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [savingsRestored, record.plan_id]
+      );
+      await client.query(
+        `INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+         VALUES ($1, $2, 'savings', $3, 'completed', $4)`,
+        [userId, record.plan_id, savingsRestored, `ADMIN-DFT-${record.id}`]
+      );
+      totalToSavings += savingsRestored;
+    }
+
+    await client.query(
+      'UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [record.id]
+    );
+    results.push({
+      defaultId: record.id,
+      plan_name: record.plan_name,
+      savingsRestored,
+      resolved: true
+    });
+  }
+
+  return {
+    ok: true,
+    resolvedDefaults: defaults.length,
+    totalDeducted: 0,
+    totalToSavings,
+    results
+  };
+};

@@ -2,7 +2,7 @@ import { query, getClient } from '../config/db.js';
 import { createNotification } from '../models/notificationModel.js';
 import { logAudit } from '../models/auditModel.js';
 import { processCompletedPayment, createTransaction } from '../models/transactionModel.js';
-import { clearDefaultsWithWallet } from '../helpers/defaultClearance.js';
+import { clearDefaultsByAdmin } from '../helpers/defaultClearance.js';
 import * as withdrawalController from './withdrawalController.js';
 import jsonwebtoken from 'jsonwebtoken';
 import axios from 'axios';
@@ -1531,37 +1531,29 @@ export const updateDefault = async (req, res) => {
         return res.status(404).json({ message: 'Default not found or already resolved' });
       }
       const userId = owners[0].user_id;
-      const result = await clearDefaultsWithWallet(client, userId, id);
+      const result = await clearDefaultsByAdmin(client, userId, id);
       if (!result.ok) {
         await client.query('ROLLBACK');
         if (result.reason === 'no_defaults') return res.status(404).json({ message: 'Default not found or already resolved' });
-        if (result.reason === 'insufficient_balance') {
-          return res.status(400).json({
-            message: `Insufficient wallet balance. ₦${result.needed.toLocaleString()} is required; available balance is ₦${result.balance.toLocaleString()}.`,
-            needed: result.needed,
-            balance: result.balance
-          });
-        }
-        return res.status(400).json({ message: 'This default cannot be cleared from the wallet.' });
+        return res.status(400).json({ message: 'Unable to clear this default.' });
       }
       await client.query('COMMIT');
-      await logAudit(req.user.id, 'CLEAR_DEFAULT_FROM_WALLET', 'defaults', id, {
-        amountDeducted: result.totalDeducted,
+      await logAudit(req.user.id, 'ADMIN_CLEAR_DEFAULT', 'defaults', id, {
         savingsCredited: result.totalToSavings
       }).catch((error) => console.error('Error recording default clearance audit:', error));
       await createNotification(
         userId,
         'SYSTEM',
         'Default Cleared',
-        `An admin cleared a default. ₦${result.totalDeducted.toLocaleString()} was deducted from your wallet and ₦${result.totalToSavings.toLocaleString()} was credited to savings.`
+        `An admin corrected a default. No wallet funds were deducted; ₦${result.totalToSavings.toLocaleString()} was restored to your savings.`
       ).catch(() => {});
       return res.json({
-        message: `Default cleared: ₦${result.totalDeducted.toLocaleString()} deducted from wallet and ₦${result.totalToSavings.toLocaleString()} credited to savings.`,
+        message: `Default cleared without a wallet deduction. ₦${result.totalToSavings.toLocaleString()} restored to savings.`,
         ...result
       });
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('Error clearing default from wallet:', error);
+      console.error('Error clearing default as admin:', error);
       return res.status(500).json({ message: 'Server error clearing default' });
     } finally {
       client.release();
@@ -1599,31 +1591,25 @@ export const resolveUserDefaults = async (req, res) => {
   const client = await getClient();
   try {
     await client.query('BEGIN');
-    const result = await clearDefaultsWithWallet(client, userId);
+    const result = await clearDefaultsByAdmin(client, userId);
     if (!result.ok) {
       await client.query('ROLLBACK');
-      if (result.reason === 'user_not_found') return res.status(404).json({ message: 'User not found' });
       if (result.reason === 'no_defaults') return res.status(404).json({ message: 'No outstanding defaults to clear' });
-      return res.status(400).json({
-        message: `Insufficient wallet balance to clear a full account. ₦${result.needed.toLocaleString()} is required; available balance is ₦${result.balance.toLocaleString()}.`,
-        needed: result.needed,
-        balance: result.balance
-      });
+      return res.status(400).json({ message: 'Unable to clear defaults for this user.' });
     }
     await client.query('COMMIT');
-    await logAudit(req.user.id, 'CLEAR_USER_DEFAULTS_FROM_WALLET', 'defaults', userId, {
+    await logAudit(req.user.id, 'ADMIN_CLEAR_USER_DEFAULTS', 'defaults', userId, {
       count: result.resolvedDefaults,
-      amountDeducted: result.totalDeducted,
       savingsCredited: result.totalToSavings
     }).catch((error) => console.error('Error recording defaults clearance audit:', error));
     await createNotification(
       userId,
       'SYSTEM',
       'Defaults Cleared',
-      `An admin deducted ₦${result.totalDeducted.toLocaleString()} from your wallet to clear defaults. ₦${result.totalToSavings.toLocaleString()} was credited to savings.`
+      `An admin corrected your defaults. No wallet funds were deducted; ₦${result.totalToSavings.toLocaleString()} was restored to savings.`
     ).catch(() => {});
     return res.json({
-      message: `Deducted ₦${result.totalDeducted.toLocaleString()} from wallet and credited ₦${result.totalToSavings.toLocaleString()} to savings.`,
+      message: `Defaults cleared without a wallet deduction. ₦${result.totalToSavings.toLocaleString()} restored to savings.`,
       ...result
     });
   } catch (error) {
