@@ -176,6 +176,12 @@ export const clearDefaultsWithWallet = async (client, userId, defaultId = null) 
 };
 
 export const clearDefaultsByAdmin = async (client, userId, defaultId = null) => {
+  const { rows: users } = await client.query(
+    'SELECT id FROM users WHERE id = $1 FOR UPDATE',
+    [userId]
+  );
+  if (users.length === 0) return { ok: false, reason: 'user_not_found' };
+
   const params = defaultId ? [userId, defaultId] : [userId];
   const defaultFilter = defaultId ? 'AND d.id = $2' : '';
   const { rows: defaults } = await client.query(`
@@ -192,6 +198,7 @@ export const clearDefaultsByAdmin = async (client, userId, defaultId = null) => 
 
   const remainingByPlan = new Map();
   let totalToSavings = 0;
+  let totalCreditedToWallet = 0;
   const results = [];
 
   for (const record of defaults) {
@@ -204,8 +211,10 @@ export const clearDefaultsByAdmin = async (client, userId, defaultId = null) => 
       );
     }
 
-    const missedContribution = Math.floor((Number(record.penalty_amount) || 0) / 2);
+    const defaultAmount = Math.max(0, Math.floor(Number(record.penalty_amount) || 0));
+    const missedContribution = Math.floor(defaultAmount / 2);
     const savingsRestored = Math.min(missedContribution, remainingByPlan.get(record.plan_id));
+    const walletCredited = defaultAmount - savingsRestored;
     remainingByPlan.set(record.plan_id, remainingByPlan.get(record.plan_id) - savingsRestored);
 
     if (savingsRestored > 0) {
@@ -221,6 +230,24 @@ export const clearDefaultsByAdmin = async (client, userId, defaultId = null) => 
       totalToSavings += savingsRestored;
     }
 
+    if (walletCredited > 0) {
+      const reference = `ADMIN-DFT-WALLET-${record.id}`;
+      await client.query(
+        `INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+         VALUES ($1, $2, 'default_clearance', $3, 'completed', $4)`,
+        [userId, record.plan_id, walletCredited, reference]
+      );
+      await createWalletLedgerEntry(
+        client,
+        userId,
+        'credit',
+        walletCredited,
+        reference,
+        `Admin default correction wallet credit for ${record.plan_name}`
+      );
+      totalCreditedToWallet += walletCredited;
+    }
+
     await client.query(
       'UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1',
       [record.id]
@@ -229,8 +256,19 @@ export const clearDefaultsByAdmin = async (client, userId, defaultId = null) => 
       defaultId: record.id,
       plan_name: record.plan_name,
       savingsRestored,
+      walletCredited,
       resolved: true
     });
+  }
+
+  if (totalCreditedToWallet > 0) {
+    await client.query(
+      `UPDATE users
+       SET available_balance = COALESCE(available_balance, 0) + $1,
+           wallet_balance = COALESCE(wallet_balance, 0) + $1
+       WHERE id = $2`,
+      [totalCreditedToWallet, userId]
+    );
   }
 
   return {
@@ -238,6 +276,7 @@ export const clearDefaultsByAdmin = async (client, userId, defaultId = null) => 
     resolvedDefaults: defaults.length,
     totalDeducted: 0,
     totalToSavings,
+    totalCreditedToWallet,
     results
   };
 };

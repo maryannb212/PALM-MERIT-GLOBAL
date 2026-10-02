@@ -11,15 +11,13 @@ const getLotusMerchantKey = () => cleanKey('LOTUS_MERCHANT_KEY');
 const getLotusXApiKey = () => cleanKey('LOTUS_X_API_KEY');
 
 const getHeaders = () => ({
-  Authorization: getLotusMerchantKey(),
   'x-api-key': getLotusXApiKey(),
   'Content-Type': 'application/json'
 });
 
 export const createVirtualAccount = async (user) => {
   const apiKey = getLotusXApiKey();
-  const merchantKey = getLotusMerchantKey();
-  if (!apiKey || !merchantKey) {
+  if (!apiKey) {
     throw new Error('Lotus Bank is not configured. Please contact support.');
   }
 
@@ -55,25 +53,13 @@ export const createVirtualAccount = async (user) => {
       throw new Error(response.data?.message || 'Lotus Bank virtual account creation failed');
     }
 
-    const account = response.data.data;
-    if (!account?.account_number || !account?.account_name || !account?.bank_name) {
-      throw new Error('Lotus Bank returned incomplete virtual account details.');
-    }
+    console.log('[VirtualAccountService] Lotus VA created. Full response:', JSON.stringify(response.data, null, 2));
 
-    console.log('[VirtualAccountService] Lotus virtual account created successfully.');
-    return account;
+    return response.data.data;
   } catch (error) {
-    const providerData = error.response?.data;
-    const detail = typeof providerData === 'string'
-      ? providerData
-      : providerData?.message || providerData?.error || error.response?.statusText || error.message;
-    const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
-    console.error('[VirtualAccountService] Lotus API error:', JSON.stringify({
-      status: error.response?.status,
-      code: error.code,
-      message
-    }));
-    throw new Error(message);
+    const detail = error.response?.data || error.response?.statusText || error.message;
+    console.error('[VirtualAccountService] Lotus API error:', JSON.stringify({ status: error.response?.status, data: error.response?.data, payload }));
+    throw new Error(typeof detail === 'object' ? JSON.stringify(detail) : detail);
   }
 };
 

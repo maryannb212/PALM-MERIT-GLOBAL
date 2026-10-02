@@ -231,6 +231,10 @@ const AdminClearance = () => {
                   <div className="defaults-plan-details">
                     <div className="defaults-plan-stats">
                       <div className="defaults-plan-stat">
+                        <span className="dps-label">Savings / Target</span>
+                        <span className="dps-value">{formatCurrency(plan.current_amount)} / {formatCurrency(plan.target_amount)}</span>
+                      </div>
+                      <div className="defaults-plan-stat">
                         <span className="dps-label">Total Accounts</span>
                         <span className="dps-value">{accounts}</span>
                       </div>

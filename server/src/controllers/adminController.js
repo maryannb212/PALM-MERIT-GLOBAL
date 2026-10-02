@@ -7,7 +7,6 @@ import * as withdrawalController from './withdrawalController.js';
 import jsonwebtoken from 'jsonwebtoken';
 import axios from 'axios';
 import crypto from 'crypto';
-import { evaluateCrestEligibility } from '../services/crestPolicyService.js';
 
 /**
  * Get all users
@@ -1539,16 +1538,17 @@ export const updateDefault = async (req, res) => {
       }
       await client.query('COMMIT');
       await logAudit(req.user.id, 'ADMIN_CLEAR_DEFAULT', 'defaults', id, {
-        savingsCredited: result.totalToSavings
+        savingsCredited: result.totalToSavings,
+        walletCredited: result.totalCreditedToWallet
       }).catch((error) => console.error('Error recording default clearance audit:', error));
       await createNotification(
         userId,
         'SYSTEM',
         'Default Cleared',
-        `An admin corrected a default. No wallet funds were deducted; ₦${result.totalToSavings.toLocaleString()} was restored to your savings.`
+        `An admin corrected a default. ₦${result.totalToSavings.toLocaleString()} was restored to savings and ₦${result.totalCreditedToWallet.toLocaleString()} was credited to your wallet.`
       ).catch(() => {});
       return res.json({
-        message: `Default cleared without a wallet deduction. ₦${result.totalToSavings.toLocaleString()} restored to savings.`,
+        message: `Default cleared. ₦${result.totalToSavings.toLocaleString()} restored to savings and ₦${result.totalCreditedToWallet.toLocaleString()} credited to wallet.`,
         ...result
       });
     } catch (error) {
@@ -1600,16 +1600,17 @@ export const resolveUserDefaults = async (req, res) => {
     await client.query('COMMIT');
     await logAudit(req.user.id, 'ADMIN_CLEAR_USER_DEFAULTS', 'defaults', userId, {
       count: result.resolvedDefaults,
-      savingsCredited: result.totalToSavings
+      savingsCredited: result.totalToSavings,
+      walletCredited: result.totalCreditedToWallet
     }).catch((error) => console.error('Error recording defaults clearance audit:', error));
     await createNotification(
       userId,
       'SYSTEM',
       'Defaults Cleared',
-      `An admin corrected your defaults. No wallet funds were deducted; ₦${result.totalToSavings.toLocaleString()} was restored to savings.`
+      `An admin corrected your defaults. ₦${result.totalToSavings.toLocaleString()} was restored to savings and ₦${result.totalCreditedToWallet.toLocaleString()} was credited to your wallet.`
     ).catch(() => {});
     return res.json({
-      message: `Defaults cleared without a wallet deduction. ₦${result.totalToSavings.toLocaleString()} restored to savings.`,
+      message: `Defaults cleared. ₦${result.totalToSavings.toLocaleString()} restored to savings and ₦${result.totalCreditedToWallet.toLocaleString()} credited to wallet.`,
       ...result
     });
   } catch (error) {
@@ -1766,20 +1767,11 @@ export const getClearancePlans = async (req, res) => {
         AND sp.clearance_required = TRUE
       ORDER BY sp.updated_at DESC
     `, [Array.isArray(statusFilter) ? statusFilter : [statusFilter]]);
-    const plans = [];
-    for (const row of rows) {
-      const item = {
-        ...row,
-        accounts_cleared: parseInt(row.accounts_cleared || 0, 10),
-        number_of_accounts: row.number_of_accounts || 1,
-      };
-      if (row.plan_name === 'CREST') {
-        const evaluation = await evaluateCrestEligibility({ query }, row.id, req.user.id, { skipSnapshot: true });
-        item.crest_eligibility = evaluation;
-      }
-      plans.push(item);
-    }
-    res.json(plans);
+    res.json(rows.map((row) => ({
+      ...row,
+      accounts_cleared: parseInt(row.accounts_cleared || 0, 10),
+      number_of_accounts: row.number_of_accounts || 1,
+    })));
   } catch (error) {
     console.error('Error fetching clearance plans:', error);
     res.status(500).json({ message: 'Server error fetching clearance plans' });

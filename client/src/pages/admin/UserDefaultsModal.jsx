@@ -44,7 +44,7 @@ const UserDefaultsModal = ({ isOpen, onClose, userId, userName }) => {
   };
 
   const handleResolve = async (id) => {
-    if (!window.confirm('Clear this default and restore the missed contribution to savings? No wallet funds will be deducted.')) return;
+    if (!window.confirm('Clear this default, restore the missed contribution to savings, and credit the matching penalty to the wallet?')) return;
     try {
       await updateDefault(id, { resolved: true });
       fetchDefaults();
@@ -54,7 +54,7 @@ const UserDefaultsModal = ({ isOpen, onClose, userId, userName }) => {
   };
 
   const handleResolveAll = async () => {
-    if (!window.confirm(`Clear all ${summary.count} defaults for ${userName} and restore missed contributions to savings? No wallet funds will be deducted.`)) return;
+    if (!window.confirm(`Clear all ${summary.count} defaults for ${userName}, restore missed contributions to savings, and credit matching penalties to the wallet?`)) return;
     try {
       setResolving(true);
       await resolveUserDefaults(userId);
