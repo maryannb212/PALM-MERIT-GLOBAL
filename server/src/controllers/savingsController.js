@@ -52,7 +52,7 @@ export const subscribeToPlan = async (req, res) => {
     };
 
     const config = planConfigs[planName];
-    const initialSavingsTotal = config.initialSavings * requestedAccounts;
+    const initialSavingsTotal = planName === 'CREST' ? 0 : config.initialSavings * requestedAccounts;
     const regFeeTotal = config.regFee * requestedAccounts;
     const totalFirstPayment = initialSavingsTotal + regFeeTotal;
 
@@ -191,20 +191,23 @@ export const subscribeToPlan = async (req, res) => {
       // Generate one referral code per account
       await createReferralCodeForPlan(client, userId, plan.id, planName, requestedAccounts);
 
-      // Set the initial current_amount of the savings plan to initialSavingsTotal
+      // Set the initial current_amount of the savings plan to the starting balance.
+      // CREST skips the first week's savings contribution and only processes the registration fee on sign-up.
       await client.query(
         'UPDATE savings_plans SET current_amount = $1 WHERE id = $2',
         [initialSavingsTotal, plan.id]
       );
 
-      // Log transactions
-      const savingsRef = `SAV-${Date.now()}`;
-      await client.query(`
-        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-        VALUES ($1, $2, 'savings', $3, 'completed', $4)
-      `, [userId, plan.id, initialSavingsTotal, savingsRef]);
+      // Log the initial savings contribution only when a plan actually starts with one.
+      if (initialSavingsTotal > 0) {
+        const savingsRef = `SAV-${Date.now()}`;
+        await client.query(`
+          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+          VALUES ($1, $2, 'savings', $3, 'completed', $4)
+        `, [userId, plan.id, initialSavingsTotal, savingsRef]);
 
-      await createWalletLedgerEntry(client, userId, 'debit', initialSavingsTotal, savingsRef, `Initial savings deposit for Plan: ${planName}`);
+        await createWalletLedgerEntry(client, userId, 'debit', initialSavingsTotal, savingsRef, `Initial savings deposit for Plan: ${planName}`);
+      }
 
       if (regFeeTotal > 0) {
         const regRef = `REG-${Date.now()}`;

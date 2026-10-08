@@ -5,8 +5,8 @@ export const CREST_POLICY = Object.freeze({
   referralLinkDelayDays: 25,
   referralLinkValidityDays: 7,
   programmeDurationDays: 90,
-  earliestSettlementDay: 92,
-  latestSettlementDay: 98,
+  earliestSettlementDay: 93,
+  latestSettlementDay: 96,
   requiredDirectWeeks: 10,
   requiredSecondLevelWeeks: 2,
   requiredCumulativeWeeks: 12
@@ -166,7 +166,13 @@ export const evaluateCrestEligibility = async (client, planId, evaluatedBy = nul
     plan,
     isCrest: true,
     isEligible,
-    status: plan.status === 'settled' ? 'SETTLED' : isEligible ? 'SETTLEMENT_WINDOW_OPEN' : programmeCompleted && clearanceCompleted ? 'CLEARED' : programmeCompleted ? 'QUALIFIED' : 'IN_PROGRESS',
+    status: plan.status === 'settled'
+      ? 'SETTLED'
+      : isEligible
+        ? 'QUALIFIED'
+        : programmeCompleted
+          ? 'PENDING_REQUIREMENTS'
+          : 'IN_PROGRESS',
     dates,
     directReferral: direct,
     secondLevelReferral: secondLevel,

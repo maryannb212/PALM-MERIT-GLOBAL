@@ -191,22 +191,6 @@ const Subscriptions = () => {
                     </div>
                   </div>
 
-                  {plan.plan_name === 'CREST' && eligibility && (
-                    <section style={{ margin: '12px 0', padding: '14px', border: '1px solid #fde68a', borderRadius: '8px', background: '#fffbeb' }}>
-                      <strong style={{ color: '#92400e' }}>Settlement Eligibility: {eligibility.status.replaceAll('_', ' ')}</strong>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '7px', marginTop: '10px', fontSize: '0.85rem' }}>
-                        <span>{eligibility.programmeCompleted ? '✓' : '○'} Programme completed</span>
-                        <span>{eligibility.directWeeks >= 10 ? '✓' : '○'} Direct referral: {eligibility.directWeeks}/10 weeks</span>
-                        <span>{eligibility.secondLevelWeeks >= 2 ? '✓' : '○'} Second-level: {eligibility.secondLevelWeeks}/2 weeks</span>
-                        <span>{eligibility.cumulativeWeeks >= 12 ? '✓' : '○'} Combined progress: {eligibility.cumulativeWeeks}/12 weeks</span>
-                        <span>{eligibility.clearanceCompleted ? '✓' : '○'} Clearance completed</span>
-                      </div>
-                      <p style={{ margin: '10px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                        Completion: {new Date(eligibility.dates.completionDate).toLocaleDateString()} · Earliest settlement: {new Date(eligibility.dates.earliestSettlementDate).toLocaleDateString()} · Window closes: {new Date(eligibility.dates.latestSettlementDate).toLocaleDateString()}
-                      </p>
-                      {eligibility.reasons?.length > 0 && <p style={{ margin: '7px 0 0', fontSize: '0.8rem', color: '#991b1b' }}>{eligibility.reasons[0]}</p>}
-                    </section>
-                  )}
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px', fontSize: '0.9rem' }}>
                     <p style={{ margin: 0 }}><strong>Target Savings:</strong> {formatCurrency(individualTarget)}</p>
