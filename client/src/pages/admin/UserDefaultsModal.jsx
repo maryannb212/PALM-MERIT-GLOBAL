@@ -44,7 +44,7 @@ const UserDefaultsModal = ({ isOpen, onClose, userId, userName }) => {
   };
 
   const handleResolve = async (id) => {
-    if (!window.confirm('Mark this default as resolved?')) return;
+    if (!window.confirm('Clear this default, restore the missed contribution to savings, and credit the matching penalty to the wallet?')) return;
     try {
       await updateDefault(id, { resolved: true });
       fetchDefaults();
@@ -54,7 +54,7 @@ const UserDefaultsModal = ({ isOpen, onClose, userId, userName }) => {
   };
 
   const handleResolveAll = async () => {
-    if (!window.confirm(`Clear all ${summary.count} outstanding default(s) for ${userName}?`)) return;
+    if (!window.confirm(`Clear all ${summary.count} defaults for ${userName}, restore missed contributions to savings, and credit matching penalties to the wallet?`)) return;
     try {
       setResolving(true);
       await resolveUserDefaults(userId);
@@ -88,7 +88,7 @@ const UserDefaultsModal = ({ isOpen, onClose, userId, userName }) => {
             {summary.count > 0 && (
               <button className="btn btn-primary" onClick={handleResolveAll} disabled={resolving}
                 style={{ marginLeft: 'auto', background: '#059669', borderColor: '#059669' }}>
-                <FaCheckCircle style={{ marginRight: 6 }} />{resolving ? 'Clearing...' : 'Clear All Defaults'}
+                <FaCheckCircle style={{ marginRight: 6 }} />{resolving ? 'Clearing...' : 'Wallet Clear All'}
               </button>
             )}
           </div>

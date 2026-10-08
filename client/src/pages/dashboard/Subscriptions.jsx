@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getMyPlans } from '../../services/api';
+import { getMyPlans, getCrestEligibility } from '../../services/api';
 
 import './Dashboard.css';
 import { FaPlus, FaCheckCircle, FaClock, FaExclamationCircle, FaHandHoldingUsd } from 'react-icons/fa';
@@ -12,6 +12,7 @@ const Subscriptions = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
+  const [crestEligibility, setCrestEligibility] = useState({});
 
   useEffect(() => {
     fetchPlans();
@@ -21,7 +22,13 @@ const Subscriptions = () => {
     try {
       setLoading(true);
       const response = await getMyPlans();
-      setPlans(response.data || []);
+      const loadedPlans = response.data || [];
+      setPlans(loadedPlans);
+      const crestPlans = loadedPlans.filter(plan => plan.plan_name === 'CREST');
+      const checks = await Promise.all(crestPlans.map(async (plan) => {
+        try { return [plan.id, (await getCrestEligibility(plan.id)).data]; } catch { return [plan.id, null]; }
+      }));
+      setCrestEligibility(Object.fromEntries(checks.filter(([, value]) => value)));
     } catch (error) {
       console.error('Failed to fetch subscriptions:', error);
     } finally {
@@ -58,7 +65,7 @@ const Subscriptions = () => {
   };
 
   return (
-    <>
+    <div className="dashboard-page subscriptions-page">
         <header className="dashboard-header" style={{ marginBottom: '20px' }}>
           <h2>Portfolio & Subscriptions</h2>
         </header>
@@ -89,26 +96,22 @@ const Subscriptions = () => {
           </div>
         </div>
 
-        {/* ─── T-Shirt Reminder Banner ─── */}
+        {/* ─── Default Warning Banner ─── */}
         {!user?.tshirt_paid && plans.some(p => ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required) && (
           <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px' }}>
             <div className="tshirt-content">
               <div className="tshirt-icon">👕</div>
               <div className="tshirt-text">
                 <h4>Incentive T-Shirt Payment Required</h4>
-                <p>Your program clearance is now due! Please pay your ₦5,000 T-shirt fee under the Wallet tab to unlock clearance payments and collect payouts.</p>
+                <p>Your program clearance is now due. Please pay your ₦5,000 T-shirt fee under the Wallet tab. This reminder will remain until the fee is paid.</p>
               </div>
             </div>
-            <button 
-              className="tshirt-btn" 
-              onClick={() => navigate('/dashboard/wallet')}
-            >
+            <button className="tshirt-btn" onClick={() => navigate('/dashboard/wallet')}>
               Go to Wallet
             </button>
           </div>
         )}
 
-        {/* ─── Default Warning Banner ─── */}
         {user?.savingsStatus === 'defaulted' && user?.outstandingDefault > 0 && (
           <div className="tshirt-banner animate-fade-in" style={{ marginBottom: '20px', borderLeft: '4px solid #dc2626', background: 'rgba(220, 38, 38, 0.1)' }}>
             <div className="tshirt-content">
@@ -168,6 +171,7 @@ const Subscriptions = () => {
               const individualSaved = parseFloat(plan.current_amount || 0) / (plan.number_of_accounts || 1);
               const individualRemaining = Math.max(0, individualTarget - individualSaved);
               const individualROI = calculateROI(plan) / (plan.number_of_accounts || 1);
+              const eligibility = crestEligibility[plan.id];
 
               const getWeeklySavingsAmount = (planName) => {
                 if (planName === 'CREST') return '₦4,000';
@@ -186,6 +190,7 @@ const Subscriptions = () => {
                       {getStatusBadge(plan.status)}
                     </div>
                   </div>
+
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px', fontSize: '0.9rem' }}>
                     <p style={{ margin: 0 }}><strong>Target Savings:</strong> {formatCurrency(individualTarget)}</p>
@@ -294,7 +299,7 @@ const Subscriptions = () => {
             })}
           </div>
         )}
-    </>
+    </div>
   );
 };
 

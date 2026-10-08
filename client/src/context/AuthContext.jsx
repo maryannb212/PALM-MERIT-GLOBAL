@@ -44,6 +44,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const { data } = await loginAPI({ email, password });
     if (!data.requiresOTP) {
+      sessionStorage.removeItem('palmmerit_social_prompt_seen');
       localStorage.setItem('palmmerit_user', JSON.stringify(data));
       setUser(data);
     }
@@ -59,6 +60,7 @@ export const AuthProvider = ({ children }) => {
 
   const verifyOTP = async (email, code) => {
     const { data } = await verifyOTPAPI({ email, code });
+    sessionStorage.removeItem('palmmerit_social_prompt_seen');
     localStorage.setItem('palmmerit_user', JSON.stringify(data));
     setUser(data);
     return data;
@@ -73,6 +75,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('palmmerit_user');
+    sessionStorage.removeItem('palmmerit_social_prompt_seen');
     setUser(null);
   };
 

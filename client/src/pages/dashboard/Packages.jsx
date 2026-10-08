@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { subscribeToPlan } from '../../services/api';
+import { acceptProgrammeTerms } from '../../services/api';
+import { terms } from '../public/TermsPage';
 import { FaArrowRight } from 'react-icons/fa';
 
 import './Dashboard.css';
@@ -70,6 +71,10 @@ const Packages = () => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [creationMethod, setCreationMethod] = useState('single');
   const [message, setMessage] = useState('');
+  const [termsPlan, setTermsPlan] = useState(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [acceptingTerms, setAcceptingTerms] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   const handleSubscribe = (e) => {
     e.preventDefault();
@@ -85,8 +90,25 @@ const Packages = () => {
   };
 
   const handleSelectPlan = (pkg) => {
-    setSelectedPlan(pkg);
-    setCreationMethod('single');
+    setTermsPlan(pkg);
+    setTermsAccepted(false);
+  };
+
+  const acceptTermsAndSelectPlan = async () => {
+    if (!termsAccepted || !termsPlan) return;
+    setAcceptingTerms(true);
+    setTermsError('');
+    try {
+      await acceptProgrammeTerms();
+      const pkg = termsPlan;
+      setTermsPlan(null);
+      setSelectedPlan(pkg);
+      setCreationMethod('single');
+    } catch (error) {
+      setTermsError(error.response?.data?.message || 'We could not record your acceptance. Please try again.');
+    } finally {
+      setAcceptingTerms(false);
+    }
   };
 
   return (
@@ -140,6 +162,26 @@ const Packages = () => {
             </div>
           ))}
         </div>
+
+        {termsPlan && (
+          <div className="account-creation-overlay" onClick={() => setTermsPlan(null)}>
+            <div className="account-creation-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '760px' }}>
+              <div className="modal-header"><h3>Palm Merit Terms &amp; Conditions</h3><button className="modal-close" onClick={() => setTermsPlan(null)}>×</button></div>
+              <div className="modal-body">
+                <p>Please read these Terms &amp; Conditions before choosing the {termsPlan.name}.</p>
+                <div style={{ maxHeight: '48vh', overflowY: 'auto', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#fff' }}>
+                  {terms.map(([title, points]) => <section key={title} style={{ marginBottom: '14px' }}><strong>{title}</strong><ul style={{ margin: '6px 0 0', paddingLeft: '20px' }}>{points.map(point => <li key={point} style={{ fontSize: '0.85rem', marginBottom: '4px' }}>{point}</li>)}</ul></section>)}
+                </div>
+                <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', margin: '16px 0', cursor: 'pointer', lineHeight: 1.45 }}>
+                  <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} style={{ marginTop: '3px', flex: '0 0 auto' }} />
+                  <span style={{ display: 'block', flex: '1 1 auto' }}>I have read and agree to the Palm Merit Terms &amp; Conditions (version 1.0).</span>
+                </label>
+                {termsError && <p className="form-message error" style={{ margin: '0 0 12px', textAlign: 'center' }}>{termsError}</p>}
+                <button className="btn btn-primary continue-btn" onClick={acceptTermsAndSelectPlan} disabled={!termsAccepted || acceptingTerms}>{acceptingTerms ? 'Saving acceptance...' : 'Agree & Continue'}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {selectedPlan && (
           <div className="account-creation-overlay" onClick={() => setSelectedPlan(null)}>

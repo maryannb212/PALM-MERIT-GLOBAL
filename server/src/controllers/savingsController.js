@@ -1,12 +1,22 @@
 import { createSavingsPlan, getUserSavingsPlans } from '../models/savingsModel.js';
 import { getClient, query } from '../config/db.js';
 import { createWalletLedgerEntry } from '../models/transactionModel.js';
+import { clearDefaultsWithWallet } from '../helpers/defaultClearance.js';
 import { createReferralCodeForPlan } from '../models/referralModel.js';
 
 export const subscribeToPlan = async (req, res) => {
   try {
     const { planName, targetAmount, numberOfAccounts, referralCode } = req.body;
     const userId = req.user.id;
+
+    const { rows: termsRows } = await query(
+      `SELECT 1 FROM terms_acceptances
+       WHERE user_id = $1 AND terms_version = '1.0' AND acceptance_type = 'REGISTRATION' AND accepted = TRUE`,
+      [userId]
+    );
+    if (!termsRows[0]) {
+      return res.status(400).json({ message: 'Please accept the Palm Merit Terms & Conditions before choosing a programme.' });
+    }
 
     if (!planName || !targetAmount) {
       return res.status(400).json({ message: 'Plan name and target amount are required' });
@@ -42,7 +52,7 @@ export const subscribeToPlan = async (req, res) => {
     };
 
     const config = planConfigs[planName];
-    const initialSavingsTotal = config.initialSavings * requestedAccounts;
+    const initialSavingsTotal = planName === 'CREST' ? 0 : config.initialSavings * requestedAccounts;
     const regFeeTotal = config.regFee * requestedAccounts;
     const totalFirstPayment = initialSavingsTotal + regFeeTotal;
 
@@ -146,7 +156,7 @@ export const subscribeToPlan = async (req, res) => {
 
       // Calculate end_date based on plan duration
       const planDurations = {
-        CREST: { weeks: 12 },
+        CREST: { days: 90 },
         SILVER: { weeks: 50 },
         GOLDEN_BASKET: { weeks: 50 },
         ISUSU: { days: 30 }
@@ -159,8 +169,12 @@ export const subscribeToPlan = async (req, res) => {
       }
 
       const { rows: updatedPlanRows } = await client.query(
-        'UPDATE savings_plans SET end_date = $1, maturity_date = $1 WHERE id = $2 RETURNING *',
-        [endDate, plan.id]
+        `UPDATE savings_plans SET end_date = $1, maturity_date = $1,
+          completion_date = CASE WHEN $3 = 'CREST' THEN $1 ELSE completion_date END,
+          earliest_settlement_date = CASE WHEN $3 = 'CREST' THEN $1 + INTERVAL '2 days' ELSE earliest_settlement_date END,
+          latest_settlement_date = CASE WHEN $3 = 'CREST' THEN $1 + INTERVAL '8 days' ELSE latest_settlement_date END
+         WHERE id = $2 RETURNING *`,
+        [endDate, plan.id, planName]
       );
       Object.assign(plan, updatedPlanRows[0]);
 
@@ -177,20 +191,23 @@ export const subscribeToPlan = async (req, res) => {
       // Generate one referral code per account
       await createReferralCodeForPlan(client, userId, plan.id, planName, requestedAccounts);
 
-      // Set the initial current_amount of the savings plan to initialSavingsTotal
+      // Set the initial current_amount of the savings plan to the starting balance.
+      // CREST skips the first week's savings contribution and only processes the registration fee on sign-up.
       await client.query(
         'UPDATE savings_plans SET current_amount = $1 WHERE id = $2',
         [initialSavingsTotal, plan.id]
       );
 
-      // Log transactions
-      const savingsRef = `SAV-${Date.now()}`;
-      await client.query(`
-        INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-        VALUES ($1, $2, 'savings', $3, 'completed', $4)
-      `, [userId, plan.id, initialSavingsTotal, savingsRef]);
+      // Log the initial savings contribution only when a plan actually starts with one.
+      if (initialSavingsTotal > 0) {
+        const savingsRef = `SAV-${Date.now()}`;
+        await client.query(`
+          INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
+          VALUES ($1, $2, 'savings', $3, 'completed', $4)
+        `, [userId, plan.id, initialSavingsTotal, savingsRef]);
 
-      await createWalletLedgerEntry(client, userId, 'debit', initialSavingsTotal, savingsRef, `Initial savings deposit for Plan: ${planName}`);
+        await createWalletLedgerEntry(client, userId, 'debit', initialSavingsTotal, savingsRef, `Initial savings deposit for Plan: ${planName}`);
+      }
 
       if (regFeeTotal > 0) {
         const regRef = `REG-${Date.now()}`;
@@ -385,12 +402,8 @@ export const bulkClearance = async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Verify t-shirt paid
       const { rows: users } = await client.query('SELECT available_balance, wallet_balance, tshirt_paid FROM users WHERE id = $1 FOR UPDATE', [userId]);
       const user = users[0];
-      if (!user.tshirt_paid) {
-        throw new Error('T-Shirt Payment Required: You must pay your Incentive T-Shirt fee of ₦5,000 before bulk clearance.');
-      }
 
       // Fetch all pending_clearance plans for this user (where not fully cleared)
       const { rows: plans } = await client.query(
@@ -688,146 +701,26 @@ export const cancelSubscription = async (req, res) => {
   }
 };
 
-const PLANS_CONFIG = {
-  'CREST': 4000,
-  'SILVER': 1500,
-  'GOLDEN_BASKET': 2000,
-  'ISUSU': 500
-};
-
 export const clearDefaults = async (req, res) => {
   const client = await getClient();
   try {
     await client.query('BEGIN');
-
     const userId = req.user.id;
-
-    const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
-    if (users.length === 0) {
+    const result = await clearDefaultsWithWallet(client, userId);
+    if (!result.ok) {
       await client.query('ROLLBACK');
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    const balance = Math.floor(parseFloat(users[0].available_balance));
-
-    const { rows: defaults } = await client.query(`
-      SELECT d.id, d.plan_id, d.penalty_amount, d.missed_date, sp.plan_name, sp.number_of_accounts, sp.current_amount, sp.target_amount
-      FROM defaults d
-      JOIN savings_plans sp ON d.plan_id = sp.id
-      WHERE d.user_id = $1 AND d.resolved = FALSE
-      ORDER BY d.missed_date ASC
-      FOR UPDATE
-    `, [userId]);
-
-    if (defaults.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ message: 'No outstanding defaults to clear' });
-    }
-
-    let remainingBalance = balance;
-    let totalDeducted = 0;
-    let totalToSavings = 0;
-    let resolvedDefaults = 0;
-    const results = [];
-    const remainingByPlan = {};
-
-    for (const d of defaults) {
-      if (remainingBalance <= 0) break;
-
-      const perAccountAmount = PLANS_CONFIG[d.plan_name];
-      if (!perAccountAmount) continue;
-
-      const numAccounts = parseInt(d.number_of_accounts) || 1;
-      let penaltyAmount = Math.floor(parseFloat(d.penalty_amount));
-      const perAccountCost = perAccountAmount * 2;
-      const remainingAccounts = Math.floor(penaltyAmount / perAccountCost);
-      const affordable = Math.floor(remainingBalance / perAccountCost);
-      const accountsToClear = Math.min(affordable, remainingAccounts);
-
-      if (accountsToClear <= 0) continue;
-
-      if (!(d.plan_id in remainingByPlan)) {
-        const tAmount = parseFloat(d.target_amount || 0);
-        const cAmount = parseFloat(d.current_amount || 0);
-        remainingByPlan[d.plan_id] = tAmount > 0 ? Math.floor(tAmount - cAmount) : Infinity;
-      }
-
-      const cost = accountsToClear * perAccountCost;
-      const savingsPortion = Math.min(accountsToClear * perAccountAmount, Math.max(0, remainingByPlan[d.plan_id]));
-      remainingByPlan[d.plan_id] -= savingsPortion;
-      const penaltySettled = cost - savingsPortion;
-
-      remainingBalance -= cost;
-      totalDeducted += cost;
-      totalToSavings += savingsPortion;
-
-      if (savingsPortion > 0) {
-        await client.query(
-          'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-          [savingsPortion, d.plan_id]
-        );
-      }
-
-      const newPenalty = penaltyAmount - cost;
-      if (newPenalty <= 0) {
-        await client.query(
-          'UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1',
-          [d.id]
-        );
-        resolvedDefaults++;
-      } else {
-        await client.query(
-          'UPDATE defaults SET penalty_amount = $1 WHERE id = $2',
-          [newPenalty, d.id]
-        );
-      }
-
-      results.push({
-        defaultId: d.id,
-        plan_name: d.plan_name,
-        accountsCleared: accountsToClear,
-        amountPaid: cost,
-        fullyResolved: newPenalty <= 0
-      });
-    }
-
-    if (totalDeducted <= 0) {
-      await client.query('ROLLBACK');
+      if (result.reason === 'user_not_found') return res.status(404).json({ message: 'User not found' });
+      if (result.reason === 'no_defaults') return res.status(400).json({ message: 'No outstanding defaults to clear' });
       return res.status(400).json({
         message: 'Insufficient wallet balance to clear any defaults',
-        neededPerAccount: `₦${(PLANS_CONFIG[defaults[0]?.plan_name] || 1500) * 2}`
+        neededPerAccount: `₦${(result.needed || 3000).toLocaleString()}`
       });
     }
-
-    await client.query(
-      'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
-      [totalDeducted, userId]
-    );
-
-    const reference = `CLRDFT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    await client.query(
-      `INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-       VALUES ($1, NULL, 'default_clearance', $2, 'completed', $3)`,
-      [userId, totalDeducted, reference]
-    );
-
-    await createWalletLedgerEntry(client, userId, 'debit', totalDeducted, reference, `Wallet clearance of defaults: ₦${totalDeducted.toLocaleString()} (₦${totalToSavings.toLocaleString()} to savings, ₦${(totalDeducted - totalToSavings).toLocaleString()} penalty settled)`);
-
     await client.query('COMMIT');
-
-    const { rows: updatedUser } = await client.query(
-      'SELECT available_balance FROM users WHERE id = $1',
-      [userId]
-    );
-
     res.json({
       success: true,
-      message: `Defaults cleared successfully. ₦${totalDeducted.toLocaleString()} deducted from wallet. ₦${totalToSavings.toLocaleString()} credited to savings plans.`,
-      totalDeducted,
-      totalToSavings,
-      resolvedDefaults,
-      newBalance: Math.floor(parseFloat(updatedUser[0].available_balance)),
-      results
+      message: `Defaults processed. ₦${result.totalDeducted.toLocaleString()} deducted from wallet. ₦${result.totalToSavings.toLocaleString()} credited to savings plans.`,
+      ...result
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -842,91 +735,32 @@ export const clearDefaultById = async (req, res) => {
   const client = await getClient();
   try {
     await client.query('BEGIN');
-
     const userId = req.user.id;
     const { defaultId } = req.params;
-
-    const { rows: defaults } = await client.query(`
-      SELECT d.id, d.penalty_amount, d.plan_id, d.missed_date, sp.plan_name, sp.number_of_accounts, sp.current_amount, sp.target_amount
-      FROM defaults d
-      JOIN savings_plans sp ON d.plan_id = sp.id
-      WHERE d.id = $1 AND d.user_id = $2 AND d.resolved = FALSE
-      FOR UPDATE
-    `, [defaultId, userId]);
-
-    if (defaults.length === 0) {
+    const result = await clearDefaultsWithWallet(client, userId, defaultId);
+    if (!result.ok) {
       await client.query('ROLLBACK');
-      return res.status(404).json({ message: 'Default not found or already resolved' });
+      if (result.reason === 'no_defaults') return res.status(404).json({ message: 'Default not found or already resolved' });
+      if (result.reason === 'insufficient_balance') {
+        return res.status(400).json({
+          message: `Insufficient balance. You need ₦${result.needed.toLocaleString()} to clear this default. You have ₦${result.balance.toLocaleString()}.`,
+          needed: result.needed,
+          balance: result.balance
+        });
+      }
+      return res.status(400).json({ message: 'This default cannot be cleared from the wallet.' });
     }
-
-    const d = defaults[0];
-    const perAccountAmount = PLANS_CONFIG[d.plan_name];
-    if (!perAccountAmount) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ message: 'Unknown plan' });
-    }
-
-    const penaltyAmount = Math.floor(parseFloat(d.penalty_amount));
-
-    const { rows: users } = await client.query('SELECT id, available_balance FROM users WHERE id = $1 FOR UPDATE', [userId]);
-    const balance = Math.floor(parseFloat(users[0].available_balance));
-
-    if (balance < penaltyAmount) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({
-        message: `Insufficient balance. You need ₦${penaltyAmount.toLocaleString()} to clear this default. You have ₦${balance.toLocaleString()}.`,
-        needed: penaltyAmount,
-        balance
-      });
-    }
-
-    const tAmount = parseFloat(d.target_amount || 0);
-    const cAmount = parseFloat(d.current_amount || 0);
-    const remainingToTarget = tAmount > 0 ? Math.floor(tAmount - cAmount) : Infinity;
-    const savingsPortion = Math.min(Math.floor(penaltyAmount / 2), Math.max(0, remainingToTarget));
-    const penaltySettled = penaltyAmount - savingsPortion;
-
-    await client.query(
-      'UPDATE users SET available_balance = available_balance - $1, wallet_balance = wallet_balance - $1 WHERE id = $2',
-      [penaltyAmount, userId]
-    );
-
-    if (savingsPortion > 0) {
-      await client.query(
-        'UPDATE savings_plans SET current_amount = COALESCE(current_amount, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-        [savingsPortion, d.plan_id]
-      );
-    }
-
-    await client.query(
-      'UPDATE defaults SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [d.id]
-    );
-
-    const reference = `CLRDFT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    await client.query(
-      `INSERT INTO transactions (user_id, plan_id, type, amount, status, reference)
-       VALUES ($1, $2, 'default_clearance', $3, 'completed', $4)`,
-      [userId, d.plan_id, penaltyAmount, reference]
-    );
-
-    await createWalletLedgerEntry(client, userId, 'debit', penaltyAmount, reference,
-      `Cleared default for ${d.plan_name}: ₦${savingsPortion.toLocaleString()} to savings, ₦${penaltySettled.toLocaleString()} penalty settled`);
 
     await client.query('COMMIT');
-
-    const { rows: updatedUser } = await client.query(
-      'SELECT available_balance FROM users WHERE id = $1', [userId]
-    );
-
+    const cleared = result.results[0];
     res.json({
       success: true,
-      message: `Default cleared. ₦${penaltyAmount.toLocaleString()} deducted from wallet. ₦${savingsPortion.toLocaleString()} credited to ${d.plan_name} savings.`,
-      defaultId: d.id,
-      amountDeducted: penaltyAmount,
-      savingsCredited: savingsPortion,
-      planName: d.plan_name,
-      newBalance: Math.floor(parseFloat(updatedUser[0].available_balance))
+      message: `Default cleared. ₦${result.totalDeducted.toLocaleString()} deducted from wallet. ₦${result.totalToSavings.toLocaleString()} credited to ${cleared.plan_name} savings.`,
+      defaultId: cleared.defaultId,
+      amountDeducted: result.totalDeducted,
+      savingsCredited: result.totalToSavings,
+      planName: cleared.plan_name,
+      newBalance: result.newBalance
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -936,4 +770,3 @@ export const clearDefaultById = async (req, res) => {
     client.release();
   }
 };
-
