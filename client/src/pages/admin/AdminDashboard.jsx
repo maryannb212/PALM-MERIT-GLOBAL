@@ -62,7 +62,7 @@ const AdminDashboard = () => {
   };
 
   const handleRunMaturity = async () => {
-    if (!window.confirm('Run the maturity check now? Fully funded plans that have reached their maturity day will enter eligibility review.')) return;
+    if (!window.confirm('Run the maturity check now? A plan that completes its 84-day cycle and reaches day 90 will enter eligibility review.')) return;
     try {
       setMaturityRunning(true);
       const { data } = await runMaturityCheck();
@@ -152,7 +152,7 @@ const AdminDashboard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div className="stat-icon-wrapper" style={{ background: 'rgba(212, 175, 55, 0.12)', color: '#800020' }}><FaClipboardCheck /></div>
-            <div><h3 style={{ margin: 0 }}>Maturity & Clearance Pipeline</h3><p className="text-muted" style={{ margin: '5px 0 0' }}>Run the maturity check and move completed cycles into eligibility review.</p></div>
+            <div><h3 style={{ margin: 0 }}>Maturity & Clearance Pipeline</h3><p className="text-muted" style={{ margin: '5px 0 0' }}>84-day savings completion • 90-day eligibility review • clearance follows after review.</p></div>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button className="btn btn-outline" type="button" onClick={() => navigate('/admin/eligibility-queue')}>Eligibility Review ({maturitySummary.eligibility_review || 0})</button>

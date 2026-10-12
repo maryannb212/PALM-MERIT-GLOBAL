@@ -2,34 +2,19 @@ import cron from 'node-cron';
 import pool from '../config/db.js';
 import logger from '../utils/logger.js';
 
-const PLAN_CONFIG = {
-  'CREST': { amount: 4000, isDaily: false, weeks: 12 },
-  'SILVER': { amount: 1500, isDaily: false, weeks: 50 },
-  'GOLDEN_BASKET': { amount: 2000, isDaily: false, weeks: 50 },
-  'ISUSU': { amount: 500, isDaily: true, days: 30 }
-};
+const CYCLE_COMPLETION_DAYS = 84;
+const ELIGIBILITY_REVIEW_DAYS = 90;
 
-const getDurationDays = (planName) => {
-  switch (planName) {
-    case 'CREST': return 90; // Crest policy: completion is day 90
-    case 'SILVER': return 350; // ~50 weeks
-    case 'GOLDEN_BASKET': return 350;
-    case 'ISUSU': return 30;
-    default: return 0;
-  }
+const getCycleDates = (startDate) => {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const completionDate = new Date(new Date(startDate).getTime() + (CYCLE_COMPLETION_DAYS * msPerDay));
+  const reviewDate = new Date(new Date(startDate).getTime() + (ELIGIBILITY_REVIEW_DAYS * msPerDay));
+  return { completionDate, reviewDate };
 };
 
 const hasCompletedContributions = (plan) => {
-  const config = PLAN_CONFIG[plan.plan_name];
-  if (!config) return false;
-
-  const numAccounts = plan.number_of_accounts || 1;
-  if (config.isDaily) {
-    const expected = config.amount * numAccounts * config.days;
-    return parseFloat(plan.current_amount || 0) >= expected;
-  }
-  const expected = config.amount * numAccounts * config.weeks;
-  return parseFloat(plan.current_amount || 0) >= expected;
+  const targetAmount = parseFloat(plan.target_amount || 0);
+  return targetAmount > 0 && parseFloat(plan.current_amount || 0) >= targetAmount;
 };
 
 export const runMaturityCheck = async () => {
@@ -42,15 +27,13 @@ export const runMaturityCheck = async () => {
 
     // Fetch active plans to evaluate
     const { rows: activePlans } = await client.query(`
-      SELECT id, user_id, plan_name, start_date, current_amount, number_of_accounts
+      SELECT id, user_id, plan_name, start_date, current_amount, target_amount, number_of_accounts
       FROM savings_plans 
-      WHERE status = 'active'
+      WHERE status IN ('active', 'matured')
     `);
 
     for (const plan of activePlans) {
       summary.checked += 1;
-      const durationDays = getDurationDays(plan.plan_name);
-      if (durationDays === 0) continue;
 
       // Determine the actual contribution start date from the first savings transaction
       const { rows: contribRows } = await client.query(
@@ -59,18 +42,22 @@ export const runMaturityCheck = async () => {
       );
       const contributionDate = contribRows[0].contribution_date ? new Date(contribRows[0].contribution_date) : new Date(plan.start_date);
       const startDate = contributionDate;
-      const maturityDate = new Date(startDate.getTime() + (durationDays * 24 * 60 * 60 * 1000));
+      const { completionDate, reviewDate } = getCycleDates(startDate);
       const now = new Date();
 
-      if (now >= maturityDate) {
+      if (now >= completionDate && hasCompletedContributions(plan)) {
+        logger.info(`Plan ${plan.id} (${plan.plan_name}) has completed its savings cycle on day ${CYCLE_COMPLETION_DAYS}.`);
+      }
+
+      if (now >= reviewDate) {
         // Check that required contributions have been completed
         if (!hasCompletedContributions(plan)) {
           summary.skippedIncomplete += 1;
-          logger.warn(`Plan ${plan.id} (${plan.plan_name}) reached maturity date but hasn't completed all contributions. Skipping.`);
+          logger.warn(`Plan ${plan.id} (${plan.plan_name}) reached eligibility review date but hasn't completed all contributions. Skipping.`);
           continue;
         }
 
-        logger.info(`Plan ${plan.id} (${plan.plan_name}) has matured.`);
+        logger.info(`Plan ${plan.id} (${plan.plan_name}) has entered eligibility review.`);
         summary.matured += 1;
 
         const newStatus = 'eligibility_review';
@@ -80,18 +67,11 @@ export const runMaturityCheck = async () => {
           SET status = $1, maturity_date = $2, updated_at = CURRENT_TIMESTAMP
           WHERE id = $3
         `;
-        await client.query(updateQuery, [newStatus, maturityDate, plan.id]);
+        await client.query(updateQuery, [newStatus, reviewDate, plan.id]);
 
-        // Insert a user notification about cycle completion and clearance availability (6 days ahead)
-        try {
-          const msPerDay = 24 * 60 * 60 * 1000;
-          const clearanceDate = new Date(maturityDate.getTime() + (6 * msPerDay));
-          const clearanceDateStr = clearanceDate.toLocaleDateString('en-NG');
-          const msg = `Savings cycle completed — congratulations 🍷 🎉. Clearance will be available on ${clearanceDateStr}.`;
-          await client.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'clearance')`, [plan.user_id, 'Savings cycle completed', msg]);
-        } catch (err) {
-          logger.error('Failed to insert cycle completion notification for plan', plan.id, err);
-        }
+        // Keep the transition and notification atomic so the daily job can retry both on failure.
+        const msg = 'Congratulations! Your savings cycle has completed and you are now in eligibility review. Please complete your clearance process as required.';
+        await client.query(`INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'clearance')`, [plan.user_id, 'Eligibility review started', msg]);
       }
     }
 

@@ -55,7 +55,7 @@ const Subscriptions = () => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'active': return <span className="badge badge-success">Active</span>;
-      case 'eligibility_review': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Completed</span>;
+      case 'eligibility_review': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Completed • Review</span>;
       case 'matured': return <span className="badge" style={{ background: '#10b981', color: '#fff' }}>Completed</span>;
       case 'pending_clearance': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Pending Clearance</span>;
       case 'pending_settlement': return <span className="badge" style={{ background: '#f59e0b', color: '#fff' }}>Eligibility Review</span>;
@@ -254,7 +254,7 @@ const Subscriptions = () => {
                   {plan.status === 'eligibility_review' && (
                     <div className="payout-info">
                       <FaCheckCircle /> 
-                      <span>Your savings cycle has been completed. Awaiting admin review.</span>
+                      <span>Congratulations! Your savings cycle completed on day 84 and you are now in eligibility review on day 90.</span>
                     </div>
                   )}
 

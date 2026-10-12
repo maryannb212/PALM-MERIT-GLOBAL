@@ -39,7 +39,7 @@ const CreateSubscription = () => {
   // Multiply based on number of accounts
   const totalRegFee = regFeeNum * numberOfAccounts;
   const totalSavingsAmount = savingAmountNum * numberOfAccounts;
-  const totalInitialPayment = totalRegFee + totalSavingsAmount;
+  const totalInitialPayment = totalRegFee;
   const totalTargetSavings = plan.rawMinTarget * numberOfAccounts;
   
   const formatCurrency = (amount) => {
@@ -103,7 +103,7 @@ const CreateSubscription = () => {
               <div className="alert-icon">⚠️</div>
               <div className="alert-content">
                 <strong>Important Note</strong>
-                <p>Your first payment is {formatCurrency(totalInitialPayment)}, which is {formatCurrency(totalSavingsAmount)} for your initial savings and one time {formatCurrency(totalRegFee)} for registration fee (for {numberOfAccounts} account{numberOfAccounts > 1 ? 's' : ''}).</p>
+                <p>Your first payment is {formatCurrency(totalInitialPayment)}, which is the one-time registration fee for {numberOfAccounts} account{numberOfAccounts > 1 ? 's' : ''}. Regular savings contributions start after registration.</p>
               </div>
             </div>
 
@@ -163,7 +163,7 @@ const CreateSubscription = () => {
                 <div style={{ borderLeft: '2px solid #cbd5e1', height: '15px', marginLeft: '13px' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#800020', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }}>5</div>
-                  <div style={{ fontSize: '0.9rem', color: '#334155' }}><strong>Eligibility Review</strong> by PALM MERIT (referrals & compliance).</div>
+                  <div style={{ fontSize: '0.9rem', color: '#334155' }}><strong>Eligibility Review</strong> starts on day 90 after the 84-day savings completion window.</div>
                 </div>
                 <div style={{ borderLeft: '2px solid #cbd5e1', height: '15px', marginLeft: '13px' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

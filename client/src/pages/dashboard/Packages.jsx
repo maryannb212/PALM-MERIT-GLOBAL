@@ -12,7 +12,7 @@ const PACKAGES = [
     name: 'CREST Programme',
     icon: '🏆',
     subscribers: 'Cooperative Savings',
-    description: 'A focused 3-month (90 days) savings cycle designed for short-term goals.',
+    description: 'A focused savings cycle that completes in 84 days, with eligibility review beginning on day 90.',
     regFee: '₦3,000',
     amount: '₦4,000.00',
     frequency: 'weekly',

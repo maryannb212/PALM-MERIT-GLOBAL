@@ -4,7 +4,7 @@ import './HomePage.css';
 import { FaArrowRight, FaCheck, FaQuoteLeft, FaShieldAlt, FaUsers, FaWallet } from 'react-icons/fa';
 
 const plans = [
-  { name: 'CREST', label: 'Focused savings', amount: '₦4,000', target: '₦48,000', cycle: '90 days', tone: 'crest' },
+  { name: 'CREST', label: 'Focused savings', amount: '₦4,000', target: '₦48,000', cycle: '84-day completion • 90-day review', tone: 'crest' },
   { name: 'SILVER', label: 'Steady capital', amount: '₦1,500', target: '₦75,000', cycle: '360 days', tone: 'silver', featured: true },
   { name: 'GOLDEN BASKET', label: 'Savings + food security', amount: '₦2,000', target: '₦100,000', cycle: '360 days', tone: 'gold' }
 ];

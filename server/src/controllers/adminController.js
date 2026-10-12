@@ -124,16 +124,9 @@ export const getUserById = async (req, res) => {
         );
         const contributionDate = contribRows[0].contribution_date ? new Date(contribRows[0].contribution_date) : (plan.start_date ? new Date(plan.start_date) : null);
 
-        // duration mapping (days) - align with weekly/daily config
-        const durationMap = {
-          'CREST': 84,        // 12 weeks
-          'SILVER': 350,      // 50 weeks
-          'GOLDEN_BASKET': 350,
-          'ISUSU': 30         // 30 days
-        };
         const msPerDay = 24 * 60 * 60 * 1000;
         const now = new Date();
-        const durationDays = durationMap[plan.plan_name] || 0;
+        const durationDays = 84;
 
         plan.cycleDurationDays = durationDays;
         if (contributionDate) {
@@ -143,35 +136,21 @@ export const getUserById = async (req, res) => {
           plan.cycleDaysElapsed = null;
         }
 
-        // expected contributions based on plan config
-        const cfg = {
-          'CREST': { amount: 4000, weeks: 12 },
-          'SILVER': { amount: 1500, weeks: 50 },
-          'GOLDEN_BASKET': { amount: 2000, weeks: 50 },
-          'ISUSU': { amount: 500, days: 30 }
-        };
-        const c = cfg[plan.plan_name];
-        const numAccounts = plan.number_of_accounts || 1;
-        let expectedContributions = 0;
-        if (c) {
-          if (c.days) expectedContributions = c.amount * numAccounts * c.days;
-          else expectedContributions = c.amount * numAccounts * c.weeks;
-        }
-
         const currentAmount = parseFloat(plan.current_amount || 0);
-        const contributionsComplete = currentAmount >= expectedContributions;
+        const targetAmount = parseFloat(plan.target_amount || 0);
+        const contributionsComplete = targetAmount > 0 && currentAmount >= targetAmount;
 
         const cycleTimeReached = (plan.cycleDaysElapsed !== null && durationDays > 0) ? (plan.cycleDaysElapsed >= durationDays) : false;
 
         plan.cycleCompleted = contributionsComplete && cycleTimeReached;
 
         if (plan.cycleCompleted) {
-          // compute clearance availability date (next 6 days)
-          const clearanceDate = new Date(now.getTime() + (6 * msPerDay));
-          const clearanceDateStr = clearanceDate.toLocaleDateString('en-NG');
-          plan.computed_status = 'completed';
-          plan.completionMessage = `Savings cycle completed — congratulations 🍷 🎉. Clearance will be available on ${clearanceDateStr}.`;
-          plan.clearanceAvailableDate = clearanceDateStr;
+          const reviewStarted = plan.status === 'eligibility_review';
+          plan.computed_status = reviewStarted ? 'eligibility_review' : 'completed';
+          plan.completionMessage = reviewStarted
+            ? 'Congratulations! Your savings cycle has completed and you are now in eligibility review.'
+            : 'Your savings cycle is complete. Eligibility review begins on day 90.';
+          plan.clearanceAvailableDate = null;
         } else {
           plan.computed_status = plan.status;
         }

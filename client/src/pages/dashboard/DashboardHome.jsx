@@ -380,7 +380,7 @@ const DashboardHome = () => {
               {recentTransactions.map((plan) => {
                 const statusLabels = {
                   active: 'Active', completed: 'Completed', cancelled: 'Cancelled',
-                  maturity: 'Completed', eligibility_review: 'Completed',
+                  maturity: 'Completed', eligibility_review: 'Completed • Day 90 Review',
                   pending_clearance: 'Pending Clearance', pending_settlement: 'Eligibility Review',
                   settled: 'Paid'
                 };
