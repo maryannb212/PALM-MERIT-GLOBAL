@@ -41,6 +41,10 @@ const Subscriptions = () => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
   };
 
+  const formatDate = (date) => new Date(date).toLocaleDateString('en-NG', {
+    timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
   const calculateROI = (plan) => {
     return plan.target_amount;
   };
@@ -254,7 +258,13 @@ const Subscriptions = () => {
                   {plan.status === 'eligibility_review' && (
                     <div className="payout-info">
                       <FaCheckCircle /> 
-                      <span>Congratulations! Your savings cycle completed on day 84 and you are now in eligibility review on day 90.</span>
+                      {plan.clearance_required ? (
+                        <span>
+                          Congratulations! You have completed your savings cycle. Your clearance will be available on {formatDate(plan.clearance_available_date)}, three days after your 90-day review. You can then pay ₦3,000 per account under Dashboard &gt; Clearance.
+                        </span>
+                      ) : (
+                        <span>Congratulations! You have completed your savings cycle and reached your 90-day review. Your plan is ready for admin payout review.</span>
+                      )}
                     </div>
                   )}
 

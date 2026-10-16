@@ -898,6 +898,7 @@ export const getEligibilityQueue = async (req, res) => {
       FROM savings_plans sp
       JOIN users u ON sp.user_id = u.id
       WHERE sp.status = 'eligibility_review'
+        AND COALESCE(sp.clearance_required, FALSE) = FALSE
       ORDER BY sp.maturity_date ASC;
     `;
     const result = await query(sql);
@@ -1161,6 +1162,9 @@ export const approveEligibility = async (req, res) => {
     if (plan.status !== 'eligibility_review') {
       return res.status(400).json({ message: 'Plan is not in eligibility review status' });
     }
+    if (plan.clearance_required) {
+      return res.status(400).json({ message: 'Clearance-required plans become available for user payment three days after the 90-day review. Admin payout approval happens after clearance is complete.' });
+    }
 
     // Validate that contributions are complete
     const expectedContributions = (() => {
@@ -1219,7 +1223,7 @@ export const approveEligibility = async (req, res) => {
       if (newStatus === 'pending_clearance') {
         const accounts = plan.number_of_accounts || 1;
         const totalFee = accounts * 3000;
-        const msg = `${plan.plan_name} program has passed eligibility review. Pay ₦${totalFee.toLocaleString()} clearance fee (₦3,000 × ${accounts} account(s)) to proceed to settlement.`;
+        const msg = `${plan.plan_name} program has passed admin eligibility review. Clearance is now due. Open Dashboard > Clearance and pay ₦${totalFee.toLocaleString()} (₦3,000 × ${accounts} account(s)) to proceed to settlement.`;
         await client.query(`
           INSERT INTO notifications (user_id, title, message, type)
           VALUES ($1, 'Clearance Required', $2, 'clearance')
