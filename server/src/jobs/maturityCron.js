@@ -2,18 +2,23 @@ import cron from 'node-cron';
 import pool from '../config/db.js';
 import logger from '../utils/logger.js';
 
-const CYCLE_DAYS = 90;
-const CLEARANCE_OPEN_DAYS = CYCLE_DAYS + 3;
+const PLAN_CYCLES = {
+  CREST: { cycleDays: 90, clearanceRequired: true, clearanceDaysAfterReview: 3 },
+  SILVER: { cycleDays: 350, clearanceRequired: true, clearanceDaysAfterReview: 3 },
+  GOLDEN_BASKET: { cycleDays: 350, clearanceRequired: false, clearanceDaysAfterReview: 0 },
+  ISUSU: { cycleDays: 30, clearanceRequired: false, clearanceDaysAfterReview: 0 },
+};
 
-const getCycleDates = (startDate) => {
+const getCycleDates = (startDate, planName) => {
   const msPerDay = 24 * 60 * 60 * 1000;
+  const config = PLAN_CYCLES[planName] || { cycleDays: 90, clearanceRequired: false, clearanceDaysAfterReview: 0 };
   const startDateInLagos = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date(startDate));
   const cycleStart = new Date(`${startDateInLagos}T00:00:00+01:00`);
-  const cycleEndDate = new Date(cycleStart.getTime() + (CYCLE_DAYS * msPerDay));
-  const clearanceDate = new Date(cycleStart.getTime() + (CLEARANCE_OPEN_DAYS * msPerDay));
-  return { cycleEndDate, clearanceDate };
+  const cycleEndDate = new Date(cycleStart.getTime() + (config.cycleDays * msPerDay));
+  const clearanceDate = new Date(cycleStart.getTime() + ((config.cycleDays + config.clearanceDaysAfterReview) * msPerDay));
+  return { cycleEndDate, clearanceDate, config };
 };
 
 const hasCompletedContributions = (plan) => {
@@ -47,7 +52,7 @@ export const runMaturityCheck = async () => {
       );
       const contributionDate = contribRows[0].contribution_date ? new Date(contribRows[0].contribution_date) : new Date(plan.start_date);
       const startDate = contributionDate;
-      const { cycleEndDate, clearanceDate } = getCycleDates(startDate);
+      const { cycleEndDate, clearanceDate, config } = getCycleDates(startDate, plan.plan_name);
       const now = new Date();
 
       if (now >= cycleEndDate) {
@@ -56,7 +61,7 @@ export const runMaturityCheck = async () => {
         const clearanceDateLabel = clearanceDate.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric' });
 
         if (plan.status !== 'eligibility_review' && now < clearanceDate) {
-          logger.info(`Plan ${plan.id} (${plan.plan_name}) has reached cycle end (Day 90). Moving to eligibility review. Contributions complete: ${contributionsComplete}`);
+          logger.info(`Plan ${plan.id} (${plan.plan_name}) has reached cycle end (Day ${config.cycleDays}). Moving to eligibility review. Contributions complete: ${contributionsComplete}`);
           summary.matured += 1;
           await client.query(`
             UPDATE savings_plans
@@ -67,12 +72,12 @@ export const runMaturityCheck = async () => {
 
         if (!contributionsComplete) {
           summary.skippedIncomplete += 1;
-          logger.warn(`Plan ${plan.id} (${plan.plan_name}) reached cycle end (Day 90) but hasn't completed all contributions. Moved to eligibility_review for admin review.`);
+          logger.warn(`Plan ${plan.id} (${plan.plan_name}) reached cycle end (Day ${config.cycleDays}) but hasn't completed all contributions. Moved to eligibility_review for admin review.`);
         }
 
         const title = `Congratulations: ${plan.plan_name} savings cycle complete`;
-        const msg = plan.clearance_required
-          ? `Congratulations! You have completed your ${plan.plan_name} savings cycle. Your cycle ends today (${cycleEndLabel}). Your clearance will be available in 3 days (on ${clearanceDateLabel}). You can then pay ₦3,000 per account under Dashboard > Clearance. Admin payout approval happens after your clearance is complete.`
+        const msg = config.clearanceRequired
+          ? `Congratulations! You have completed your ${plan.plan_name} savings cycle. Your cycle ends today (${cycleEndLabel}). Your clearance will be available in ${config.clearanceDaysAfterReview} days (on ${clearanceDateLabel}). You can then pay ₦3,000 per account under Dashboard > Clearance. Admin payout approval happens after your clearance is complete.`
           : `Congratulations! You have completed your ${plan.plan_name} savings cycle and your cycle ended on ${cycleEndLabel}. Your plan is now ready for admin payout review.`;
 
         await client.query(`
@@ -84,7 +89,7 @@ export const runMaturityCheck = async () => {
           )
         `, [plan.user_id, title, msg]);
 
-        if (plan.clearance_required && now >= clearanceDate && plan.status !== 'pending_clearance') {
+        if (config.clearanceRequired && now >= clearanceDate && plan.status !== 'pending_clearance') {
           await client.query(`
             UPDATE savings_plans
             SET status = 'pending_clearance', clearance_required = TRUE,
