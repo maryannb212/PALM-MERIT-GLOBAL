@@ -9,6 +9,8 @@ const PLAN_CYCLES = {
   ISUSU: { cycleDays: 30, clearanceRequired: false, clearanceDaysAfterReview: 0 },
 };
 
+const BATCH_SIZE = 500;
+
 const getCycleDates = (startDate, planName) => {
   const msPerDay = 24 * 60 * 60 * 1000;
   const config = PLAN_CYCLES[planName] || { cycleDays: 90, clearanceRequired: false, clearanceDaysAfterReview: 0 };
@@ -26,100 +28,198 @@ const hasCompletedContributions = (plan) => {
   return targetAmount > 0 && parseFloat(plan.current_amount || 0) >= targetAmount;
 };
 
+const buildNotificationMessage = (plan, cycleEndLabel, clearanceDateLabel, config) => {
+  const title = `Congratulations: ${plan.plan_name} savings cycle complete`;
+  const msg = config.clearanceRequired
+    ? `Congratulations! You have completed your ${plan.plan_name} savings cycle. Your cycle ends today (${cycleEndLabel}). Your clearance will be available in ${config.clearanceDaysAfterReview} days (on ${clearanceDateLabel}). You can then pay ₦3,000 per account under Dashboard > Clearance. Admin payout approval happens after your clearance is complete.`
+    : `Congratulations! You have completed your ${plan.plan_name} savings cycle and your cycle ended on ${cycleEndLabel}. Your plan is now ready for admin payout review.`;
+  return { title, message: msg };
+};
+
+const buildClearanceMessage = (plan) => ({
+  title: `${plan.plan_name} clearance is now available`,
+  message: `Your clearance period has started. Pay ₦3,000 per account under Dashboard > Clearance. After all accounts are cleared, your plan will be ready for admin payout approval.`
+});
+
+async function processBatch(client, batch, now, summary) {
+  const plansToReview = [];
+  const plansToClearance = [];
+  const notificationsToSend = [];
+  const clearanceNotificationsToSend = [];
+
+  for (const plan of batch) {
+    const contributionDate = new Date(plan.first_contribution);
+    const { cycleEndDate, clearanceDate, config } = getCycleDates(contributionDate, plan.plan_name);
+    const contributionsComplete = hasCompletedContributions(plan);
+
+    if (now < cycleEndDate) continue;
+
+    summary.matured += 1;
+
+    const cycleEndLabel = cycleEndDate.toLocaleDateString('en-NG', {
+      timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric'
+    });
+    const clearanceDateLabel = clearanceDate.toLocaleDateString('en-NG', {
+      timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric'
+    });
+
+    if (!contributionsComplete) {
+      summary.skippedIncomplete += 1;
+    }
+
+    if (plan.status !== 'eligibility_review' && now < clearanceDate) {
+      plansToReview.push({
+        id: plan.id,
+        cycleEndDate,
+        maturityDate: cycleEndDate
+      });
+    } else if (plan.status !== 'eligibility_review' && now >= clearanceDate) {
+      plansToClearance.push({
+        id: plan.id,
+        cycleEndDate,
+        clearanceRequired: config.clearanceRequired
+      });
+    }
+
+    const { title, message } = buildNotificationMessage(plan, cycleEndLabel, clearanceDateLabel, config);
+    notificationsToSend.push({
+      user_id: plan.user_id,
+      title,
+      message,
+      type: 'clearance'
+    });
+
+    if (config.clearanceRequired && now >= clearanceDate && plan.status !== 'pending_clearance') {
+      const { title: cTitle, message: cMessage } = buildClearanceMessage(plan);
+      clearanceNotificationsToSend.push({
+        user_id: plan.user_id,
+        title: cTitle,
+        message: cMessage,
+        type: 'clearance'
+      });
+    }
+  }
+
+  if (plansToReview.length > 0) {
+    const ids = plansToReview.map(p => p.id);
+    const maturityDates = plansToReview.map(p => p.cycleEndDate.toISOString());
+    const caseClauses = plansToReview.map((p, i) => `WHEN id = '${p.id}' THEN $${i + 1}::timestamptz`).join(' ');
+    const query = `
+      UPDATE savings_plans
+      SET status = 'eligibility_review',
+          maturity_date = CASE ${caseClauses} END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ANY($${plansToReview.length + 1})
+    `;
+    await client.query(query, [...maturityDates, ids]);
+    logger.info(`Moved ${plansToReview.length} plans to eligibility_review`);
+  }
+
+  if (plansToClearance.length > 0) {
+    const clearanceIds = plansToClearance.filter(p => p.clearanceRequired).map(p => p.id);
+    const clearanceMaturityDates = plansToClearance.filter(p => p.clearanceRequired).map(p => p.cycleEndDate.toISOString());
+
+    if (clearanceIds.length > 0) {
+      const caseClauses = plansToClearance
+        .filter(p => p.clearanceRequired)
+        .map((p, i) => `WHEN id = '${p.id}' THEN $${i + 1}::timestamptz`).join(' ');
+      const query = `
+        UPDATE savings_plans
+        SET status = 'pending_clearance',
+            clearance_required = TRUE,
+            maturity_date = CASE ${caseClauses} END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ANY($${clearanceIds.length + 1})
+      `;
+      await client.query(query, [...clearanceMaturityDates, clearanceIds]);
+      logger.info(`Moved ${clearanceIds.length} plans to pending_clearance`);
+    }
+  }
+
+  const allNotifications = [...notificationsToSend, ...clearanceNotificationsToSend];
+  if (allNotifications.length > 0) {
+    const placeholders = allNotifications.map((_, i) =>
+      `($${i * 4 + 1}, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4})`
+    ).join(', ');
+
+    const values = allNotifications.flatMap(n => [n.user_id, n.title, n.message, n.type]);
+
+    const query = `
+      INSERT INTO notifications (user_id, title, message, type)
+      VALUES ${placeholders}
+    `;
+
+    const result = await client.query(query, values);
+    summary.notifications += result.rowCount || 0;
+    logger.info(`Sent ${result.rowCount || 0} notifications in this batch`);
+  }
+}
+
 export const runMaturityCheck = async () => {
   logger.info('Running maturity check job...');
-  const client = await pool.connect();
-  const summary = { checked: 0, matured: 0, skippedIncomplete: 0 };
+  const summary = { checked: 0, matured: 0, skippedIncomplete: 0, notifications: 0 };
+  const now = new Date();
 
   try {
-    await client.query('BEGIN');
+    let lastId = null;
+    let hasMore = true;
+    let batchNum = 0;
 
-    // Fetch active plans to evaluate
-    const { rows: activePlans } = await client.query(`
-          SELECT id, user_id, plan_name, start_date, current_amount, target_amount,
-           number_of_accounts, clearance_required, status
-      FROM savings_plans 
-          WHERE status IN ('active', 'matured', 'eligibility_review')
-    `);
+    while (hasMore) {
+      batchNum++;
+      const client = await pool.connect();
 
-    for (const plan of activePlans) {
-      summary.checked += 1;
+      try {
+        await client.query('BEGIN');
 
-      // Determine the actual contribution start date from the first savings transaction
-      const { rows: contribRows } = await client.query(
-        `SELECT MIN(created_at) AS contribution_date FROM transactions WHERE plan_id = $1 AND type = 'savings'`,
-        [plan.id]
-      );
-      const contributionDate = contribRows[0].contribution_date ? new Date(contribRows[0].contribution_date) : new Date(plan.start_date);
-      const startDate = contributionDate;
-      const { cycleEndDate, clearanceDate, config } = getCycleDates(startDate, plan.plan_name);
-      const now = new Date();
+        let query = `
+          SELECT sp.id, sp.user_id, sp.plan_name, sp.start_date, sp.current_amount, sp.target_amount,
+                 sp.number_of_accounts, sp.clearance_required, sp.status,
+                 COALESCE(MIN(t.created_at), sp.start_date) as first_contribution
+          FROM savings_plans sp
+          LEFT JOIN transactions t ON t.plan_id = sp.id AND t.type = 'savings'
+          WHERE sp.status IN ('active', 'matured', 'eligibility_review')
+        `;
+        const params = [];
 
-      if (now >= cycleEndDate) {
-        const contributionsComplete = hasCompletedContributions(plan);
-        const cycleEndLabel = cycleEndDate.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric' });
-        const clearanceDateLabel = clearanceDate.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric' });
-
-        if (plan.status !== 'eligibility_review' && now < clearanceDate) {
-          logger.info(`Plan ${plan.id} (${plan.plan_name}) has reached cycle end (Day ${config.cycleDays}). Moving to eligibility review. Contributions complete: ${contributionsComplete}`);
-          summary.matured += 1;
-          await client.query(`
-            UPDATE savings_plans
-            SET status = 'eligibility_review', maturity_date = $1, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
-          `, [cycleEndDate, plan.id]);
+        if (lastId !== null) {
+          query += ` AND sp.id > $${params.length + 1}`;
+          params.push(lastId);
         }
 
-        if (!contributionsComplete) {
-          summary.skippedIncomplete += 1;
-          logger.warn(`Plan ${plan.id} (${plan.plan_name}) reached cycle end (Day ${config.cycleDays}) but hasn't completed all contributions. Moved to eligibility_review for admin review.`);
+        query += ` GROUP BY sp.id ORDER BY sp.id LIMIT $${params.length + 1}`;
+        params.push(BATCH_SIZE);
+
+        const { rows: batch } = await client.query(query, params);
+
+        if (batch.length === 0) {
+          hasMore = false;
+          await client.query('COMMIT');
+          client.release();
+          break;
         }
 
-        const title = `Congratulations: ${plan.plan_name} savings cycle complete`;
-        const msg = config.clearanceRequired
-          ? `Congratulations! You have completed your ${plan.plan_name} savings cycle. Your cycle ends today (${cycleEndLabel}). Your clearance will be available in ${config.clearanceDaysAfterReview} days (on ${clearanceDateLabel}). You can then pay ₦3,000 per account under Dashboard > Clearance. Admin payout approval happens after your clearance is complete.`
-          : `Congratulations! You have completed your ${plan.plan_name} savings cycle and your cycle ended on ${cycleEndLabel}. Your plan is now ready for admin payout review.`;
+        summary.checked += batch.length;
+        lastId = batch[batch.length - 1].id;
 
-        await client.query(`
-          INSERT INTO notifications (user_id, title, message, type)
-          SELECT $1, $2, $3, 'clearance'
-          WHERE NOT EXISTS (
-            SELECT 1 FROM notifications
-            WHERE user_id = $1 AND title = $2 AND message = $3
-          )
-        `, [plan.user_id, title, msg]);
+        await processBatch(client, batch, now, summary);
 
-        if (config.clearanceRequired && now >= clearanceDate && plan.status !== 'pending_clearance') {
-          await client.query(`
-            UPDATE savings_plans
-            SET status = 'pending_clearance', clearance_required = TRUE,
-                maturity_date = $1, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $2
-          `, [cycleEndDate, plan.id]);
-
-          const clearanceTitle = `${plan.plan_name} clearance is now available`;
-          const clearanceMessage = `Your clearance period has started. Pay ₦3,000 per account under Dashboard > Clearance. After all accounts are cleared, your plan will be ready for admin payout approval.`;
-          await client.query(`
-            INSERT INTO notifications (user_id, title, message, type)
-            SELECT $1, $2, $3, 'clearance'
-            WHERE NOT EXISTS (
-              SELECT 1 FROM notifications
-              WHERE user_id = $1 AND title = $2 AND message = $3
-            )
-          `, [plan.user_id, clearanceTitle, clearanceMessage]);
-        }
+        await client.query('COMMIT');
+        logger.info(`Batch ${batchNum} completed. Processed ${batch.length} plans. Total checked: ${summary.checked}`);
+      } catch (error) {
+        await client.query('ROLLBACK');
+        logger.error(`Error in batch ${batchNum}:`, error);
+        throw error;
+      } finally {
+        client.release();
       }
     }
 
-    await client.query('COMMIT');
-    logger.info('Maturity check job completed successfully.');
+    logger.info('Maturity check job completed successfully.', summary);
     return { success: true, message: 'Maturity check completed', summary };
   } catch (error) {
-    await client.query('ROLLBACK');
     logger.error('Error running maturity check job:', error);
     throw error;
-  } finally {
-    client.release();
   }
 };
 
