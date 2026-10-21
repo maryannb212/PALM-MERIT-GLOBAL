@@ -529,6 +529,61 @@ export const broadcastNotification = async (req, res) => {
 };
 
 /**
+ * Get notifications for the logged-in admin
+ * GET /api/admin/notifications
+ */
+export const getAdminNotifications = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    const { rows } = await query(
+      `SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [adminId]
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching admin notifications:', error);
+    res.status(500).json({ message: 'Server error fetching notifications' });
+  }
+};
+
+/**
+ * Mark admin notification as read
+ * PUT /api/admin/notifications/:id/read
+ */
+export const markAdminNotificationRead = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    const { id } = req.params;
+    const { rows } = await query(
+      `UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2 RETURNING *`,
+      [id, adminId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error marking admin notification read:', error);
+    res.status(500).json({ message: 'Server error updating notification' });
+  }
+};
+
+/**
+ * Mark all admin notifications as read
+ * PUT /api/admin/notifications/read-all
+ */
+export const markAllAdminNotificationsRead = async (req, res) => {
+  try {
+    const adminId = req.user.id;
+    await query(`UPDATE notifications SET is_read = TRUE WHERE user_id = $1`, [adminId]);
+    res.json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Error marking all admin notifications read:', error);
+    res.status(500).json({ message: 'Server error updating notifications' });
+  }
+};
+
+/**
  * Get defaulters (users with active defaults)
  * GET /api/admin/defaulters
  */

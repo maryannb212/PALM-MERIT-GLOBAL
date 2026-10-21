@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getAdminStats, getRecentTransfers, getMaturitySummary, runMaturityCheck } from '../../services/api';
-import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink, FaCreditCard, FaSyncAlt, FaClipboardCheck } from 'react-icons/fa';
+import { getAdminStats, getRecentTransfers, getMaturitySummary, runMaturityCheck, getAdminNotifications, markAdminNotificationRead, markAllAdminNotificationsRead } from '../../services/api';
+import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink, FaCreditCard, FaSyncAlt, FaClipboardCheck, FaBell, FaCheckDouble, FaTimes } from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
 import './Admin.css';
+import { createPortal } from 'react-dom';
 
 const AdminDashboard = () => {
   const { admin } = useAuth();
@@ -25,6 +26,9 @@ const AdminDashboard = () => {
   const [maturitySummary, setMaturitySummary] = useState({ eligibility_review: 0, pending_clearance: 0, pending_settlement: 0 });
   const [maturityRunning, setMaturityRunning] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [showAllNotifs, setShowAllNotifs] = useState(false);
+  const [dismissedNotifications, setDismissedNotifications] = useState([]);
 
   useEffect(() => {
     if (!admin) {
@@ -61,6 +65,46 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchNotifications = async () => {
+    try {
+      const { data } = await getAdminNotifications();
+      setNotifications(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching admin notifications:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!admin) {
+      navigate('/admin/login');
+    } else {
+      fetchStats();
+      fetchNotifications();
+    }
+  }, [admin]);
+
+  const handleMarkRead = async (notifId) => {
+    try {
+      await markAdminNotificationRead(notifId);
+      setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error('Error marking notification read:', err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllAdminNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error('Error marking all notifications read:', err);
+    }
+  };
+
+  const handleDismissNotification = (notifId) => {
+    setDismissedNotifications(prev => [...prev, notifId]);
+  };
+
   const handleRunMaturity = async () => {
     if (!window.confirm('Run the maturity check now? A plan that completes its 84-day cycle and reaches day 90 will enter eligibility review.')) return;
     try {
@@ -90,10 +134,53 @@ const AdminDashboard = () => {
             <p className="text-muted">Overview of Palm Merit Global platform performance and operations.</p>
           </div>
         </div>
-        <button className="btn btn-primary" type="button" onClick={handleRunMaturity} disabled={maturityRunning}>
-          <FaSyncAlt className={maturityRunning ? 'fa-spin' : ''} /> {maturityRunning ? 'Checking...' : 'Run Maturity Check'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button type="button" className="notification-trigger" aria-label="View notifications" title="View notifications" onClick={() => setShowAllNotifs(!showAllNotifs)}>
+            <FaBell />
+            <span className={`notification-count ${notifications.filter(n => !n.is_read).length === 0 ? 'is-zero' : ''}`}>
+              {notifications.filter(n => !n.is_read).length}
+            </span>
+          </button>
+          <button className="btn btn-primary" type="button" onClick={handleRunMaturity} disabled={maturityRunning}>
+            <FaSyncAlt className={maturityRunning ? 'fa-spin' : ''} /> {maturityRunning ? 'Checking...' : 'Run Maturity Check'}
+          </button>
+        </div>
       </header>
+
+      {showAllNotifs && createPortal((
+        <div className="admin-dashboard notification-portal">
+          <div className="notification-overlay" role="dialog" aria-modal="true" aria-label="Notifications" onClick={() => setShowAllNotifs(false)}>
+          <section className="notification-popover" onClick={(event) => event.stopPropagation()}>
+            <div className="notification-popover-header">
+              <div><strong>Notifications</strong><span>{notifications.filter(n => !n.is_read).length} unread</span></div>
+              <div className="notification-header-actions">
+                {notifications.some(n => !n.is_read) && <button type="button" onClick={handleMarkAllRead}><FaCheckDouble /> Mark all read</button>}
+                <button type="button" className="notification-close-button" aria-label="Close notifications" onClick={() => setShowAllNotifs(false)}><FaTimes /></button>
+              </div>
+            </div>
+            <div className="notification-popover-list">
+              {notifications.filter(n => !dismissedNotifications.includes(n.id)).length === 0 ? (
+                <div className="notification-empty-state">You are all caught up.</div>
+              ) : notifications.filter(n => !dismissedNotifications.includes(n.id)).map(notif => {
+                const icon = notif.type === 'admin_approval' ? '🔔' : notif.type === 'clearance' ? '🔓' : notif.type === 'payout' ? '💰' : '📢';
+                return (
+                  <div className={`notification-popover-item ${notif.is_read ? 'is-read' : 'is-unread'}`} key={notif.id}>
+                    <span className="notification-icon">{icon}</span>
+                    <span className="notification-popover-copy"><strong>{notif.title}</strong><small>{notif.message}</small></span>
+                    <time>{new Date(notif.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</time>
+                    <div className="notification-popover-actions">
+                      {!notif.is_read && <button type="button" className="notification-read-button" onClick={() => handleMarkRead(notif.id)}>Read</button>}
+                      {notif.is_read && <button type="button" className="notification-dismiss-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => handleDismissNotification(notif.id)}><FaTimes /></button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {notifications.length > 5 && <button type="button" className="notification-popover-footer" onClick={() => { setShowAllNotifs(false); }}>Manage all notifications</button>}
+          </section>
+          </div>
+        </div>
+      ), document.body)}
 
       <div className="stats-grid stats-grid-financial">
         <div className="stat-card" onClick={() => navigate('/admin/members')}>

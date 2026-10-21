@@ -8,6 +8,9 @@ import {
   getAllTickets, 
   updateTicket,
   broadcastNotification,
+  getAdminNotifications,
+  markAdminNotificationRead,
+  markAllAdminNotificationsRead,
   getDefaulters,
   getReconciliationStats,
   approveManualPayment,
@@ -73,6 +76,9 @@ router.get('/stats', getDashboardStats);
 router.get('/tickets', getAllTickets);
 router.put('/tickets/:id', updateTicket);
 router.post('/notifications/broadcast', broadcastNotification);
+router.get('/notifications', getAdminNotifications);
+router.put('/notifications/:id/read', markAdminNotificationRead);
+router.put('/notifications/read-all', markAllAdminNotificationsRead);
 router.get('/defaulters', getDefaulters);
 router.get('/reconciliation', getReconciliationStats);
 router.get('/cashflow', getCashflowSummary);

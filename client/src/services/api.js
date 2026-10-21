@@ -155,6 +155,9 @@ export const getPendingWithdrawals = () => API.get('/admin/withdrawals/pending')
 export const approveWithdrawal = (id) => API.put(`/admin/withdrawals/${id}/approve`);
 export const rejectWithdrawal = (id, data) => API.put(`/admin/withdrawals/${id}/reject`, data);
 export const broadcastNotification = (data) => API.post('/admin/notifications/broadcast', data);
+export const getAdminNotifications = () => API.get('/admin/notifications');
+export const markAdminNotificationRead = (id) => API.put(`/admin/notifications/${id}/read`);
+export const markAllAdminNotificationsRead = () => API.put('/admin/notifications/read-all');
 export const approveManualPayment = (transactionId, data) => API.post(`/admin/approve-payment/${transactionId}`, data);
 export const getCashflow = () => API.get('/admin/cashflow');
 

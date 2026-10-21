@@ -23,6 +23,36 @@ const getCycleDates = (startDate, planName) => {
   return { cycleEndDate, clearanceDate, config };
 };
 
+const getAdminUserIds = async (client) => {
+  const { rows } = await client.query(`SELECT id FROM users WHERE role = 'admin'`);
+  return rows.map(r => r.id);
+};
+
+const buildAdminNotification = (plan, cycleEndLabel, clearanceDateLabel, config, action) => {
+  const userName = `${plan.first_name} ${plan.last_name}`;
+  const planName = plan.plan_name;
+  const accounts = plan.number_of_accounts || 1;
+  const targetAmount = parseFloat(plan.target_amount || 0).toLocaleString();
+  
+  if (action === 'eligibility_review') {
+    return {
+      title: `Plan Ready for Eligibility Review: ${planName}`,
+      message: `${userName}'s ${planName} plan (${accounts} account${accounts > 1 ? 's' : ''}, ₦${targetAmount} target) has completed its savings cycle on ${cycleEndLabel} and is now in eligibility review. Admin approval required for payout.`,
+      type: 'admin_approval'
+    };
+  }
+  
+  if (action === 'pending_clearance') {
+    return {
+      title: `Clearance Started: ${planName}`,
+      message: `${userName}'s ${planName} plan has entered the clearance phase. User can now pay ₦3,000 per account. Admin payout approval will be required after clearance completes.`,
+      type: 'admin_approval'
+    };
+  }
+  
+  return null;
+};
+
 const hasCompletedContributions = (plan) => {
   const targetAmount = parseFloat(plan.target_amount || 0);
   return targetAmount > 0 && parseFloat(plan.current_amount || 0) >= targetAmount;
@@ -46,6 +76,9 @@ async function processBatch(client, batch, now, summary) {
   const plansToClearance = [];
   const notificationsToSend = [];
   const clearanceNotificationsToSend = [];
+  const adminNotificationsToSend = [];
+
+  const adminUserIds = await getAdminUserIds(client);
 
   for (const plan of batch) {
     const contributionDate = new Date(plan.first_contribution);
@@ -71,13 +104,15 @@ async function processBatch(client, batch, now, summary) {
       plansToReview.push({
         id: plan.id,
         cycleEndDate,
-        maturityDate: cycleEndDate
+        maturityDate: cycleEndDate,
+        plan
       });
     } else if (plan.status !== 'eligibility_review' && now >= clearanceDate) {
       plansToClearance.push({
         id: plan.id,
         cycleEndDate,
-        clearanceRequired: config.clearanceRequired
+        clearanceRequired: config.clearanceRequired,
+        plan
       });
     }
 
@@ -113,6 +148,20 @@ async function processBatch(client, batch, now, summary) {
     `;
     await client.query(query, [...maturityDates, ids]);
     logger.info(`Moved ${plansToReview.length} plans to eligibility_review`);
+
+    for (const p of plansToReview) {
+      for (const adminId of adminUserIds) {
+        const adminNotif = buildAdminNotification(p.plan, 
+          p.cycleEndDate.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric' }),
+          new Date(p.cycleEndDate.getTime() + (p.plan.clearanceRequired ? 3 * 24 * 60 * 60 * 1000 : 0)).toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric' }),
+          PLAN_CYCLES[p.plan.plan_name] || { cycleDays: 90, clearanceRequired: false, clearanceDaysAfterReview: 0 },
+          'eligibility_review'
+        );
+        if (adminNotif) {
+          adminNotificationsToSend.push({ user_id: adminId, ...adminNotif });
+        }
+      }
+    }
   }
 
   if (plansToClearance.length > 0) {
@@ -133,10 +182,24 @@ async function processBatch(client, batch, now, summary) {
       `;
       await client.query(query, [...clearanceMaturityDates, clearanceIds]);
       logger.info(`Moved ${clearanceIds.length} plans to pending_clearance`);
+
+      for (const p of plansToClearance.filter(p => p.clearanceRequired)) {
+        for (const adminId of adminUserIds) {
+          const adminNotif = buildAdminNotification(p.plan,
+            p.cycleEndDate.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric' }),
+            new Date(p.cycleEndDate.getTime() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric' }),
+            PLAN_CYCLES[p.plan.plan_name] || { cycleDays: 90, clearanceRequired: true, clearanceDaysAfterReview: 3 },
+            'pending_clearance'
+          );
+          if (adminNotif) {
+            adminNotificationsToSend.push({ user_id: adminId, ...adminNotif });
+          }
+        }
+      }
     }
   }
 
-  const allNotifications = [...notificationsToSend, ...clearanceNotificationsToSend];
+  const allNotifications = [...notificationsToSend, ...clearanceNotificationsToSend, ...adminNotificationsToSend];
   if (allNotifications.length > 0) {
     const placeholders = allNotifications.map((_, i) =>
       `($${i * 4 + 1}, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4})`
@@ -151,7 +214,7 @@ async function processBatch(client, batch, now, summary) {
 
     const result = await client.query(query, values);
     summary.notifications += result.rowCount || 0;
-    logger.info(`Sent ${result.rowCount || 0} notifications in this batch`);
+    logger.info(`Sent ${result.rowCount || 0} notifications in this batch (${adminNotificationsToSend.length} admin)`);
   }
 }
 
