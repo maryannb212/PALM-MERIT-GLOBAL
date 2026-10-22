@@ -114,6 +114,13 @@ async function processBatch(client, batch, now, summary) {
         clearanceRequired: config.clearanceRequired,
         plan
       });
+    } else if (plan.status === 'eligibility_review' && now >= clearanceDate) {
+      plansToClearance.push({
+        id: plan.id,
+        cycleEndDate,
+        clearanceRequired: config.clearanceRequired,
+        plan
+      });
     }
 
     const { title, message } = buildNotificationMessage(plan, cycleEndLabel, clearanceDateLabel, config);
