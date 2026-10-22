@@ -146,7 +146,7 @@ CREATE TABLE transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     plan_id UUID REFERENCES savings_plans(id) ON DELETE SET NULL,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('deposit', 'withdrawal', 'penalty', 'membership', 'interest', 'wallet_topup', 'clearance', 'contribution', 'savings', 'refund', 'registration', 'penalty_settlement')),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('deposit', 'withdrawal', 'penalty', 'membership', 'interest', 'wallet_topup', 'clearance', 'contribution', 'savings', 'refund', 'registration', 'penalty_settlement', 'default_clearance', 'admin_settlement')),
     amount DECIMAL(12, 2) NOT NULL,
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'cancelled')),
     reference VARCHAR(100) UNIQUE,

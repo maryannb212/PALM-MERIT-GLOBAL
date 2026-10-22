@@ -6,6 +6,7 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fundingTermsConfirmed, setFundingTermsConfirmed] = useState(false);
 
   if (!isOpen) return null;
 
@@ -16,6 +17,10 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
       setError('Minimum deposit amount is ₦500');
       return;
     }
+    if (!fundingTermsConfirmed) {
+      setError('Please confirm the Terms & Conditions before funding your wallet.');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -24,7 +29,9 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
       const { data } = await initializeDeposit({
         amount: parseFloat(amount),
         planId: plan?.id || null,
-        payment_provider: 'lotus'
+        payment_provider: 'lotus',
+        fundingTermsConfirmed: true,
+        fundingTermsVersion: '1.0'
       });
       
       if (data.authorization_url) {
@@ -62,6 +69,16 @@ const DepositModal = ({ isOpen, onClose, plan, onSuccess }) => {
               required 
             />
           </div>
+
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '16px', fontSize: '0.85rem', lineHeight: 1.4 }}>
+            <input
+              type="checkbox"
+              checked={fundingTermsConfirmed}
+              onChange={(e) => setFundingTermsConfirmed(e.target.checked)}
+              required
+            />
+            <span>By proceeding with this funding, I confirm that I have read and agreed to Palm Merit&apos;s <a href="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</a>.</span>
+          </label>
 
           {error && <p className="error-message">{error}</p>}
 

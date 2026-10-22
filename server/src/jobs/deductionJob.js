@@ -153,14 +153,17 @@ const computeIsDue = (plan, config, lastDeductionDate, watNow, todayDayName) => 
     }
   } else {
     if (!lastDeductionDate) {
-      if (plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
+      const startWat = toWATDate(new Date(plan.start_date));
+      const daysSinceStart = calendarDaysBetween(watNow, startWat);
+
+      // CREST is registered on the chosen day, but the first 4,000 weekly contribution
+      // waits until 7 days after registration. Other programmes keep their legacy flow.
+      if (plan.plan_name === 'CREST') {
+        isDue = daysSinceStart >= 7;
+      } else if (plan.preferred_day && plan.preferred_day.trim().toLowerCase() === todayDayName.toLowerCase()) {
         isDue = true;
-      } else {
-        const startWat = toWATDate(new Date(plan.start_date));
-        const daysSinceStart = calendarDaysBetween(watNow, startWat);
-        if (daysSinceStart >= 7) {
-          isDue = true;
-        }
+      } else if (daysSinceStart >= 7) {
+        isDue = true;
       }
     } else {
       const lastWat = toWATDate(new Date(lastDeductionDate));

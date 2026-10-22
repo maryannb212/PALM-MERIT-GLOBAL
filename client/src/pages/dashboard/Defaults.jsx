@@ -138,7 +138,7 @@ const Defaults = () => {
   ];
 
   return (
-    <>
+    <div className="dashboard-page defaults-page">
       <header className="dashboard-header">
         <h2>Defaults & Penalties</h2>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -397,7 +397,7 @@ const Defaults = () => {
         </div>
       )}
 
-    </>
+    </div>
   );
 };
 

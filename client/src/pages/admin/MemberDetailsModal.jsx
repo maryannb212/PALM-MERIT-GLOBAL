@@ -124,6 +124,9 @@ const MemberDetailsModal = ({ isOpen, onClose, userId }) => {
                   <span className={`badge-status ${details.kyc_status === 'verified' ? 'status-verified' : details.kyc_status === 'pending' ? 'status-pending' : 'status-unverified'}`} style={{ fontSize: '0.75rem' }}>
                     KYC: {details.kyc_status?.toUpperCase() || 'UNVERIFIED'}
                   </span>
+                  <span className={`badge-status ${details.status === 'suspended' ? 'status-unverified' : 'status-verified'}`} style={{ fontSize: '0.75rem', background: details.status === 'suspended' ? '#dc2626' : undefined, color: '#fff' }}>
+                    STATUS: {details.status?.toUpperCase() || 'ACTIVE'}
+                  </span>
                 </div>
               </div>
             </div>

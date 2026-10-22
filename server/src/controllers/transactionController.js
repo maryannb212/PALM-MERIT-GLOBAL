@@ -84,14 +84,33 @@ const verifyWithPaystack = async (reference, secret) => {
  */
 export const initializeTransaction = async (req, res) => {
   try {
-    const { amount, planId, type, payment_provider, defaultId, accountIndex } = req.body;
+    const { amount, planId, type, payment_provider, defaultId, accountIndex, fundingTermsConfirmed, fundingTermsVersion } = req.body;
     const userId = req.user.id;
+    const transactionType = type || 'deposit';
     // Fallback email for users who registered without one — payment gateways require a valid email
     const email = req.user.email || `user${userId}@palmmeritglobal.com`;
     const provider = payment_provider || 'lotus';
 
     if (!amount || Number(amount) <= 0) {
       return res.status(400).json({ message: 'A valid positive amount is required.' });
+    }
+
+    const isWalletFunding = ['deposit', 'wallet_topup'].includes(transactionType);
+    let needsFundingConfirmation = false;
+    if (isWalletFunding) {
+      const { rows: priorFunding } = await query(
+        `SELECT id FROM transactions
+         WHERE user_id = $1 AND type IN ('deposit', 'wallet_topup') AND status IN ('pending', 'completed')
+         LIMIT 1`,
+        [userId]
+      );
+      needsFundingConfirmation = priorFunding.length === 0;
+      if (needsFundingConfirmation && (fundingTermsConfirmed !== true || fundingTermsVersion !== '1.0')) {
+        return res.status(400).json({
+          code: 'FUNDING_TERMS_REQUIRED',
+          message: 'Please confirm that you have read and agreed to Palm Merit\'s Terms & Conditions before your first wallet funding.'
+        });
+      }
     }
 
     // Savings Schedule Enforcement Validation (skip for clearance)
@@ -124,7 +143,20 @@ export const initializeTransaction = async (req, res) => {
     }
 
     // Create pending record
-    const transaction = await createTransaction(userId, planId || null, type || 'deposit', Number(amount), reference, provider);
+    const transaction = await createTransaction(userId, planId || null, transactionType, Number(amount), reference, provider);
+
+    if (needsFundingConfirmation) {
+      await query(
+        `INSERT INTO terms_acceptances
+         (user_id, terms_version, acceptance_type, accepted, accepted_at, ip_address, user_agent, transaction_id)
+         SELECT $1, $2, 'FUNDING', TRUE, CURRENT_TIMESTAMP, $3, $4, $5
+         WHERE NOT EXISTS (
+           SELECT 1 FROM terms_acceptances
+           WHERE user_id = $1 AND terms_version = $2 AND acceptance_type = 'FUNDING'
+         )`,
+        [userId, fundingTermsVersion, req.ip || null, req.get('user-agent') || null, transaction.id]
+      );
+    }
 
     let authorization_url = null;
 

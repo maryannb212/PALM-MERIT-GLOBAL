@@ -1,11 +1,14 @@
 import express from 'express';
 import { subscribeToPlan, getMyPlans, payClearanceFee, payTshirtFee, cancelSubscription, getMyDefaults, getPlanDefaultsDetail, bulkClearance, clearDefaults, clearDefaultById } from '../controllers/savingsController.js';
 import { protect, checkMembership } from '../middleware/authMiddleware.js';
+import { getMyCrestEligibility, acceptTerms } from '../controllers/crestPolicyController.js';
 
 const router = express.Router();
 
 router.route('/subscribe').post(protect, checkMembership, subscribeToPlan);
 router.route('/my-plans').get(protect, checkMembership, getMyPlans);
+router.route('/crest-eligibility').get(protect, checkMembership, getMyCrestEligibility);
+router.route('/terms-acceptance').post(protect, acceptTerms);
 router.route('/pay-clearance').post(protect, checkMembership, payClearanceFee);
 router.route('/bulk-clearance').post(protect, checkMembership, bulkClearance);
 router.route('/pay-tshirt').post(protect, payTshirtFee);

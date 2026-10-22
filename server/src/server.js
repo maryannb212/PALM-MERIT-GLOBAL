@@ -49,12 +49,10 @@ const startServer = async (retries = 5) => {
         logger.info(`[startup] Port: ${PORT}`);
         logger.info(`[startup] Ready to accept connections`);
 
-        // Start scheduled cron jobs only when explicitly enabled.
-        // Production scheduling can be handled by GitHub Actions or Render Cron.
-        if (process.env.ENABLE_INTERNAL_CRON === 'true') {
+        if (process.env.ENABLE_INTERNAL_CRON === 'true' || process.env.ENABLE_DEDUCTION_CRON === 'true') {
           startDeductionJob();
-          startMaturityJob();
         }
+        startMaturityJob();
       });
 
       // Graceful shutdown
