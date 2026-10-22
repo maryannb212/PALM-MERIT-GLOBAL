@@ -258,7 +258,6 @@ export const runMaturityCheck = async () => {
         if (batch.length === 0) {
           hasMore = false;
           await client.query('COMMIT');
-          client.release();
           break;
         }
 
