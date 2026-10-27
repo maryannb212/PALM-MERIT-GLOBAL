@@ -19,6 +19,10 @@ export const createSavingsPlan = async (userId, planName, targetAmount, numberOf
 export const getUserSavingsPlans = async (userId) => {
   const sql = `
     SELECT sp.*,
+      (COALESCE(
+        (SELECT MIN(t.created_at) FROM transactions t WHERE t.plan_id = sp.id AND t.type = 'savings'),
+        sp.start_date
+      ) AT TIME ZONE 'Africa/Lagos')::date + 93 AS clearance_available_date,
       COALESCE(
         json_agg(
           json_build_object(

@@ -47,26 +47,38 @@ export const getReferredDownlines = async (userId) => {
     ORDER BY rc.created_at DESC
   `;
   const { rows: downlines } = await query(sql, [userId]);
+  if (downlines.length === 0) return [];
+
+  const downlineIds = [...new Set(downlines.map((downline) => downline.id))];
+  const [{ rows: plans }, { rows: defaultSummaries }] = await Promise.all([
+    query(
+      `SELECT user_id, plan_name, status, target_amount, current_amount, number_of_accounts, created_at
+       FROM savings_plans
+       WHERE user_id = ANY($1::uuid[])`,
+      [downlineIds]
+    ),
+    query(
+      `SELECT user_id, COUNT(*)::int AS count, COALESCE(SUM(penalty_amount), 0) AS amount
+       FROM defaults
+       WHERE user_id = ANY($1::uuid[]) AND resolved = FALSE
+       GROUP BY user_id`,
+      [downlineIds]
+    )
+  ]);
+
+  const plansByUser = new Map();
+  for (const plan of plans) {
+    if (!plansByUser.has(plan.user_id)) plansByUser.set(plan.user_id, []);
+    plansByUser.get(plan.user_id).push(plan);
+  }
+  const defaultsByUser = new Map(defaultSummaries.map((summary) => [summary.user_id, summary]));
 
   const detailedDownlines = [];
   for (const downline of downlines) {
-    // Fetch all savings plans for this downline
-    const { rows: plans } = await query(
-      `SELECT plan_name, status, target_amount, current_amount, number_of_accounts, created_at 
-       FROM savings_plans 
-       WHERE user_id = $1`,
-      [downline.id]
-    );
-
-    const { rows: defaultSummary } = await query(
-      `SELECT COUNT(*)::int AS count, COALESCE(SUM(penalty_amount), 0) AS amount
-       FROM defaults
-       WHERE user_id = $1 AND resolved = FALSE`,
-      [downline.id]
-    );
-
-    const status = calculateDownlineStatus(downline, plans);
-    const defaultCount = defaultSummary[0]?.count || 0;
+    const userPlans = plansByUser.get(downline.id) || [];
+    const defaultSummary = defaultsByUser.get(downline.id);
+    const status = calculateDownlineStatus(downline, userPlans);
+    const defaultCount = defaultSummary?.count || 0;
 
     detailedDownlines.push({
       id: downline.id,
@@ -79,7 +91,7 @@ export const getReferredDownlines = async (userId) => {
       referralCode: downline.referral_code,
       referralUnlockDate: downline.referral_unlock_date,
       referralExpiryDate: downline.referral_expiry_date,
-      plans: plans.map(p => ({
+      plans: userPlans.map(p => ({
         planName: p.plan_name,
         status: p.status,
         targetAmount: p.target_amount,
@@ -92,7 +104,7 @@ export const getReferredDownlines = async (userId) => {
       usedAt: downline.used_at,
       hasDefault: defaultCount > 0,
       defaultCount,
-      outstandingDefault: parseFloat(defaultSummary[0]?.amount || 0)
+      outstandingDefault: parseFloat(defaultSummary?.amount || 0)
     });
   }
 

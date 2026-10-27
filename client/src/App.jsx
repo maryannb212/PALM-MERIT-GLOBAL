@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
@@ -12,6 +12,8 @@ import AdminLockedRoute from './components/AdminLockedRoute';
 const HomePage = lazy(() => import('./pages/public/HomePage'));
 const AboutPage = lazy(() => import('./pages/public/AboutPage'));
 const TermsPage = lazy(() => import('./pages/public/TermsPage'));
+const FAQPage = lazy(() => import('./pages/public/FAQPage'));
+const TestimonialsPage = lazy(() => import('./pages/public/TestimonialsPage'));
 const Ambassadors = lazy(() => import('./pages/Ambassadors'));
 
 // Auth Pages
@@ -73,6 +75,10 @@ const AppLayout = () => {
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const hidePublicNav = isAdminRoute || isDashboardRoute;
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
+
   return (
     <div className="app-container" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: isAdminRoute ? '#f4f6f9' : (isDashboardRoute ? '#f4f7f6' : '#fff') }}>
       {!hidePublicNav && <Navbar />}
@@ -82,6 +88,8 @@ const AppLayout = () => {
             <Route path="/" element={<HomePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/testimonials" element={<TestimonialsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />

@@ -8,6 +8,9 @@ import {
   getAllTickets, 
   updateTicket,
   broadcastNotification,
+  getAdminNotifications,
+  markAdminNotificationRead,
+  markAllAdminNotificationsRead,
   getDefaulters,
   getReconciliationStats,
   approveManualPayment,
@@ -17,6 +20,10 @@ import {
   rejectWithdrawal,
   getAdminReferralStats,
   getEligibilityQueue,
+  enableUserClearance,
+  reEnableClearance,
+  getClearanceCandidates,
+  getMaturitySummary,
   approveEligibility,
   getWebhookLogs,
   retryWebhookLog,
@@ -32,16 +39,19 @@ import {
   getDuePayments,
   getClearancePlans,
   adminSettleClearance,
+  adminBulkSettleClearance,
   impersonateUser,
   getDailyAccountStats,
   getUserCodes,
   assignReferralCode,
   reassignReferralCode,
+  reassignExpiredReferralCode,
   unlockReferralCode,
   lockReferralCode,
   reactivateReferralCode,
   unassignReferralCode,
-  deleteReferralCode
+  deleteReferralCode,
+  updateUserStatus
 } from '../controllers/adminController.js';
 import { getPendingPayouts, approvePayout, getCEOSchedule } from '../controllers/payoutController.js';
 import { getCashflowSummary } from '../controllers/cashflowController.js';
@@ -61,11 +71,15 @@ router.use(protect, admin);
 router.get('/users', getAllUsers);
 router.get('/users/:id', getUserById);
 router.put('/users/:id', updateUser);
+router.put('/users/:id/status', updateUserStatus);
 router.delete('/users/:id', deleteUser);
 router.get('/stats', getDashboardStats);
 router.get('/tickets', getAllTickets);
 router.put('/tickets/:id', updateTicket);
 router.post('/notifications/broadcast', broadcastNotification);
+router.get('/notifications', getAdminNotifications);
+router.put('/notifications/:id/read', markAdminNotificationRead);
+router.put('/notifications/read-all', markAllAdminNotificationsRead);
 router.get('/defaulters', getDefaulters);
 router.get('/reconciliation', getReconciliationStats);
 router.get('/cashflow', getCashflowSummary);
@@ -80,6 +94,8 @@ router.post('/approve-payout', approvePayout);
 router.get('/ceo/schedule', getCEOSchedule);
 router.get('/referrals', getAdminReferralStats);
 router.get('/eligibility-queue', getEligibilityQueue);
+router.post('/users/:userId/enable-clearance', enableUserClearance);
+router.get('/maturity-summary', getMaturitySummary);
 router.post('/approve-eligibility', approveEligibility);
 router.post('/reconcile-lotus-va', reconcileLotusVA);
 router.get('/webhook-logs', getWebhookLogs);
@@ -92,7 +108,12 @@ router.delete('/payments/:id', deleteTestPayment);
 router.get('/due-payments', getDuePayments);
 // Clearance
 router.get('/clearance', getClearancePlans);
+router.get('/clearance/candidates', getClearanceCandidates);
+router.post('/clearance/enable', enableUserClearance);
+router.post('/clearance/re-enable', reEnableClearance);
 router.post('/clearance/settle', adminSettleClearance);
+router.post('/clearance/settle-user', adminBulkSettleClearance);
+router.post('/users/:userId/re-enable-clearance', reEnableClearance);
 // Daily Account Stats
 router.get('/daily-accounts', getDailyAccountStats);
 // User Defaults
@@ -105,6 +126,7 @@ router.post('/impersonate/:userId', impersonateUser);
 router.get('/codes/users/:id', getUserCodes);
 router.post('/referral-codes/:codeId/assign', assignReferralCode);
 router.put('/referral-codes/:codeId/reassign', reassignReferralCode);
+router.post('/referral-codes/:codeId/reassign-expired', reassignExpiredReferralCode);
 router.put('/referral-codes/:codeId/unlock', unlockReferralCode);
 router.put('/referral-codes/:codeId/lock', lockReferralCode);
 router.put('/referral-codes/:codeId/reactivate', reactivateReferralCode);

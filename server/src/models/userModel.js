@@ -43,7 +43,7 @@ export const findUserByEmailOrPhone = async (identifier) => {
 };
 
 export const findUserById = async (id) => {
-  const sql = `SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, available_balance, held_balance, wallet_balance, tshirt_paid, tshirt_payment_date, created_at FROM users WHERE id = $1;`;
+  const sql = `SELECT id, first_name, last_name, email, phone, role, has_paid_membership, kyc_status, profile_image, available_balance, held_balance, wallet_balance, tshirt_paid, tshirt_payment_date, status, created_at FROM users WHERE id = $1;`;
   const result = await query(sql, [id]);
   return result.rows[0];
 };
