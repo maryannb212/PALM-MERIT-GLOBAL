@@ -198,6 +198,7 @@ export const getAdminClearance = (status) => {
   return API.get(`/admin/clearance${params}`);
 };
 export const adminSettleClearance = (planId) => API.post('/admin/clearance/settle', { planId });
+export const adminBulkSettleClearance = (userId) => API.post('/admin/clearance/settle-user', { userId });
 
 // Admin Defaults
 export const getUserDefaults = (userId) => API.get(`/admin/users/${userId}/defaults`);

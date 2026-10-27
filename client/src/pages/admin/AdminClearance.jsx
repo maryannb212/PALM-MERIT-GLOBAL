@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
-import { getAdminClearance, adminSettleClearance, reEnableClearance } from '../../services/api';
+import { getAdminClearance, adminSettleClearance, adminBulkSettleClearance, reEnableClearance } from '../../services/api';
 import ClearanceOverrideModal from './ClearanceOverrideModal';
 import { 
   FaCheckCircle, 
@@ -24,6 +24,7 @@ const AdminClearance = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [settling, setSettling] = useState(null);
+  const [bulkSettling, setBulkSettling] = useState(null);
   const [reEnabling, setReEnabling] = useState(null);
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
@@ -60,6 +61,23 @@ const AdminClearance = () => {
       toast.error(error.response?.data?.message || 'Failed to approve plan.');
     } finally {
       setSettling(null);
+    }
+  };
+
+  const handleBulkSettle = async (userId, userFullName) => {
+    if (!window.confirm(
+      `Mark all plans pending approval for ${userFullName} as paid?\n\nOnly continue after the user's payout has been sent. This will update all of their pending approval plans to Paid.`
+    )) return;
+
+    setBulkSettling(userId);
+    try {
+      const { data } = await adminBulkSettleClearance(userId);
+      toast.success(data.message || 'All pending plans marked as paid.');
+      fetchPlans();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to mark plans as paid.');
+    } finally {
+      setBulkSettling(null);
     }
   };
 
@@ -104,6 +122,19 @@ const AdminClearance = () => {
     const planName = (p.plan_name || '').toLowerCase();
     return fullName.includes(term) || email.includes(term) || planName.includes(term);
   });
+  const planGroupsByUser = new Map();
+  filteredPlans.forEach(plan => {
+    const key = plan.user_id || plan.email;
+    if (!planGroupsByUser.has(key)) {
+      planGroupsByUser.set(key, {
+        userId: plan.user_id,
+        userFullName: `${plan.first_name || ''} ${plan.last_name || ''}`.trim() || plan.email,
+        plans: []
+      });
+    }
+    planGroupsByUser.get(key).plans.push(plan);
+  });
+  const planGroups = Array.from(planGroupsByUser.values());
 
   return (
     <>
@@ -198,7 +229,11 @@ const AdminClearance = () => {
         </div>
       ) : (
         <div className="defaults-plans-list">
-          {filteredPlans.map(plan => {
+          {planGroups.map(group => {
+            const groupPendingApproval = group.plans.filter(plan => plan.status === 'pending_settlement');
+            return (
+              <div key={group.userId || group.plans[0].email} style={{ marginBottom: 24 }}>
+                {group.plans.map(plan => {
             const accounts = plan.number_of_accounts || 1;
             const ac = parseInt(plan.accounts_cleared || 0, 10);
             const remaining = accounts - ac;
@@ -316,6 +351,22 @@ const AdminClearance = () => {
                         {reEnabling === plan.id ? <><FaSpinner className="fa-spin" /> Re-enabling...</> : <><FaRedoAlt /> Re-enable (Return to Normal)</>}
                       </button>
                     </div>
+                  </div>
+                )}
+              </div>
+                ); })}
+                {groupPendingApproval.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                    <button
+                      type="button"
+                      className="clearance-payall-btn"
+                      onClick={() => handleBulkSettle(group.userId, group.userFullName)}
+                      disabled={bulkSettling === group.userId}
+                    >
+                      {bulkSettling === group.userId
+                        ? <><FaSpinner className="fa-spin" /> Processing...</>
+                        : <><FaCreditCard /> Mark all {groupPendingApproval.length} pending plans as paid</>}
+                    </button>
                   </div>
                 )}
               </div>

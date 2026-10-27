@@ -39,6 +39,7 @@ import {
   getDuePayments,
   getClearancePlans,
   adminSettleClearance,
+  adminBulkSettleClearance,
   impersonateUser,
   getDailyAccountStats,
   getUserCodes,
@@ -111,6 +112,7 @@ router.get('/clearance/candidates', getClearanceCandidates);
 router.post('/clearance/enable', enableUserClearance);
 router.post('/clearance/re-enable', reEnableClearance);
 router.post('/clearance/settle', adminSettleClearance);
+router.post('/clearance/settle-user', adminBulkSettleClearance);
 router.post('/users/:userId/re-enable-clearance', reEnableClearance);
 // Daily Account Stats
 router.get('/daily-accounts', getDailyAccountStats);

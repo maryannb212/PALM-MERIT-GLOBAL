@@ -1929,6 +1929,77 @@ export const adminSettleClearance = async (req, res) => {
   }
 };
 
+export const adminBulkSettleClearance = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: 'User ID required' });
+    const adminId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.user?.id || '')
+      ? req.user.id
+      : null;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      const { rows: plans } = await client.query(
+        "SELECT * FROM savings_plans WHERE user_id = $1 AND status = 'pending_settlement' ORDER BY updated_at DESC FOR UPDATE",
+        [userId]
+      );
+      if (plans.length === 0) throw new Error('This user has no plans pending approval');
+
+      const settledPlans = [];
+      for (const plan of plans) {
+        const { rows: updated } = await client.query(`
+          UPDATE savings_plans
+          SET status = 'settled', settled_at = CURRENT_TIMESTAMP, settled_by = $2, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1 RETURNING *
+        `, [plan.id, adminId]);
+
+        const payoutAmount = Math.floor(Number(plan.target_amount || 0));
+        const { rowCount: updatedPayouts } = await client.query(`
+          UPDATE payouts
+          SET status = 'settled',
+              approved_by = $2,
+              approved_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE plan_id = $1
+        `, [plan.id, adminId]);
+
+        if (updatedPayouts === 0) {
+          await client.query(`
+            INSERT INTO payouts (user_id, plan_id, amount, payout_type, status, approved_by, approved_at, notes)
+            VALUES ($1, $2, $3, 'cash', 'settled', $4, CURRENT_TIMESTAMP, 'Settled by admin')
+          `, [plan.user_id, plan.id, payoutAmount, adminId]);
+        }
+
+        await client.query(`
+          INSERT INTO notifications (user_id, title, message, type)
+          VALUES ($1, 'Plan Settled', $2, 'payout')
+        `, [plan.user_id, `${plan.plan_name} program has been approved and paid.`]);
+
+        await logAudit(req.user.id, 'BULK_SETTLE_CLEARANCE', 'savings_plan', plan.id, {
+          userId: plan.user_id,
+          planName: plan.plan_name
+        });
+        settledPlans.push(updated[0]);
+      }
+
+      await client.query('COMMIT');
+      res.json({
+        message: `${settledPlans.length} plan(s) marked as paid.`,
+        plans: settledPlans
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ message: error.message });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error bulk-settling clearance plans:', error);
+    res.status(500).json({ message: 'Server error marking plans as paid' });
+  }
+};
+
 /**
  * Get account creation stats with date filtering
  * GET /api/admin/daily-accounts?filter=today|yesterday|thisMonth|custom&from=YYYY-MM-DD&to=YYYY-MM-DD
