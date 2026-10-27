@@ -311,7 +311,7 @@ export const fastForwardClearance = async (req, res) => {
         if (expected > 0 && currentAmount >= expected) {
           // Contributions complete — if CREST/SILVER require clearance, move to pending_clearance
           if (['CREST', 'SILVER'].includes(planRow.plan_name)) {
-            await query("UPDATE savings_plans SET status = 'pending_clearance', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [planId]);
+            await query("UPDATE savings_plans SET status = 'pending_clearance', clearance_required = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1", [planId]);
             const accounts = planRow.number_of_accounts || 1;
             const totalFee = accounts * 3000;
             const msg = `${planRow.plan_name} program has passed eligibility review. Pay ₦${totalFee.toLocaleString()} clearance fee (₦3,000 × ${accounts} account(s)) to proceed to settlement.`;
@@ -1263,7 +1263,10 @@ export const approveEligibility = async (req, res) => {
 
       const updatePlanSql = `
         UPDATE savings_plans 
-        SET status = $1, payout_date = $2, updated_at = CURRENT_TIMESTAMP
+        SET status = $1,
+            clearance_required = CASE WHEN $1 = 'pending_clearance' THEN TRUE ELSE clearance_required END,
+            payout_date = $2,
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = $3
         RETURNING *;
       `;
