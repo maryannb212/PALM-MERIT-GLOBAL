@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getAdminStats, getRecentTransfers } from '../../services/api';
-import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink, FaCreditCard } from 'react-icons/fa';
+import { getAdminStats, getRecentTransfers, getMaturitySummary, runMaturityCheck, getAdminNotifications, markAdminNotificationRead, markAllAdminNotificationsRead } from '../../services/api';
+import { FaUsers, FaUserCheck, FaExclamationTriangle, FaMoneyBillWave, FaArrowRight, FaChartPie, FaGavel, FaBullhorn, FaPiggyBank, FaUserFriends, FaLink, FaCreditCard, FaSyncAlt, FaClipboardCheck, FaBell, FaCheckDouble, FaTimes } from 'react-icons/fa';
 import '../dashboard/Dashboard.css';
 import './Admin.css';
+import { createPortal } from 'react-dom';
 
 const AdminDashboard = () => {
   const { admin } = useAuth();
@@ -22,7 +23,12 @@ const AdminDashboard = () => {
     recentUsers: []
   });
   const [recentTransfers, setRecentTransfers] = useState([]);
+  const [maturitySummary, setMaturitySummary] = useState({ eligibility_review: 0, pending_clearance: 0, pending_settlement: 0 });
+  const [maturityRunning, setMaturityRunning] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [showAllNotifs, setShowAllNotifs] = useState(false);
+  const [dismissedNotifications, setDismissedNotifications] = useState([]);
 
   useEffect(() => {
     if (!admin) {
@@ -50,10 +56,67 @@ const AdminDashboard = () => {
       });
       const { data: transfers } = await getRecentTransfers(48);
       setRecentTransfers(transfers.slice(0, 10));
+      const { data: maturity } = await getMaturitySummary();
+      setMaturitySummary(maturity);
     } catch (error) {
       console.error('Error fetching admin stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const { data } = await getAdminNotifications();
+      setNotifications(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching admin notifications:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!admin) {
+      navigate('/admin/login');
+    } else {
+      fetchStats();
+      fetchNotifications();
+    }
+  }, [admin]);
+
+  const handleMarkRead = async (notifId) => {
+    try {
+      await markAdminNotificationRead(notifId);
+      setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error('Error marking notification read:', err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllAdminNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error('Error marking all notifications read:', err);
+    }
+  };
+
+  const handleDismissNotification = (notifId) => {
+    setDismissedNotifications(prev => [...prev, notifId]);
+  };
+
+  const handleRunMaturity = async () => {
+    if (!window.confirm('Run the maturity check now? A plan that completes its 84-day cycle and reaches day 90 will enter eligibility review.')) return;
+    try {
+      setMaturityRunning(true);
+      const { data } = await runMaturityCheck();
+      const matured = data.summary?.matured || 0;
+      alert(`${matured} plan${matured === 1 ? '' : 's'} moved to eligibility review.`);
+      await fetchStats();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Unable to run maturity check.');
+    } finally {
+      setMaturityRunning(false);
     }
   };
 
@@ -71,7 +134,53 @@ const AdminDashboard = () => {
             <p className="text-muted">Overview of Palm Merit Global platform performance and operations.</p>
           </div>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button type="button" className="notification-trigger" aria-label="View notifications" title="View notifications" onClick={() => setShowAllNotifs(!showAllNotifs)}>
+            <FaBell />
+            <span className={`notification-count ${notifications.filter(n => !n.is_read).length === 0 ? 'is-zero' : ''}`}>
+              {notifications.filter(n => !n.is_read).length}
+            </span>
+          </button>
+          <button className="btn btn-primary" type="button" onClick={handleRunMaturity} disabled={maturityRunning}>
+            <FaSyncAlt className={maturityRunning ? 'fa-spin' : ''} /> {maturityRunning ? 'Checking...' : 'Run Maturity Check'}
+          </button>
+        </div>
       </header>
+
+      {showAllNotifs && createPortal((
+        <div className="admin-dashboard notification-portal">
+          <div className="notification-overlay" role="dialog" aria-modal="true" aria-label="Notifications" onClick={() => setShowAllNotifs(false)}>
+          <section className="notification-popover" onClick={(event) => event.stopPropagation()}>
+            <div className="notification-popover-header">
+              <div><strong>Notifications</strong><span>{notifications.filter(n => !n.is_read).length} unread</span></div>
+              <div className="notification-header-actions">
+                {notifications.some(n => !n.is_read) && <button type="button" onClick={handleMarkAllRead}><FaCheckDouble /> Mark all read</button>}
+                <button type="button" className="notification-close-button" aria-label="Close notifications" onClick={() => setShowAllNotifs(false)}><FaTimes /></button>
+              </div>
+            </div>
+            <div className="notification-popover-list">
+              {notifications.filter(n => !dismissedNotifications.includes(n.id)).length === 0 ? (
+                <div className="notification-empty-state">You are all caught up.</div>
+              ) : notifications.filter(n => !dismissedNotifications.includes(n.id)).map(notif => {
+                const icon = notif.type === 'admin_approval' ? '🔔' : notif.type === 'clearance' ? '🔓' : notif.type === 'payout' ? '💰' : '📢';
+                return (
+                  <div className={`notification-popover-item ${notif.is_read ? 'is-read' : 'is-unread'}`} key={notif.id}>
+                    <span className="notification-icon">{icon}</span>
+                    <span className="notification-popover-copy"><strong>{notif.title}</strong><small>{notif.message}</small></span>
+                    <time>{new Date(notif.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</time>
+                    <div className="notification-popover-actions">
+                      {!notif.is_read && <button type="button" className="notification-read-button" onClick={() => handleMarkRead(notif.id)}>Read</button>}
+                      {notif.is_read && <button type="button" className="notification-dismiss-button" aria-label="Dismiss notification" title="Dismiss notification" onClick={() => handleDismissNotification(notif.id)}><FaTimes /></button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {notifications.length > 5 && <button type="button" className="notification-popover-footer" onClick={() => { setShowAllNotifs(false); }}>Manage all notifications</button>}
+          </section>
+          </div>
+        </div>
+      ), document.body)}
 
       <div className="stats-grid stats-grid-financial">
         <div className="stat-card" onClick={() => navigate('/admin/members')}>
@@ -122,6 +231,19 @@ const AdminDashboard = () => {
             <h3>AUM</h3>
             <div className="stat-value">{formatCurrency(stats.totalVolume)}</div>
             <p className="stat-label text-success">Total Community Savings</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-card" style={{ marginTop: 24, padding: 22, borderLeft: '4px solid #d4af37' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div className="stat-icon-wrapper" style={{ background: 'rgba(212, 175, 55, 0.12)', color: '#800020' }}><FaClipboardCheck /></div>
+            <div><h3 style={{ margin: 0 }}>Maturity & Clearance Pipeline</h3><p className="text-muted" style={{ margin: '5px 0 0' }}>84-day savings completion • 90-day eligibility review • clearance follows after review.</p></div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="btn btn-outline" type="button" onClick={() => navigate('/admin/eligibility-queue')}>Eligibility Review ({maturitySummary.eligibility_review || 0})</button>
+            <button className="btn btn-accent" type="button" onClick={() => navigate('/admin/clearance')}>Clearance ({maturitySummary.pending_clearance || 0})</button>
           </div>
         </div>
       </div>

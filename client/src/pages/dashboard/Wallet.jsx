@@ -23,7 +23,6 @@ const Wallet = () => {
   const [bvnSubmitting, setBvnSubmitting] = useState(false);
   const [bvnSuccess, setBvnSuccess] = useState('');
 
-
   useEffect(() => {
     const fetchPlans = async () => {
       try {
@@ -36,16 +35,6 @@ const Wallet = () => {
     fetchPlans();
   }, []);
 
-  const oldestPlan = plans.reduce((oldest, p) => {
-    if (!oldest) return p;
-    return new Date(p.created_at) < new Date(oldest.created_at) ? p : oldest;
-  }, null);
-
-
-
-  const isClearanceDue = plans.some(p =>
-    ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required
-  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -69,12 +58,18 @@ const Wallet = () => {
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
+  const handleBvnChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+    setBvnValue(val);
+    setBvnError('');
+    setBvnSuccess('');
+  };
+
   const handleTshirtPayment = async () => {
     if (availableBalance < 5000) {
       alert('Insufficient available balance. Please top up your wallet first.');
       return;
     }
-    
     if (!window.confirm('Are you sure you want to pay ₦5,000 for your Incentive T-Shirt?')) return;
 
     setTshirtLoading(true);
@@ -82,19 +77,12 @@ const Wallet = () => {
       await payTshirtFee();
       updateUser({ tshirt_paid: true });
       alert('T-Shirt payment successful!');
-      window.location.reload();
+      await refreshProfile();
     } catch (error) {
       alert(error.response?.data?.message || 'Payment failed');
     } finally {
       setTshirtLoading(false);
     }
-  };
-
-  const handleBvnChange = (e) => {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
-    setBvnValue(val);
-    setBvnError('');
-    setBvnSuccess('');
   };
 
   const handleBvnSubmit = async () => {
@@ -151,9 +139,21 @@ const Wallet = () => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
   };
 
+  const formatMobileCurrency = (amount) => {
+    const wholeAmount = Math.floor(parseFloat(amount) || 0);
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      maximumFractionDigits: 0
+    }).format(wholeAmount);
+  };
+
   const availableBalance = parseFloat(user?.available_balance || 0);
   const heldBalance = parseFloat(user?.held_balance || 0);
   const walletBalance = parseFloat(user?.walletBalance || user?.wallet_balance || 0);
+  const isClearanceDue = plans.some(p =>
+    ['matured', 'pending_clearance', 'pending_settlement', 'settled'].includes(p.status) && p.clearance_required
+  );
 
   const totalCredit = transactions
     .filter(t => (t.type === 'deposit' || t.type === 'wallet_topup') && t.status === 'completed')
@@ -163,8 +163,29 @@ const Wallet = () => {
     .filter(t => (t.type === 'withdrawal' || t.type === 'subscription' || t.type === 'clearance' || t.type === 'membership') && t.status === 'completed')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
+  const creditTypes = new Set(['deposit', 'wallet_topup', 'refund', 'payout', 'credit']);
+  const transactionsByMonth = transactions.reduce((groups, tx) => {
+    const date = new Date(tx.created_at);
+    const month = Number.isNaN(date.getTime())
+      ? 'Other transactions'
+      : date.toLocaleDateString('en-NG', { month: 'long', year: 'numeric' });
+    (groups[month] ||= []).push(tx);
+    return groups;
+  }, {});
+
+  const getMobileTransactionTitle = (tx) => {
+    const type = String(tx.type || 'transaction').toLowerCase();
+    const planName = tx.plan_name && tx.plan_name.toLowerCase() !== type ? tx.plan_name : '';
+
+    if (type === 'savings') return `${planName || 'Savings'} contribution`;
+    if (type === 'deposit' || type === 'wallet_topup') return 'Wallet funding';
+
+    const label = type.replace(/_/g, ' ');
+    return planName ? `${planName} ${label}` : label.charAt(0).toUpperCase() + label.slice(1);
+  };
+
   return (
-    <>
+    <div className="dashboard-page wallet-page">
         <header className="dashboard-header">
           <h2>My Wallet</h2>
         </header>
@@ -186,10 +207,15 @@ const Wallet = () => {
           <div className="virtual-account-balance" onClick={() => setHideBalances(!hideBalances)} style={{ cursor: 'pointer' }}>
             <span className="label" style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end' }}>
               Wallet Balance 
-              <button onClick={(e) => { e.stopPropagation(); refreshProfile(); }} style={{ background: 'none', border: 'none', color: '#ff781f', cursor: 'pointer', fontSize: '0.85rem', padding: '0', textDecoration: 'underline' }} title="Refresh balance">
-                &#x21bb;
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setHideBalances(!hideBalances); }}
+                className="wallet-visibility-button"
+                aria-label={hideBalances ? 'Show wallet balance' : 'Hide wallet balance'}
+                title={hideBalances ? 'Show wallet balance' : 'Hide wallet balance'}
+              >
+                {hideBalances ? <FaEye /> : <FaEyeSlash />}
               </button>
-              <span style={{ fontSize: '0.85rem', color: '#ff781f' }}>({hideBalances ? 'Show' : 'Hide'})</span>
             </span>
             <span className="amount">
               {hideBalances ? (
@@ -281,19 +307,15 @@ const Wallet = () => {
 
         {/* ─── T-Shirt Reminder Banner ─── */}
         {!user?.tshirt_paid && isClearanceDue && (
-          <div className="tshirt-banner">
+          <div className="tshirt-banner" style={{ marginBottom: '20px' }}>
             <div className="tshirt-content">
               <div className="tshirt-icon">👕</div>
               <div className="tshirt-text">
                 <h4>Incentive T-Shirt Payment Required</h4>
-                <p>To participate in PROGRAMMES and collect payouts, please pay your ₦5,000 T-shirt fee.</p>
+                <p>Your program clearance is due. Pay the ₦5,000 T-shirt fee to remove this reminder.</p>
               </div>
             </div>
-            <button 
-              className="tshirt-btn" 
-              onClick={handleTshirtPayment}
-              disabled={tshirtLoading}
-            >
+            <button className="tshirt-btn" onClick={handleTshirtPayment} disabled={tshirtLoading}>
               {tshirtLoading ? 'Processing...' : 'Pay Now'}
             </button>
           </div>
@@ -305,7 +327,7 @@ const Wallet = () => {
             <div className="stat-icon">💰</div>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
               Available Balance
-              <span style={{ fontSize: '0.8rem', color: '#ff781f', textDecoration: 'underline' }}>({hideBalances ? 'Show' : 'Hide'})</span>
+              <span className="wallet-visibility-icon" aria-hidden="true">{hideBalances ? <FaEye /> : <FaEyeSlash />}</span>
             </h3>
             <div className="stat-value">
               {hideBalances ? (
@@ -319,7 +341,7 @@ const Wallet = () => {
             <div className="stat-icon">🔒</div>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
               Held Balance
-              <span style={{ fontSize: '0.8rem', color: '#ff781f', textDecoration: 'underline' }}>({hideBalances ? 'Show' : 'Hide'})</span>
+              <span className="wallet-visibility-icon" aria-hidden="true">{hideBalances ? <FaEye /> : <FaEyeSlash />}</span>
             </h3>
             <div className="stat-value">
               {hideBalances ? (
@@ -398,6 +420,50 @@ const Wallet = () => {
             </table>
           </div>
 
+          <div className="mobile-transactions-list" aria-label="Transactions grouped by month">
+            {loading ? (
+              <p className="mobile-transactions-empty">Loading transactions...</p>
+            ) : transactions.length > 0 ? (
+              Object.entries(transactionsByMonth).map(([month, monthTransactions]) => (
+                <section className="mobile-transaction-month" key={month}>
+                  <h4>{month}</h4>
+                  <div className="mobile-transaction-group">
+                    {monthTransactions.map((tx) => {
+                      const type = String(tx.type || '').toLowerCase();
+                      const isContribution = type === 'savings';
+                      const isCredit = creditTypes.has(type);
+                      const date = new Date(tx.created_at);
+
+                      return (
+                        <article className="mobile-transaction-row" key={tx.id}>
+                          <span
+                            className={`mobile-transaction-icon${isCredit ? ' is-credit' : ''}`}
+                            aria-hidden="true"
+                          >
+                            {isContribution ? '↑' : isCredit ? '↓' : '↑'}
+                          </span>
+                          <div className="mobile-transaction-details">
+                            <strong>{getMobileTransactionTitle(tx)}</strong>
+                            <span>
+                              {Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleDateString('en-NG', { day: '2-digit', month: 'short' })}
+                              <span className="mobile-transaction-separator"> · </span>
+                              <span className={`mobile-transaction-status status-${String(tx.status || '').toLowerCase()}`}>
+                                {tx.status}
+                              </span>
+                            </span>
+                          </div>
+                          <strong className="mobile-transaction-amount">{formatMobileCurrency(tx.amount)}</strong>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))
+            ) : (
+              <p className="mobile-transactions-empty">No transactions found</p>
+            )}
+          </div>
+
           <div className="table-footer">
             <select className="control-select pagination-select">
               <option>10</option>
@@ -457,7 +523,7 @@ const Wallet = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

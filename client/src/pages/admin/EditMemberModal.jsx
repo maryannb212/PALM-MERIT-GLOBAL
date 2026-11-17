@@ -16,7 +16,8 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
     referral_code: '',
     referred_by: '',
     referral_unlock_date: '',
-    referral_expiry_date: ''
+    referral_expiry_date: '',
+    status: 'active'
   });
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +36,8 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
         referral_code: member.referral_code || '',
         referred_by: member.referred_by || '',
         referral_unlock_date: member.referral_unlock_date ? member.referral_unlock_date.split('T')[0] : '',
-        referral_expiry_date: member.referral_expiry_date ? member.referral_expiry_date.split('T')[0] : ''
+        referral_expiry_date: member.referral_expiry_date ? member.referral_expiry_date.split('T')[0] : '',
+        status: member.status || 'active'
       });
     }
   }, [member]);
@@ -89,6 +91,13 @@ const EditMemberModal = ({ isOpen, onClose, member, onSave }) => {
               <select name="role" value={formData.role} onChange={handleChange} className="refined-input">
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Account Status</label>
+              <select name="status" value={formData.status} onChange={handleChange} className="refined-input">
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
               </select>
             </div>
             <div className="form-group" style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '25px' }}>

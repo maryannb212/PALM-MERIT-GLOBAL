@@ -26,8 +26,10 @@ import adminCronRoutes from './routes/adminCronRoutes.js';
 // dotenv is loaded in server.js before app import
 
 import healthRoutes from './routes/healthRoutes.js';
+import { query as dbQuery } from './config/db.js';
 
 const app = express();
+app.locals.dbQuery = dbQuery;
 
 // Trust proxy for Railway / reverse proxies
 app.set('trust proxy', 1);

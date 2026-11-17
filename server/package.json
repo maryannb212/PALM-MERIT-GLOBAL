@@ -16,7 +16,8 @@
     "migrate:make": "knex migrate:make",
     "migrate:rollback": "knex migrate:rollback",
     "cron:deduction": "node -e \"import('./src/jobs/deductionJob.js').then(m => m.runDeductionJob()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\"",
-    "cron:penalty": "node -e \"import('./src/jobs/deductionJob.js').then(m => m.runDeductionJob()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\""
+    "cron:penalty": "node -e \"import('./src/jobs/deductionJob.js').then(m => m.runDeductionJob()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\"",
+    "cron:maturity": "node -e \"import('./src/jobs/maturityCron.js').then(m => m.runMaturityCheck()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\""
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
@@ -38,7 +39,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^8.0.7",
-    "pg": "^8.21.0",
+    "pg": "^8.23.1",
     "pg-query-stream": "^4.14.0",
     "uuid": "^9.0.1",
     "winston": "^3.19.0"

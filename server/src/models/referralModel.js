@@ -1,4 +1,5 @@
 import { query } from '../config/db.js';
+import { CREST_POLICY } from '../services/crestPolicyService.js';
 
 export const generateUniqueReferralCode = async (planName) => {
   const prefix = planName === 'SILVER' ? 'PMG-SIL' : planName === 'CREST' ? 'PMG-CST' : 'PMG-REF';
@@ -17,7 +18,7 @@ export const generateUniqueReferralCode = async (planName) => {
 };
 
 const PLAN_EXPIRY_DAYS = {
-  CREST: 14,         // 14 days AFTER unlock (unlock = 30 days from creation, so total = 44 days)
+  CREST: CREST_POLICY.referralLinkValidityDays,
   SILVER: 90,
   GOLDEN_BASKET: 90,
   ISUSU: 14
@@ -32,11 +33,11 @@ export const createReferralCodeForPlan = async (client, userId, planId, planName
   if (planName === 'CREST') {
     status = 'locked';
     const unlockDate = new Date(now);
-    unlockDate.setDate(unlockDate.getDate() + 30);
+    unlockDate.setDate(unlockDate.getDate() + CREST_POLICY.referralLinkDelayDays);
     baseUnlockDate = unlockDate.toISOString();
 
-    // CREST codes expire 14 days AFTER unlock, not after creation
-    const expiryDays = PLAN_EXPIRY_DAYS[planName] || 14;
+    // CREST codes expire 7 days AFTER unlock, not after creation
+    const expiryDays = PLAN_EXPIRY_DAYS[planName] || 7;
     var expiresAt = new Date(unlockDate);
     expiresAt.setDate(expiresAt.getDate() + expiryDays);
   } else {
@@ -71,11 +72,11 @@ export const getUserReferralCodes = async (userId) => {
     [userId]
   );
 
-  // Auto-expire codes past their expires_at
+  // Auto-expire codes past their expires_at (never touches used links)
   await query(
     `UPDATE referral_codes
      SET status = 'expired', updated_at = CURRENT_TIMESTAMP
-     WHERE user_id = $1 AND status IN ('available', 'locked') AND expires_at IS NOT NULL AND expires_at <= NOW()`,
+     WHERE user_id = $1 AND status IN ('available', 'locked') AND used_by_user_id IS NULL AND expires_at IS NOT NULL AND expires_at <= NOW()`,
     [userId]
   );
 

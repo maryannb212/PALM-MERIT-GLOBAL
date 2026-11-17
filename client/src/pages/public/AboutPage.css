@@ -1,31 +1,35 @@
-.page-header {
-  background: linear-gradient(rgba(26, 26, 46, 0.8), rgba(26, 26, 46, 0.8)), url('https://images.unsplash.com/photo-1556761175-5973dc0f32d7?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80');
+.about-page { background: var(--color-primary-dark); }
+.about-page .page-header {
+  background: radial-gradient(circle at 80% 20%, rgba(212,175,55,.2), transparent 28%), linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   background-size: cover;
   background-position: center;
-  padding: 80px 0;
-  text-align: center;
+  padding: 110px 0 95px;
+  text-align: left;
   color: var(--color-white);
 }
 
 .page-header h1 {
   color: var(--color-white);
-  font-size: 3rem;
+  font-size: clamp(3rem, 7vw, 6rem);
+  letter-spacing: -.05em;
   margin-bottom: 10px;
 }
 
 .page-header p {
   font-size: 1.2rem;
-  opacity: 0.9;
+  opacity: 0.78;
+  max-width: 520px;
 }
 
 .vision-mission-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--spacing-xl);
+  padding-top: 20px;
 }
 
 .vm-card {
-  background: var(--color-white);
+  background: rgba(255,255,255,.97);
   padding: var(--spacing-xl);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-md);
@@ -64,6 +68,10 @@
   box-shadow: var(--shadow-sm);
   transition: transform 0.3s ease;
 }
+
+.about-page > .section.bg-light { background: var(--color-primary-dark); color: var(--color-white); }
+.about-page .section-header h2 { color: var(--color-white); font-size: clamp(2.4rem, 5vw, 4.5rem); letter-spacing: -.04em; }
+.about-page .section-header p { color: rgba(255,255,255,.68); }
 
 .value-item:hover {
   transform: translateY(-5px);

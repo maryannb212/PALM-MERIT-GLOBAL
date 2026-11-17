@@ -16,6 +16,7 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  min-height: 80px;
 }
 
 .navbar-logo {
@@ -120,12 +121,23 @@
 
   .menu-icon {
     display: block;
-    position: absolute;
-    top: 0;
-    right: 0;
-    transform: translate(-100%, 60%);
+    position: relative;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    margin-left: auto;
     font-size: 1.8rem;
     cursor: pointer;
     color: var(--color-primary-dark);
+    border: 1px solid rgba(128, 0, 32, .15);
+    border-radius: 12px;
+    background: rgba(128, 0, 32, .04);
+  }
+
+  .navbar-logo img {
+    height: 46px;
+    margin-right: 0;
   }
 }

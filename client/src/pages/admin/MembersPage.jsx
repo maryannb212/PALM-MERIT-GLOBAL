@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser, impersonateUser } from '../../services/api';
-import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle, FaLink, FaUserFriends, FaMask } from 'react-icons/fa';
+import { getAllUsers, updateKYCStatus, updateAdminUser, deleteAdminUser, impersonateUser, toggleUserSuspension } from '../../services/api';
+import { FaSearch, FaUsers, FaUserTag, FaCalendarAlt, FaEnvelope, FaPhone, FaShieldAlt, FaCircle, FaCheckCircle, FaEdit, FaTrashAlt, FaEye, FaExclamationTriangle, FaLink, FaUserFriends, FaMask, FaBan } from 'react-icons/fa';
 import EditMemberModal from './EditMemberModal';
 import MemberDetailsModal from './MemberDetailsModal';
 import UserDefaultsModal from './UserDefaultsModal';
@@ -96,6 +96,24 @@ const MembersPage = () => {
     }
   };
 
+  const handleToggleSuspend = async (member) => {
+    const isSuspended = member.status === 'suspended';
+    const action = isSuspended ? 'reactivate' : 'suspend';
+    const confirmMessage = isSuspended
+      ? `Reactivate ${member.first_name || 'this user'}? They will be able to log in and access their account again.`
+      : `Are you sure you want to SUSPEND ${member.first_name || 'this user'}? They will be blocked from logging into the platform.`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      const { data } = await toggleUserSuspension(member.id, !isSuspended);
+      alert(data.message || `User ${action}ed successfully.`);
+      fetchMembers();
+    } catch (err) {
+      alert(err.response?.data?.message || `Failed to ${action} user.`);
+    }
+  };
+
   const handleEditSave = async (userId, data) => {
     try {
       await updateAdminUser(userId, data);
@@ -182,7 +200,14 @@ const MembersPage = () => {
                           {(member.first_name?.[0] || 'U')}{(member.last_name?.[0] || '')}
                         </div>
                         <div className="member-info">
-                          <span className="member-name">{member.first_name || 'Unknown'} {member.last_name || ''}</span>
+                          <span className="member-name">
+                            {member.first_name || 'Unknown'} {member.last_name || ''}
+                            {member.status === 'suspended' && (
+                              <span style={{ marginLeft: 6, fontSize: '0.65rem', background: '#fee2e2', color: '#dc2626', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                                SUSPENDED
+                              </span>
+                            )}
+                          </span>
                           <span className="member-id">UUID: {member.id.substring(0, 8).toUpperCase()}</span>
                         </div>
                       </div>
@@ -320,6 +345,20 @@ const MembersPage = () => {
                           style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.3)' }}
                         >
                           <FaMask />
+                        </button>
+                        <button 
+                          onClick={() => handleToggleSuspend(member)}
+                          className="btn btn-sm"
+                          title={member.status === 'suspended' ? 'Reactivate User' : 'Suspend User'}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            background: member.status === 'suspended' ? '#ecfdf5' : '#fee2e2',
+                            color: member.status === 'suspended' ? '#059669' : '#dc2626',
+                            border: `1px solid ${member.status === 'suspended' ? '#a7f3d0' : '#fca5a5'}`
+                          }}
+                        >
+                          <FaBan />
                         </button>
                       </div>
                     </td>

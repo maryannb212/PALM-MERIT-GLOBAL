@@ -19,7 +19,9 @@ const poolConfig = {
   )) ? { rejectUnauthorized: false } : false,
   max: process.env.DEPLOY_MODE === 'serverless' ? 10 : 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  // Neon can take several seconds to wake or establish a pooled TLS connection.
+  // Five seconds was causing valid requests to fail during that window.
+  connectionTimeoutMillis: 15000,
 };
 
 // If connectionString is missing and we're not in production, use local defaults

@@ -25,8 +25,18 @@ export const createVirtualAccount = async (user) => {
   if (!bvn) {
     throw new Error('BVN is required to create a virtual account. Please complete your KYC submission first.');
   }
+  if (!/^\d{11}$/.test(bvn)) {
+    throw new Error('Invalid BVN format. BVN must be 11 digits.');
+  }
 
   const cleanPhone = (user.phone || '').replace(/[^0-9]/g, '');
+  if (!cleanPhone || cleanPhone.length < 10) {
+    throw new Error('Valid phone number is required to create a virtual account.');
+  }
+
+  if (!user.first_name || !user.last_name) {
+    throw new Error('First name and last name are required to create a virtual account.');
+  }
 
   const payload = {
     currency: 'NGN',
@@ -34,7 +44,7 @@ export const createVirtualAccount = async (user) => {
       first_name: user.first_name,
       last_name: user.last_name,
       email: user.email || `user${user.id}@palmmeritglobal.com`,
-      mobile_no: cleanPhone || user.phone || '',
+      mobile_no: cleanPhone,
       bvn
     }
   };
@@ -57,9 +67,30 @@ export const createVirtualAccount = async (user) => {
 
     return response.data.data;
   } catch (error) {
-    const detail = error.response?.data || error.response?.statusText || error.message;
-    console.error('[VirtualAccountService] Lotus API error:', JSON.stringify({ status: error.response?.status, data: error.response?.data, payload }));
-    throw new Error(typeof detail === 'object' ? JSON.stringify(detail) : detail);
+    const status = error.response?.status;
+    const data = error.response?.data;
+    console.error('[VirtualAccountService] Lotus API error:', JSON.stringify({ status, data, payload }));
+    
+    let message = 'Lotus Bank virtual account creation failed';
+    if (data) {
+      if (typeof data === 'string') {
+        message = data;
+      } else if (data.message) {
+        message = data.message;
+      } else if (data.error) {
+        message = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+      } else if (data.errors) {
+        message = Array.isArray(data.errors) ? data.errors.join(', ') : JSON.stringify(data.errors);
+      } else if (data.detail) {
+        message = data.detail;
+      } else {
+        message = JSON.stringify(data);
+      }
+    } else if (error.message) {
+      message = error.message;
+    }
+    
+    throw new Error(message);
   }
 };
 

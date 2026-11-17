@@ -101,8 +101,8 @@ const BankDetails = () => {
   };
 
   return (
-    <>
-        <header className="dashboard-header">
+    <div className="dashboard-page bank-details-page">
+      <header className="dashboard-header page-toolbar">
           <div className="header-title">
             <button className="btn-icon-only" onClick={() => navigate('/dashboard')}>
               <FaChevronLeft />
@@ -111,7 +111,7 @@ const BankDetails = () => {
           </div>
         </header>
 
-        <div className="bank-details-card card max-width-600 mx-auto mt-4">
+        <div className="bank-details-card card max-width-600 mx-auto mt-4 bank-panel">
           <div className="card-header text-center p-4">
             <FaUniversity size={40} color="var(--color-primary)" />
             <h3 className="mt-2">Settlement Account</h3>
@@ -121,7 +121,7 @@ const BankDetails = () => {
           <form onSubmit={handleSubmit} className="p-4 pt-0">
             <div className="form-group">
               <label>Select Bank</label>
-              <select 
+              <select className="bank-select"
                 name="bankCode" 
                 value={formData.bankCode} 
                 onChange={handleBankChange} 
@@ -173,7 +173,7 @@ const BankDetails = () => {
             </button>
           </form>
         </div>
-    </>
+    </div>
   );
 };
 

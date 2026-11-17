@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, Outlet, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import Sidebar from './Sidebar';
 import AdminSidebar from './AdminSidebar';
+import SocialFollowModal from './SocialFollowModal';
 import { FaBars, FaUserSecret, FaStopCircle } from 'react-icons/fa';
 import '../pages/dashboard/Dashboard.css';
 
@@ -9,7 +11,22 @@ const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const isAdmin = location.pathname.startsWith('/admin');
+  const [showSocialFollow, setShowSocialFollow] = useState(
+    () => Boolean(user && !isAdmin && !sessionStorage.getItem('palmmerit_social_prompt_seen'))
+  );
+
+  useEffect(() => {
+    if (user && !isAdmin && !sessionStorage.getItem('palmmerit_social_prompt_seen')) {
+      setShowSocialFollow(true);
+    }
+  }, [user, isAdmin]);
+
+  const closeSocialFollow = () => {
+    sessionStorage.setItem('palmmerit_social_prompt_seen', 'true');
+    setShowSocialFollow(false);
+  };
 
   const impersonatedUser = useMemo(() => {
     try {
@@ -80,6 +97,7 @@ const DashboardLayout = () => {
       <main className="dashboard-main" style={impersonatedUser ? { marginTop: '40px' } : {}}>
         <Outlet />
       </main>
+      {!isAdmin && showSocialFollow && <SocialFollowModal onClose={closeSocialFollow} />}
     </div>
   );
 };
