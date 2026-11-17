@@ -293,11 +293,18 @@ export const runMaturityCheck = async () => {
 };
 
 export const startMaturityJob = () => {
-  cron.schedule('0 0 * * *', async () => {
+  const runAndLog = async () => {
     try {
-      await runMaturityCheck();
+      const result = await runMaturityCheck();
+      logger.info('Maturity check run completed:', result.summary);
     } catch (error) {
-      logger.error('Error in maturity cron execution:', error);
+      logger.error('Error in maturity check run:', error);
     }
+  };
+
+  cron.schedule('0 0 * * *', async () => {
+    await runAndLog();
   }, { timezone: 'Africa/Lagos' });
+
+  void runAndLog();
 };

@@ -139,6 +139,15 @@ const Wallet = () => {
     return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
   };
 
+  const formatMobileCurrency = (amount) => {
+    const wholeAmount = Math.floor(parseFloat(amount) || 0);
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      maximumFractionDigits: 0
+    }).format(wholeAmount);
+  };
+
   const availableBalance = parseFloat(user?.available_balance || 0);
   const heldBalance = parseFloat(user?.held_balance || 0);
   const walletBalance = parseFloat(user?.walletBalance || user?.wallet_balance || 0);
@@ -153,6 +162,27 @@ const Wallet = () => {
   const totalDebit = transactions
     .filter(t => (t.type === 'withdrawal' || t.type === 'subscription' || t.type === 'clearance' || t.type === 'membership') && t.status === 'completed')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+  const creditTypes = new Set(['deposit', 'wallet_topup', 'refund', 'payout', 'credit']);
+  const transactionsByMonth = transactions.reduce((groups, tx) => {
+    const date = new Date(tx.created_at);
+    const month = Number.isNaN(date.getTime())
+      ? 'Other transactions'
+      : date.toLocaleDateString('en-NG', { month: 'long', year: 'numeric' });
+    (groups[month] ||= []).push(tx);
+    return groups;
+  }, {});
+
+  const getMobileTransactionTitle = (tx) => {
+    const type = String(tx.type || 'transaction').toLowerCase();
+    const planName = tx.plan_name && tx.plan_name.toLowerCase() !== type ? tx.plan_name : '';
+
+    if (type === 'savings') return `${planName || 'Savings'} contribution`;
+    if (type === 'deposit' || type === 'wallet_topup') return 'Wallet funding';
+
+    const label = type.replace(/_/g, ' ');
+    return planName ? `${planName} ${label}` : label.charAt(0).toUpperCase() + label.slice(1);
+  };
 
   return (
     <div className="dashboard-page wallet-page">
@@ -388,6 +418,50 @@ const Wallet = () => {
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="mobile-transactions-list" aria-label="Transactions grouped by month">
+            {loading ? (
+              <p className="mobile-transactions-empty">Loading transactions...</p>
+            ) : transactions.length > 0 ? (
+              Object.entries(transactionsByMonth).map(([month, monthTransactions]) => (
+                <section className="mobile-transaction-month" key={month}>
+                  <h4>{month}</h4>
+                  <div className="mobile-transaction-group">
+                    {monthTransactions.map((tx) => {
+                      const type = String(tx.type || '').toLowerCase();
+                      const isContribution = type === 'savings';
+                      const isCredit = creditTypes.has(type);
+                      const date = new Date(tx.created_at);
+
+                      return (
+                        <article className="mobile-transaction-row" key={tx.id}>
+                          <span
+                            className={`mobile-transaction-icon${isCredit ? ' is-credit' : ''}`}
+                            aria-hidden="true"
+                          >
+                            {isContribution ? '↑' : isCredit ? '↓' : '↑'}
+                          </span>
+                          <div className="mobile-transaction-details">
+                            <strong>{getMobileTransactionTitle(tx)}</strong>
+                            <span>
+                              {Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleDateString('en-NG', { day: '2-digit', month: 'short' })}
+                              <span className="mobile-transaction-separator"> · </span>
+                              <span className={`mobile-transaction-status status-${String(tx.status || '').toLowerCase()}`}>
+                                {tx.status}
+                              </span>
+                            </span>
+                          </div>
+                          <strong className="mobile-transaction-amount">{formatMobileCurrency(tx.amount)}</strong>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))
+            ) : (
+              <p className="mobile-transactions-empty">No transactions found</p>
+            )}
           </div>
 
           <div className="table-footer">

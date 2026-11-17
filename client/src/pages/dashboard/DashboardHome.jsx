@@ -20,6 +20,7 @@ const DashboardHome = () => {
   const [error, setError] = useState(null);
   const [birthdayDismissed, setBirthdayDismissed] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [expandedNotificationIds, setExpandedNotificationIds] = useState([]);
   const [dismissedNotifications, setDismissedNotifications] = useState([]);
   const [showAllNotifs, setShowAllNotifs] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -87,6 +88,10 @@ const DashboardHome = () => {
   }, []);
 
   const handleMarkRead = async (notifId) => {
+    setExpandedNotificationIds(prev => (
+      prev.includes(notifId) ? prev : [...prev, notifId]
+    ));
+
     try {
       await markNotificationRead(notifId);
       setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
@@ -204,9 +209,12 @@ const DashboardHome = () => {
                   ) : notifications.filter(n => !dismissedNotifications.includes(n.id)).map(notif => {
                     const icon = notif.type === 'PAYMENT' ? '💳' : notif.type === 'ALERT' ? '⚠️' : notif.type === 'clearance' ? '🔓' : notif.type === 'payout' ? '💰' : '📢';
                     return (
-                      <div className={`notification-popover-item ${notif.is_read ? 'is-read' : 'is-unread'}`} key={notif.id}>
+                      <div className={`notification-popover-item ${notif.is_read ? 'is-read' : 'is-unread'} ${expandedNotificationIds.includes(notif.id) ? 'is-expanded' : ''}`} key={notif.id}>
                         <span className="notification-icon">{icon}</span>
-                        <span className="notification-popover-copy"><strong>{notif.title}</strong><small>{notif.message}</small></span>
+                        <span className="notification-popover-copy">
+                          <strong>{notif.title}</strong>
+                          <small>{notif.message}</small>
+                        </span>
                         <time>{new Date(notif.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</time>
                         <div className="notification-popover-actions">
                           {!notif.is_read && <button type="button" className="notification-read-button" onClick={() => handleMarkRead(notif.id)}>Read</button>}
@@ -279,13 +287,6 @@ const DashboardHome = () => {
             </div>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
               Wallet Balance
-              <button 
-                onClick={(e) => { e.stopPropagation(); setHideBalances(!hideBalances); }}
-                className="btn-link"
-                style={{ background: 'none', border: 'none', padding: '0', color: 'var(--color-primary)', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline' }}
-              >
-                ({hideBalances ? 'Show' : 'Hide'})
-              </button>
             </h3>
             <div className="stat-count">
               {hideBalances ? (
@@ -297,10 +298,7 @@ const DashboardHome = () => {
               )}
             </div>
           </div>
-          <div className="stat-card count-card" style={{
-            background: user?.savingsStatus === 'defaulted' ? 'linear-gradient(135deg, #dc2626, #991b1b)' : 'linear-gradient(135deg, #059669, #047857)',
-            color: 'white'
-          }}>
+          <div className={`stat-card count-card savings-status-card ${user?.savingsStatus === 'defaulted' ? 'is-defaulted' : 'is-active'}`}>
             <div className="stat-icon" style={{ background: 'rgba(255,255,255,0.2)' }}>
               {user?.savingsStatus === 'defaulted' ? '⚠️' : '✅'}
             </div>
