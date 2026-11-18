@@ -3,6 +3,22 @@ import { FaTimes, FaExclamationTriangle, FaCheckCircle, FaEdit, FaSave } from 'r
 import { getUserDefaults, updateDefault, resolveUserDefaults } from '../../services/api';
 import './Admin.css';
 
+const formatCreatedAtWAT = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return `${date.toLocaleString('en-GB', {
+    timeZone: 'Africa/Lagos',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })} WAT`;
+};
+
 const UserDefaultsModal = ({ isOpen, onClose, userId, userName }) => {
   const [defaults, setDefaults] = useState([]);
   const [summary, setSummary] = useState({ outstanding: 0, count: 0 });
@@ -108,6 +124,7 @@ const UserDefaultsModal = ({ isOpen, onClose, userId, userName }) => {
                   <tr>
                     <th>Plan</th>
                     <th>Missed Date</th>
+                    <th>Default Created (WAT)</th>
                     <th>Penalty Amount</th>
                     <th>Status</th>
                     <th className="text-right">Actions</th>
@@ -118,6 +135,7 @@ const UserDefaultsModal = ({ isOpen, onClose, userId, userName }) => {
                     <tr key={d.id} className="table-row-hover">
                       <td><span className="badge-pill pill-dark">{d.plan_name?.replace('_', ' ')}</span></td>
                       <td className="date-cell">{new Date(d.missed_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                      <td className="date-cell">{formatCreatedAtWAT(d.created_at)}</td>
                       <td>
                         {editingId === d.id ? (
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

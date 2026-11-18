@@ -5,6 +5,22 @@ import { FaUserTimes, FaExclamationTriangle, FaGavel, FaEnvelope, FaCalendarTime
 import '../dashboard/Dashboard.css';
 import './Admin.css';
 
+const formatCreatedAtWAT = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return `${date.toLocaleString('en-GB', {
+    timeZone: 'Africa/Lagos',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })} WAT`;
+};
+
 const DefaultersPage = () => {
   const [defaulters, setDefaulters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +93,7 @@ const DefaultersPage = () => {
           <div className="header-icon"><FaGavel /></div>
           <div>
             <h2>Defaulter Management</h2>
-            <p className="text-muted">Monitor, edit, and resolve member defaults across all programs.</p>
+            <p className="text-muted">Monitor, edit, and resolve member defaults. The deduction cron is scheduled daily at 6:00 PM WAT; recorded creation times are shown in WAT.</p>
           </div>
         </div>
         {actionMsg && (
@@ -167,6 +183,7 @@ const DefaultersPage = () => {
                   <th><FaUser /> Member</th>
                   <th>Subscription Plan</th>
                   <th><FaCalendarTimes /> Missed Date</th>
+                  <th>Default Created (WAT)</th>
                   <th>Penalty Amount</th>
                   <th>Resolve</th>
                   <th className="text-right" style={{ minWidth: 120 }}>Actions</th>
@@ -191,6 +208,9 @@ const DefaultersPage = () => {
                     </td>
                     <td className="date-cell">
                       {new Date(d.missed_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td className="date-cell" title="Time the default record was created">
+                      {formatCreatedAtWAT(d.created_at)}
                     </td>
                     <td>
                       <div className="penalty-value" style={{ fontWeight: 700, color: '#dc2626' }}>
