@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { getMyDefaults, clearDefaults, clearDefaultById } from '../../services/api';
 import { FaExclamationTriangle, FaWallet, FaShieldAlt, FaTimesCircle, FaCheckCircle, FaInfoCircle, FaArrowRight, FaClipboardList, FaMoneyBillWave, FaUniversity, FaLock, FaCreditCard, FaCalendarTimes } from 'react-icons/fa';
 import './Dashboard.css';
@@ -28,6 +29,7 @@ const PLANS_CONFIG = {
 
 const Defaults = () => {
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedPlan, setExpandedPlan] = useState(null);
@@ -83,6 +85,7 @@ const Defaults = () => {
       const { data } = await clearDefaults();
       setClearResult(data);
       setShowConfirm(false);
+      await refreshProfile();
       await fetchDefaults();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to clear defaults. Insufficient balance?');
@@ -98,6 +101,7 @@ const Defaults = () => {
     try {
       const { data } = await clearDefaultById(defaultId);
       setClearResult(data);
+      await refreshProfile();
       await fetchDefaults();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to clear this default. Insufficient balance?');
