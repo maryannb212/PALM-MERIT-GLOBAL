@@ -8,6 +8,7 @@ import { exec } from 'child_process';
 import util from 'util';
 import { startDeductionJob } from './jobs/deductionJob.js';
 import { startMaturityJob } from './jobs/maturityCron.js';
+import { startReferralCodeNotificationJob } from './jobs/referralCodeNotificationJob.js';
 
 const execPromise = util.promisify(exec);
 
@@ -53,6 +54,7 @@ const startServer = async (retries = 5) => {
           startDeductionJob();
         }
         startMaturityJob();
+        startReferralCodeNotificationJob();
       });
 
       // Graceful shutdown

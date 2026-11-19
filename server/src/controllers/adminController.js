@@ -2210,7 +2210,7 @@ export const assignReferralCode = async (req, res) => {
 };
 
 /**
- * Unlock a locked referral code → set status to 'available', clear unlock_date
+ * Unlock a locked referral code and record the unlock timestamp
  * PUT /api/admin/referral-codes/:codeId/unlock
  */
 export const unlockReferralCode = async (req, res) => {
@@ -2240,16 +2240,30 @@ export const unlockReferralCode = async (req, res) => {
         return res.status(400).json({ message: `Can only unlock locked codes. Current status: ${code.status}` });
       }
 
-      await client.query(
-        `UPDATE referral_codes SET status = 'available', unlock_date = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      const { rows: updatedCodes } = await client.query(
+        `UPDATE referral_codes SET status = 'available', unlock_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 RETURNING *`,
         [codeId]
+      );
+
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, message, event_key)
+         VALUES (
+           $1, 'SYSTEM', 'Referral link unlocked',
+           'Your referral link ' || $2 || ' is now unlocked. It expires on ' ||
+             COALESCE(to_char($3::timestamptz AT TIME ZONE 'Africa/Lagos', 'FMMonth DD, YYYY'), 'the scheduled expiry date') || '.',
+           'referral-code:' || $4 || ':unlock:' ||
+             to_char(CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Lagos', 'YYYY-MM-DD')
+         )
+         ON CONFLICT (event_key) DO NOTHING`,
+        [code.user_id, code.code, code.expires_at, code.id]
       );
 
       await client.query('COMMIT');
 
       res.json({
         message: `Code ${code.code} unlocked successfully`,
-        code: { ...code, status: 'available', unlock_date: null }
+        code: updatedCodes[0]
       });
     } catch (e) {
       await client.query('ROLLBACK');
@@ -2295,16 +2309,30 @@ export const reactivateReferralCode = async (req, res) => {
       }
 
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-      await client.query(
-        `UPDATE referral_codes SET status = 'available', expires_at = $1, unlock_date = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      const { rows: updatedCodes } = await client.query(
+        `UPDATE referral_codes SET status = 'available', expires_at = $1, unlock_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2 RETURNING *`,
         [expiresAt, codeId]
+      );
+
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, message, event_key)
+         VALUES (
+           $1, 'SYSTEM', 'Referral link unlocked',
+           'Your referral link ' || $2 || ' has been reactivated and is now available. It expires on ' ||
+             to_char($3::timestamptz AT TIME ZONE 'Africa/Lagos', 'FMMonth DD, YYYY') || '.',
+           'referral-code:' || $4 || ':unlock:' ||
+             to_char(CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Lagos', 'YYYY-MM-DD')
+         )
+         ON CONFLICT (event_key) DO NOTHING`,
+        [code.user_id, code.code, expiresAt, code.id]
       );
 
       await client.query('COMMIT');
 
       res.json({
         message: `Code ${code.code} reactivated for 48 hours`,
-        code: { ...code, status: 'available', expires_at: expiresAt, unlock_date: null }
+        code: updatedCodes[0]
       });
     } catch (e) {
       await client.query('ROLLBACK');

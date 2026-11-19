@@ -231,14 +231,14 @@ const AdminCodeManager = () => {
     if (!d) return 'N/A';
     const dt = new Date(d);
     if (isNaN(dt)) return 'N/A';
-    return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Africa/Lagos' });
   };
 
   const formatDateTime = (d) => {
     if (!d) return 'N/A';
     const dt = new Date(d);
     if (isNaN(dt)) return 'N/A';
-    return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Lagos' });
   };
 
   const statusBadge = (status) => {
@@ -374,6 +374,8 @@ const AdminCodeManager = () => {
                     <th>Code</th>
                     <th>Plan</th>
                     <th>Status</th>
+                    <th>Unlock Date</th>
+                    <th>Expiry Date</th>
                     <th>Assigned To</th>
                     <th>Email</th>
                     <th>Date Used</th>
@@ -391,6 +393,8 @@ const AdminCodeManager = () => {
                         {c.plan_name?.replace('_', ' ').toLowerCase() || 'N/A'}
                       </td>
                       <td>{statusBadge(c.status)}</td>
+                      <td style={{ fontSize: '0.85rem' }}>{formatDate(c.unlock_date)}</td>
+                      <td style={{ fontSize: '0.85rem' }}>{formatDate(c.expires_at)}</td>
                       <td>
                         {c.used_by_name ? (
                           <div>

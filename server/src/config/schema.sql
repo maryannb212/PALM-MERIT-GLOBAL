@@ -187,6 +187,7 @@ CREATE TABLE notifications (
     type VARCHAR(50) NOT NULL, -- SYSTEM, PAYMENT, ALERT
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
+    event_key VARCHAR(255),
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -216,6 +217,7 @@ CREATE TABLE audit_logs (
 
 -- Create indexes for new tables
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_event_key ON notifications(event_key);
 CREATE INDEX idx_defaults_user_id ON defaults(user_id);
 CREATE INDEX idx_defaults_plan_id ON defaults(plan_id);
 CREATE INDEX idx_audit_logs_admin_id ON audit_logs(admin_id);
